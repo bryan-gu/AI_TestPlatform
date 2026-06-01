@@ -12,7 +12,7 @@
         <div class="card-title">测试用例列表</div>
         <div class="card-filter">
           <el-select v-model="selectedProject" placeholder="全部项目" size="small" style="width: 150px" clearable @change="loadCases">
-            <el-option v-for="p in projectOptions" :key="p" :label="p" :value="p" />
+            <el-option v-for="p in projectOptions" :key="p.id" :label="p.name" :value="p.name" />
           </el-select>
         </div>
       </div>
@@ -56,13 +56,14 @@ import { useAppStore } from '../../stores/app'
 import { Edit, Delete } from '@element-plus/icons-vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { getTestCases, getTestCaseStats, updateTestCase, deleteTestCase } from '../../api/testcase'
+import { getProjects } from '../../api/project'
 
 const appStore = useAppStore()
 const loading = ref(false)
 const saving = ref(false)
 const stats = ref({ total: 0, projectCount: 0, passed: 0, passRate: 0, failed: 0, pending: 0 })
 const selectedProject = ref('')
-const projectOptions = ['电商平台 v3.0', '支付系统', '用户中心重构', '推荐算法 A/B']
+const projectOptions = ref([])
 const testCases = ref([])
 const editVisible = ref(false)
 const editId = ref(null)
@@ -105,9 +106,10 @@ onMounted(async () => {
   appStore.setCurrentPage('testcases', '测试用例', '新建用例')
   loading.value = true
   try {
-    const [casesRes, statsRes] = await Promise.all([getTestCases(), getTestCaseStats()])
-    testCases.value = casesRes.data
-    stats.value = statsRes.data
+    const [casesRes, statsRes, projRes] = await Promise.allSettled([getTestCases(), getTestCaseStats(), getProjects()])
+    if (casesRes.status === 'fulfilled') testCases.value = casesRes.value.data
+    if (statsRes.status === 'fulfilled') stats.value = statsRes.value.data
+    if (projRes.status === 'fulfilled') projectOptions.value = projRes.value.data
   } catch (e) { console.error(e) } finally { loading.value = false }
 })
 </script>

@@ -13,6 +13,7 @@ def _seed_database():
     """初始化默认数据"""
     from app.models.role import Role
     from app.models.user import User
+    from app.models.activity import Activity
     from app.core.security import hash_password
 
     db = SessionLocal()
@@ -43,6 +44,16 @@ def _seed_database():
             db.add(admin)
             db.commit()
             print("✓ 默认管理员已创建 (zhang@test.com / 123456)")
+
+            # 创建初始动态
+            if db.query(Activity).count() == 0:
+                activities = [
+                    Activity(icon="CircleCheck", text="TestFlow 平台初始化完成", user_id=admin.id),
+                    Activity(icon="UserFilled", text="管理员账号已创建", user_id=admin.id),
+                ]
+                db.add_all(activities)
+                db.commit()
+                print("✓ 初始动态已创建")
     finally:
         db.close()
 
