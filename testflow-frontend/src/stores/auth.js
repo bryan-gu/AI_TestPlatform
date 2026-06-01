@@ -2,17 +2,6 @@ import { defineStore } from 'pinia'
 import { ref, computed } from 'vue'
 import { login, register, logout, getCurrentUser } from '../api/auth'
 
-// Mock 用户数据（后端未就绪时使用）
-const mockUser = {
-  id: 1,
-  name: '张测试',
-  email: 'zhang@test.com',
-  role: {
-    name: '超级管理员',
-    permissions: ['*']
-  }
-}
-
 export const useAuthStore = defineStore('auth', () => {
   const token = ref(localStorage.getItem('token') || '')
   const user = ref(null)
@@ -28,9 +17,9 @@ export const useAuthStore = defineStore('auth', () => {
         const res = await getCurrentUser()
         user.value = res.data
       } catch (error) {
-        // 后端未就绪时使用 Mock 数据
-        console.warn('后端未连接，使用 Mock 用户数据')
-        user.value = mockUser
+        console.error('获取用户信息失败:', error)
+        token.value = ''
+        localStorage.removeItem('token')
       }
     }
   }
@@ -45,13 +34,7 @@ export const useAuthStore = defineStore('auth', () => {
       await initUser()
       return res
     } catch (error) {
-      // 后端未就绪时模拟登录成功
-      console.warn('后端未连接，使用 Mock 登录')
-      const mockToken = 'mock-token-' + Date.now()
-      token.value = mockToken
-      localStorage.setItem('token', mockToken)
-      user.value = mockUser
-      return { data: { token: mockToken } }
+      throw error
     } finally {
       loading.value = false
     }
@@ -67,13 +50,7 @@ export const useAuthStore = defineStore('auth', () => {
       await initUser()
       return res
     } catch (error) {
-      // 后端未就绪时模拟注册成功
-      console.warn('后端未连接，使用 Mock 注册')
-      const mockToken = 'mock-token-' + Date.now()
-      token.value = mockToken
-      localStorage.setItem('token', mockToken)
-      user.value = { ...mockUser, name: userData.name, email: userData.email }
-      return { data: { token: mockToken } }
+      throw error
     } finally {
       loading.value = false
     }
@@ -84,7 +61,7 @@ export const useAuthStore = defineStore('auth', () => {
     try {
       await logout()
     } catch (error) {
-      // 后端未就绪时忽略登出请求错误
+      // 忽略登出请求错误
     } finally {
       token.value = ''
       user.value = null
