@@ -13,6 +13,9 @@ class Settings(BaseSettings):
     # 文件上传
     UPLOAD_DIR: str = "uploads"
 
+    # CORS允许的来源（逗号分隔）
+    CORS_ORIGINS: str = "http://localhost:3000,http://127.0.0.1:3000"
+
     # 应用
     APP_NAME: str = "TestFlow"
     APP_VERSION: str = "1.0.0"
