@@ -38,6 +38,9 @@ npm-debug.log*
 Thumbs.db
 desktop.ini
 
+# ========== 部署脚本 ==========
+deploy.ps1
+
 # ========== Claude Code ==========
 .claude/
 CLAUDE.md
