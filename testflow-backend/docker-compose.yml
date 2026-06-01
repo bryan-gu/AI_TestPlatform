@@ -18,7 +18,7 @@ services:
   api:
     build: .
     ports:
-      - "8000:8000"
+      - "8002:8000"
     environment:
       DATABASE_URL: postgresql://testflow:testflow123@db:5432/testflow
       JWT_SECRET_KEY: testflow-secret-key-change-in-production
@@ -31,6 +31,13 @@ services:
     volumes:
       - ./app:/code/app
       - uploads:/code/uploads
+
+  web:
+    build: ../testflow-frontend
+    ports:
+      - "3000:80"
+    depends_on:
+      - api
 
 volumes:
   pgdata:
