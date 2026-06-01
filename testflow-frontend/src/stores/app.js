@@ -5,7 +5,8 @@ export const useAppStore = defineStore('app', () => {
   const sidebarCollapsed = ref(localStorage.getItem('sidebarCollapsed') === 'true')
   const currentPage = ref('dashboard')
   const pageTitle = ref('项目总览')
-  const mainButtonText = ref('新建项目')
+  const mainButtonText = ref('')
+  const showMainButton = ref(false)
 
   // 切换侧边栏折叠状态
   function toggleSidebar() {
@@ -17,7 +18,13 @@ export const useAppStore = defineStore('app', () => {
   function setCurrentPage(page, title, buttonText) {
     currentPage.value = page
     pageTitle.value = title
-    mainButtonText.value = buttonText
+    if (buttonText) {
+      mainButtonText.value = buttonText
+      showMainButton.value = true
+    } else {
+      mainButtonText.value = ''
+      showMainButton.value = false
+    }
   }
 
   return {
@@ -25,6 +32,7 @@ export const useAppStore = defineStore('app', () => {
     currentPage,
     pageTitle,
     mainButtonText,
+    showMainButton,
     toggleSidebar,
     setCurrentPage
   }

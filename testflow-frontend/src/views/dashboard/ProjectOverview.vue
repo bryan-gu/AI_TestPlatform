@@ -108,8 +108,10 @@ import { ref, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
 import { getDashboardStats, getDashboardActivities } from '../../api/dashboard'
 import { getProjects } from '../../api/project'
+import { useAppStore } from '../../stores/app'
 
 const router = useRouter()
+const appStore = useAppStore()
 
 const loading = ref(false)
 const loadingActivities = ref(false)
@@ -142,6 +144,7 @@ function goToProjects() {
 }
 
 onMounted(async () => {
+  appStore.setCurrentPage('dashboard', '项目总览')
   // 加载统计数据
   loading.value = true
   try {

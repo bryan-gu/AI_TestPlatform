@@ -5,7 +5,12 @@
       <el-icon><Search /></el-icon>
       <span>搜索...</span>
     </div>
-    <el-button type="primary" class="btn-primary">
+    <el-button
+      v-if="appStore.showMainButton"
+      type="primary"
+      class="btn-primary"
+      @click="handleButtonClick"
+    >
       <el-icon><Plus /></el-icon>
       <span>{{ appStore.mainButtonText }}</span>
     </el-button>
@@ -15,8 +20,14 @@
 <script setup>
 import { Search, Plus } from '@element-plus/icons-vue'
 import { useAppStore } from '../../stores/app'
+import { ElMessage } from 'element-plus'
 
 const appStore = useAppStore()
+
+function handleButtonClick() {
+  // 各页面的新建按钮由各页面自行处理，这里仅做通用提示
+  ElMessage.info('功能开发中...')
+}
 </script>
 
 <style scoped>
