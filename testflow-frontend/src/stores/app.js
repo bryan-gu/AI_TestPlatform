@@ -7,6 +7,7 @@ export const useAppStore = defineStore('app', () => {
   const pageTitle = ref('项目总览')
   const mainButtonText = ref('')
   const showMainButton = ref(false)
+  const mainButtonCallback = ref(null)
 
   // 切换侧边栏折叠状态
   function toggleSidebar() {
@@ -15,15 +16,24 @@ export const useAppStore = defineStore('app', () => {
   }
 
   // 设置当前页面信息
-  function setCurrentPage(page, title, buttonText) {
+  function setCurrentPage(page, title, buttonText, callback) {
     currentPage.value = page
     pageTitle.value = title
     if (buttonText) {
       mainButtonText.value = buttonText
       showMainButton.value = true
+      mainButtonCallback.value = callback || null
     } else {
       mainButtonText.value = ''
       showMainButton.value = false
+      mainButtonCallback.value = null
+    }
+  }
+
+  // 触发Header按钮点击
+  function triggerMainButton() {
+    if (mainButtonCallback.value) {
+      mainButtonCallback.value()
     }
   }
 
@@ -33,7 +43,9 @@ export const useAppStore = defineStore('app', () => {
     pageTitle,
     mainButtonText,
     showMainButton,
+    mainButtonCallback,
     toggleSidebar,
-    setCurrentPage
+    setCurrentPage,
+    triggerMainButton
   }
 })

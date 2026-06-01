@@ -6,32 +6,28 @@
     </div>
 
     <div class="card">
-      <div class="card-head"><div class="card-title">角色列表</div><div class="card-action">新建角色</div></div>
+      <div class="card-head"><div class="card-title">角色列表</div></div>
       <el-table :data="roles" style="width: 100%" v-loading="loading">
-        <el-table-column label="角色名称" min-width="200">
-          <template #default="{ row }">
-            <div class="role-name">
-              <div class="role-icon" :style="{ background: getIconBg(row.name), color: getIconColor(row.name) }"><el-icon><component :is="getIcon(row.name)" /></el-icon></div>
-              <span>{{ row.name }}</span>
-            </div>
-          </template>
-        </el-table-column>
+        <el-table-column label="角色名称" min-width="200"><template #default="{ row }"><div class="role-name"><div class="role-icon" :style="{ background: getIconBg(row.name), color: getIconColor(row.name) }"><el-icon><component :is="getIcon(row.name)" /></el-icon></div><span>{{ row.name }}</span></div></template></el-table-column>
         <el-table-column label="类型" width="100"><template #default="{ row }"><el-tag :type="row.type === '内置' ? 'info' : ''" size="small">{{ row.type }}</el-tag></template></el-table-column>
         <el-table-column prop="member_count" label="成员数" width="80" />
         <el-table-column label="权限范围" min-width="200" show-overflow-tooltip><template #default="{ row }">{{ formatPermissions(row.permissions) }}</template></el-table-column>
         <el-table-column label="操作" width="160">
           <template #default="{ row, $index }">
-            <template v-if="row.is_editable">
-              <div class="action-btns">
-                <el-button type="primary" link size="small" @click="handleEdit(row)"><el-icon><Edit /></el-icon>编辑</el-button>
-                <el-button type="danger" link size="small" @click="handleDelete($index, row)"><el-icon><Delete /></el-icon>删除</el-button>
-              </div>
-            </template>
+            <template v-if="row.is_editable"><div class="action-btns"><el-button type="primary" link size="small" @click="handleEdit(row)"><el-icon><Edit /></el-icon>编辑</el-button><el-button type="danger" link size="small" @click="handleDelete($index, row)"><el-icon><Delete /></el-icon>删除</el-button></div></template>
             <span v-else class="action-disabled">不可编辑</span>
           </template>
         </el-table-column>
       </el-table>
     </div>
+
+    <el-dialog v-model="createVisible" title="新建角色" width="520px" destroy-on-close>
+      <el-form :model="createForm" label-width="80px">
+        <el-form-item label="角色名称"><el-input v-model="createForm.name" placeholder="请输入角色名称" /></el-form-item>
+        <el-form-item label="权限范围"><el-input v-model="createForm.permissionsText" type="textarea" :rows="3" placeholder="多个权限用逗号分隔，如：project.view,case.edit" /></el-form-item>
+      </el-form>
+      <template #footer><el-button @click="createVisible = false">取消</el-button><el-button type="primary" @click="handleCreate" :loading="creating">创建</el-button></template>
+    </el-dialog>
 
     <el-dialog v-model="editVisible" title="编辑角色" width="520px" destroy-on-close>
       <el-form :model="editForm" label-width="80px">
@@ -49,13 +45,17 @@ import { useAppStore } from '../../stores/app'
 import { Trophy, Lock, User, View, Edit, Delete } from '@element-plus/icons-vue'
 import * as icons from '@element-plus/icons-vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
-import { getRoles, getRoleStats, updateRole, deleteRole } from '../../api/role'
+import { getRoles, getRoleStats, createRole, updateRole, deleteRole } from '../../api/role'
 
 const appStore = useAppStore()
 const loading = ref(false)
 const saving = ref(false)
+const creating = ref(false)
 const stats = ref({ totalRoles: 0, builtInRoles: 0, totalPermissions: 0 })
 const roles = ref([])
+
+const createVisible = ref(false)
+const createForm = reactive({ name: '', permissionsText: '' })
 const editVisible = ref(false)
 const editId = ref(null)
 const editForm = reactive({ name: '', permissionsText: '' })
@@ -69,6 +69,22 @@ function getIconBg(name) { return iconBgMap[name] || '#F1EFE8' }
 function getIconColor(name) { return iconColorMap[name] || '#2C2C2A' }
 function formatPermissions(perms) { return Array.isArray(perms) ? perms.join('、') : perms || '' }
 
+function openCreateDialog() {
+  Object.assign(createForm, { name: '', permissionsText: '' })
+  createVisible.value = true
+}
+
+async function handleCreate() {
+  creating.value = true
+  try {
+    const permissions = createForm.permissionsText.split(',').map(s => s.trim()).filter(Boolean)
+    await createRole({ name: createForm.name, permissions })
+    roles.value = (await getRoles()).data
+    ElMessage.success('创建成功')
+    createVisible.value = false
+  } catch (e) { ElMessage.error('创建失败') } finally { creating.value = false }
+}
+
 function handleEdit(row) {
   editId.value = row.id
   Object.assign(editForm, { name: row.name, permissionsText: Array.isArray(row.permissions) ? row.permissions.join(',') : row.permissions || '' })
@@ -80,8 +96,7 @@ async function handleSave() {
   try {
     const permissions = editForm.permissionsText.split(',').map(s => s.trim()).filter(Boolean)
     await updateRole(editId.value, { name: editForm.name, permissions })
-    const res = await getRoles()
-    roles.value = res.data
+    roles.value = (await getRoles()).data
     ElMessage.success('保存成功')
     editVisible.value = false
   } catch (e) { ElMessage.error('保存失败') } finally { saving.value = false }
@@ -93,12 +108,12 @@ function handleDelete(index, row) {
 }
 
 onMounted(async () => {
-  appStore.setCurrentPage('roles', '角色管理', '新建角色')
+  appStore.setCurrentPage('roles', '角色管理', '新建角色', openCreateDialog)
   loading.value = true
   try {
-    const [rolesRes, statsRes] = await Promise.all([getRoles(), getRoleStats()])
-    roles.value = rolesRes.data
-    stats.value = statsRes.data
+    const [rolesRes, statsRes] = await Promise.allSettled([getRoles(), getRoleStats()])
+    if (rolesRes.status === 'fulfilled') roles.value = rolesRes.value.data
+    if (statsRes.status === 'fulfilled') stats.value = statsRes.value.data
   } catch (e) { console.error(e) } finally { loading.value = false }
 })
 </script>

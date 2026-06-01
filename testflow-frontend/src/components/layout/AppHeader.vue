@@ -25,8 +25,7 @@ import { ElMessage } from 'element-plus'
 const appStore = useAppStore()
 
 function handleButtonClick() {
-  // 各页面的新建按钮由各页面自行处理，这里仅做通用提示
-  ElMessage.info('功能开发中...')
+  appStore.triggerMainButton()
 }
 </script>
 

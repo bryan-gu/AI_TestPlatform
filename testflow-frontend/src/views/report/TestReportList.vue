@@ -8,7 +8,7 @@
     </div>
 
     <div class="card">
-      <div class="card-head"><div class="card-title">测试报告列表</div><div class="card-action">生成报告</div></div>
+      <div class="card-head"><div class="card-title">测试报告列表</div></div>
       <el-table :data="reports" style="width: 100%" v-loading="loading">
         <el-table-column prop="name" label="报告名称" min-width="250" show-overflow-tooltip />
         <el-table-column prop="project" label="所属项目" width="150" />
@@ -17,25 +17,25 @@
         <el-table-column label="状态" width="100"><template #default="{ row }"><el-tag :type="row.status === '已审批' ? 'success' : 'warning'" size="small">{{ row.status }}</el-tag></template></el-table-column>
         <el-table-column label="生成时间" width="120"><template #default="{ row }">{{ formatDate(row.created_at) }}</template></el-table-column>
         <el-table-column label="操作" width="140" fixed="right">
-          <template #default="{ row, $index }">
-            <div class="action-btns">
-              <el-button type="primary" link size="small" @click="handleEdit(row)"><el-icon><Edit /></el-icon>编辑</el-button>
-              <el-button type="danger" link size="small" @click="handleDelete($index, row)"><el-icon><Delete /></el-icon>删除</el-button>
-            </div>
-          </template>
+          <template #default="{ row, $index }"><div class="action-btns"><el-button type="primary" link size="small" @click="handleEdit(row)"><el-icon><Edit /></el-icon>编辑</el-button><el-button type="danger" link size="small" @click="handleDelete($index, row)"><el-icon><Delete /></el-icon>删除</el-button></div></template>
         </el-table-column>
       </el-table>
     </div>
+
+    <el-dialog v-model="createVisible" title="生成报告" width="520px" destroy-on-close>
+      <el-form :model="createForm" label-width="80px">
+        <el-form-item label="报告名称"><el-input v-model="createForm.name" placeholder="请输入报告名称" /></el-form-item>
+        <el-form-item label="所属项目"><el-select v-model="createForm.project_id" style="width: 100%" placeholder="选择项目"><el-option v-for="p in projectOptions" :key="p.id" :label="p.name" :value="p.id" /></el-select></el-form-item>
+      </el-form>
+      <template #footer><el-button @click="createVisible = false">取消</el-button><el-button type="primary" @click="handleCreate" :loading="creating">生成</el-button></template>
+    </el-dialog>
 
     <el-dialog v-model="editVisible" title="编辑报告" width="520px" destroy-on-close>
       <el-form :model="editForm" label-width="80px">
         <el-form-item label="报告名称"><el-input v-model="editForm.name" /></el-form-item>
         <el-form-item label="状态"><el-select v-model="editForm.status" style="width: 100%"><el-option label="已审批" value="已审批" /><el-option label="待审批" value="待审批" /></el-select></el-form-item>
       </el-form>
-      <template #footer>
-        <el-button @click="editVisible = false">取消</el-button>
-        <el-button type="primary" @click="handleSave" :loading="saving">保存</el-button>
-      </template>
+      <template #footer><el-button @click="editVisible = false">取消</el-button><el-button type="primary" @click="handleSave" :loading="saving">保存</el-button></template>
     </el-dialog>
   </div>
 </template>
@@ -45,34 +45,40 @@ import { ref, reactive, onMounted } from 'vue'
 import { useAppStore } from '../../stores/app'
 import { Edit, Delete } from '@element-plus/icons-vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
-import { getReports, getReportStats, updateReport, deleteReport } from '../../api/report'
+import { getReports, getReportStats, createReport, updateReport, deleteReport } from '../../api/report'
+import { getProjects } from '../../api/project'
 
 const appStore = useAppStore()
 const loading = ref(false)
 const saving = ref(false)
+const creating = ref(false)
 const stats = ref({ monthlyReports: 0, monthlyChange: 0, avgPassRate: 0, totalDefects: 0, fixedDefects: 0, pendingApproval: 0 })
 const reports = ref([])
+const projectOptions = ref([])
+
+const createVisible = ref(false)
+const createForm = reactive({ name: '', project_id: null })
 const editVisible = ref(false)
 const editId = ref(null)
 const editForm = reactive({ name: '', status: '' })
 
 function formatDate(d) { return d ? d.split('T')[0] : '' }
 
-function handleEdit(row) {
-  editId.value = row.id
-  Object.assign(editForm, { name: row.name, status: row.status })
-  editVisible.value = true
+function openCreateDialog() {
+  Object.assign(createForm, { name: '', project_id: null })
+  createVisible.value = true
 }
+
+async function handleCreate() {
+  creating.value = true
+  try { await createReport({ ...createForm }); const res = await getReports(); reports.value = res.data; ElMessage.success('生成成功'); createVisible.value = false } catch (e) { ElMessage.error('生成失败') } finally { creating.value = false }
+}
+
+function handleEdit(row) { editId.value = row.id; Object.assign(editForm, { name: row.name, status: row.status }); editVisible.value = true }
 
 async function handleSave() {
   saving.value = true
-  try {
-    await updateReport(editId.value, { ...editForm })
-    const res = await getReports()
-    reports.value = res.data
-    ElMessage.success('保存成功')
-    editVisible.value = false
-  } catch (e) { ElMessage.error('保存失败') } finally { saving.value = false }
+  try { await updateReport(editId.value, { ...editForm }); const res = await getReports(); reports.value = res.data; ElMessage.success('保存成功'); editVisible.value = false } catch (e) { ElMessage.error('保存失败') } finally { saving.value = false }
 }
 
 function handleDelete(index, row) {
@@ -81,12 +87,13 @@ function handleDelete(index, row) {
 }
 
 onMounted(async () => {
-  appStore.setCurrentPage('reports', '测试报告', '生成报告')
+  appStore.setCurrentPage('reports', '测试报告', '生成报告', openCreateDialog)
   loading.value = true
   try {
-    const [repRes, statsRes] = await Promise.all([getReports(), getReportStats()])
-    reports.value = repRes.data
-    stats.value = statsRes.data
+    const [repRes, statsRes, projRes] = await Promise.allSettled([getReports(), getReportStats(), getProjects()])
+    if (repRes.status === 'fulfilled') reports.value = repRes.value.data
+    if (statsRes.status === 'fulfilled') stats.value = statsRes.value.data
+    if (projRes.status === 'fulfilled') projectOptions.value = projRes.value.data
   } catch (e) { console.error(e) } finally { loading.value = false }
 })
 </script>
