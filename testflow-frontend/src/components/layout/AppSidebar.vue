@@ -28,7 +28,7 @@
       >
         <el-icon><component :is="icons[item.icon]" /></el-icon>
         <span>{{ item.title }}</span>
-        <span v-if="item.badge" class="nav-badge">{{ item.badge }}</span>
+        <span v-if="item.badge != null && item.badge > 0" class="nav-badge">{{ item.badge }}</span>
       </div>
     </div>
 
@@ -44,7 +44,7 @@
       >
         <el-icon><component :is="icons[item.icon]" /></el-icon>
         <span>{{ item.title }}</span>
-        <span v-if="item.badge" class="nav-badge">{{ item.badge }}</span>
+        <span v-if="item.badge != null && item.badge > 0" class="nav-badge">{{ item.badge }}</span>
       </div>
     </div>
 
@@ -60,7 +60,7 @@
       >
         <el-icon><component :is="icons[item.icon]" /></el-icon>
         <span>{{ item.title }}</span>
-        <span v-if="item.badge" class="nav-badge">{{ item.badge }}</span>
+        <span v-if="item.badge != null && item.badge > 0" class="nav-badge">{{ item.badge }}</span>
       </div>
     </div>
 
@@ -78,11 +78,16 @@
 </template>
 
 <script setup>
-import { computed } from 'vue'
+import { computed, reactive, onMounted } from 'vue'
 import { useRouter, useRoute } from 'vue-router'
 import { useAppStore } from '../../stores/app'
 import { useAuthStore } from '../../stores/auth'
 import * as icons from '@element-plus/icons-vue'
+import { getProjects } from '../../api/project'
+import { getTestCaseStats } from '../../api/testcase'
+import { getReportStats } from '../../api/report'
+import { getKnowledgeStats } from '../../api/knowledge'
+import { getUsers } from '../../api/user'
 
 const router = useRouter()
 const route = useRoute()
@@ -92,26 +97,60 @@ const authStore = useAuthStore()
 const user = computed(() => authStore.user)
 const currentRoute = computed(() => route.path)
 
-const projectMenus = [
+const projectMenus = reactive([
   { path: '/dashboard', title: '项目总览', icon: 'Odometer' },
-  { path: '/projects', title: '项目管理', icon: 'Folder', badge: 4 },
-  { path: '/testcases', title: '测试用例', icon: 'Finished', badge: 128 },
-  { path: '/reports', title: '测试报告', icon: 'DataAnalysis', badge: 12 }
-]
+  { path: '/projects', title: '项目管理', icon: 'Folder', badge: 0 },
+  { path: '/testcases', title: '测试用例', icon: 'Finished', badge: 0 },
+  { path: '/reports', title: '测试报告', icon: 'DataAnalysis', badge: 0 }
+])
 
-const knowledgeMenus = [
-  { path: '/knowledge', title: '知识库', icon: 'Collection', badge: 36 },
+const knowledgeMenus = reactive([
+  { path: '/knowledge', title: '知识库', icon: 'Collection', badge: 0 },
   { path: '/knowledge/graph', title: '知识图谱', icon: 'Share' }
-]
+])
 
-const systemMenus = [
+const systemMenus = reactive([
   { path: '/roles', title: '角色管理', icon: 'Lock' },
-  { path: '/users', title: '用户管理', icon: 'User', badge: 24 }
-]
+  { path: '/users', title: '用户管理', icon: 'User', badge: 0 }
+])
 
 function navigateTo(item) {
   router.push(item.path)
 }
+
+async function loadBadges() {
+  try {
+    const [projRes, caseStatsRes, reportStatsRes, kbStatsRes, usersRes] = await Promise.allSettled([
+      getProjects(),
+      getTestCaseStats(),
+      getReportStats(),
+      getKnowledgeStats(),
+      getUsers()
+    ])
+
+    if (projRes.status === 'fulfilled') {
+      projectMenus[1].badge = projRes.value.data?.length || 0
+    }
+    if (caseStatsRes.status === 'fulfilled') {
+      projectMenus[2].badge = caseStatsRes.value.data?.total || 0
+    }
+    if (reportStatsRes.status === 'fulfilled') {
+      projectMenus[3].badge = reportStatsRes.value.data?.monthlyReports || 0
+    }
+    if (kbStatsRes.status === 'fulfilled') {
+      knowledgeMenus[0].badge = kbStatsRes.value.data?.totalDocs || 0
+    }
+    if (usersRes.status === 'fulfilled') {
+      systemMenus[1].badge = usersRes.value.data?.length || 0
+    }
+  } catch (e) {
+    console.error('加载侧边栏数据失败:', e)
+  }
+}
+
+onMounted(() => {
+  loadBadges()
+})
 </script>
 
 <style scoped>
