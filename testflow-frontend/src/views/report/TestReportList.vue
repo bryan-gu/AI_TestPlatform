@@ -1,0 +1,148 @@
+<template>
+  <div class="report-list">
+    <!-- 统计卡片 -->
+    <div class="stats-grid">
+      <div class="stat-card">
+        <div class="stat-label">本月报告</div>
+        <div class="stat-value">{{ stats.monthlyReports }}</div>
+        <div class="stat-sub">
+          <span class="stat-dot dot-blue"></span>
+          较上月 +{{ stats.monthlyChange }}
+        </div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-label">平均通过率</div>
+        <div class="stat-value">{{ stats.avgPassRate }}%</div>
+        <div class="stat-sub">
+          <span class="stat-dot dot-green"></span>
+          持续提升
+        </div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-label">缺陷总计</div>
+        <div class="stat-value">{{ stats.totalDefects }}</div>
+        <div class="stat-sub">
+          <span class="stat-dot dot-red"></span>
+          已修复 {{ stats.fixedDefects }}
+        </div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-label">待审批报告</div>
+        <div class="stat-value">{{ stats.pendingApproval }}</div>
+        <div class="stat-sub">
+          <span class="stat-dot dot-amber"></span>
+          需要处理
+        </div>
+      </div>
+    </div>
+
+    <!-- 报告列表 -->
+    <div class="card">
+      <div class="card-head">
+        <div class="card-title">测试报告列表</div>
+        <div class="card-action">生成报告</div>
+      </div>
+      <el-table :data="reports" style="width: 100%">
+        <el-table-column prop="name" label="报告名称" min-width="250" show-overflow-tooltip />
+        <el-table-column prop="project" label="所属项目" width="150" />
+        <el-table-column label="通过率" width="100">
+          <template #default="{ row }">
+            <span :style="{ color: row.passRate >= 85 ? '#1D9E75' : '#EF9F27', fontWeight: 500 }">{{ row.passRate }}%</span>
+          </template>
+        </el-table-column>
+        <el-table-column prop="defectCount" label="缺陷数" width="80" />
+        <el-table-column label="状态" width="100">
+          <template #default="{ row }">
+            <el-tag :type="row.status === '已审批' ? 'success' : 'warning'" size="small">{{ row.status }}</el-tag>
+          </template>
+        </el-table-column>
+        <el-table-column prop="createdAt" label="生成时间" width="120" />
+        <el-table-column label="操作" width="140" fixed="right">
+          <template #default="{ row, $index }">
+            <div class="action-btns">
+              <el-button type="primary" link size="small" @click="handleEdit(row)">
+                <el-icon><Edit /></el-icon>编辑
+              </el-button>
+              <el-button type="danger" link size="small" @click="handleDelete($index, row.name)">
+                <el-icon><Delete /></el-icon>删除
+              </el-button>
+            </div>
+          </template>
+        </el-table-column>
+      </el-table>
+    </div>
+
+    <!-- 编辑对话框 -->
+    <el-dialog v-model="editVisible" title="编辑报告" width="520px" destroy-on-close>
+      <el-form :model="editForm" label-width="80px">
+        <el-form-item label="报告名称">
+          <el-input v-model="editForm.name" />
+        </el-form-item>
+        <el-form-item label="状态">
+          <el-select v-model="editForm.status" style="width: 100%">
+            <el-option label="已审批" value="已审批" />
+            <el-option label="待审批" value="待审批" />
+          </el-select>
+        </el-form-item>
+      </el-form>
+      <template #footer>
+        <el-button @click="editVisible = false">取消</el-button>
+        <el-button type="primary" @click="handleSave">保存</el-button>
+      </template>
+    </el-dialog>
+  </div>
+</template>
+
+<script setup>
+import { ref, reactive, onMounted } from 'vue'
+import { useAppStore } from '../../stores/app'
+import { Edit, Delete } from '@element-plus/icons-vue'
+import { ElMessage, ElMessageBox } from 'element-plus'
+
+const appStore = useAppStore()
+
+const stats = ref({ monthlyReports: 12, monthlyChange: 3, avgPassRate: 87, totalDefects: 34, fixedDefects: 25, pendingApproval: 2 })
+
+const reports = ref([
+  { name: '支付系统回归测试报告 #12', project: '支付系统', passRate: 94, defectCount: 2, status: '已审批', createdAt: '10 分钟前' },
+  { name: '电商平台迭代测试报告 #8', project: '电商平台 v3.0', passRate: 81, defectCount: 9, status: '待审批', createdAt: '今天 09:00' },
+  { name: '用户中心冒烟测试报告 #3', project: '用户中心重构', passRate: 89, defectCount: 4, status: '待审批', createdAt: '昨天 17:45' },
+  { name: '电商平台迭代测试报告 #7', project: '电商平台 v3.0', passRate: 92, defectCount: 6, status: '已审批', createdAt: '上周' }
+])
+
+const editVisible = ref(false)
+const editIndex = ref(-1)
+const editForm = reactive({ name: '', status: '' })
+
+function handleEdit(row) {
+  editIndex.value = reports.value.indexOf(row)
+  Object.assign(editForm, { name: row.name, status: row.status })
+  editVisible.value = true
+}
+
+function handleSave() {
+  if (editIndex.value >= 0) {
+    Object.assign(reports.value[editIndex.value], editForm)
+    ElMessage.success('保存成功')
+  }
+  editVisible.value = false
+}
+
+function handleDelete(index, name) {
+  ElMessageBox.confirm(`确定要删除报告"${name}"吗？删除后数据将无法恢复。`, '确认删除', {
+    confirmButtonText: '确认删除', cancelButtonText: '取消', type: 'warning'
+  }).then(() => {
+    reports.value.splice(index, 1)
+    ElMessage.success('删除成功')
+  }).catch(() => {})
+}
+
+onMounted(() => {
+  appStore.setCurrentPage('reports', '测试报告', '生成报告')
+})
+</script>
+
+<style scoped>
+.report-list { max-width: 1400px; }
+.action-btns { display: flex; gap: 4px; }
+</style>

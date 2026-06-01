@@ -1,0 +1,37 @@
+services:
+  db:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_DB: testflow
+      POSTGRES_USER: testflow
+      POSTGRES_PASSWORD: testflow123
+    ports:
+      - "5432:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U testflow"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  api:
+    build: .
+    ports:
+      - "8000:8000"
+    environment:
+      DATABASE_URL: postgresql://testflow:testflow123@db:5432/testflow
+      JWT_SECRET_KEY: testflow-secret-key-change-in-production
+      JWT_ALGORITHM: HS256
+      JWT_EXPIRE_MINUTES: 1440
+      UPLOAD_DIR: /code/uploads
+    depends_on:
+      db:
+        condition: service_healthy
+    volumes:
+      - ./app:/code/app
+      - uploads:/code/uploads
+
+volumes:
+  pgdata:
+  uploads:

@@ -1,0 +1,43 @@
+# ========== 敏感信息 ==========
+*.pem
+*.key
+*.p12
+github.ssh/
+aliyun.ssh/
+
+# ========== 依赖和构建 ==========
+node_modules/
+dist/
+__pycache__/
+*.pyc
+*.pyo
+.venv/
+venv/
+env/
+
+# ========== IDE ==========
+.idea/
+.vscode/
+*.swp
+*.swo
+
+# ========== 环境和配置 ==========
+.env
+.env.local
+.env.*.local
+
+# ========== 上传文件 ==========
+uploads/
+
+# ========== 日志 ==========
+*.log
+npm-debug.log*
+
+# ========== 系统文件 ==========
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# ========== Claude Code ==========
+.claude/
+CLAUDE.md
