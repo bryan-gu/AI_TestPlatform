@@ -54,7 +54,7 @@
 </template>
 
 <script setup>
-import { ref, reactive, onMounted } from 'vue'
+import { ref, reactive, onMounted, watch } from 'vue'
 import { useAppStore } from '../../stores/app'
 import { Edit, Delete } from '@element-plus/icons-vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
@@ -80,10 +80,23 @@ function getPriorityClass(p) { return { 高: 'badge badge-red', 中: 'badge badg
 function getExecStatusType(s) { return { 通过: 'success', 失败: 'danger', 执行中: 'warning', 待执行: 'info' }[s] || 'info' }
 function formatDate(d) { return d ? d.split('T')[0] : '' }
 
+let loadTimer = null
+
 async function loadCases() {
   loading.value = true
-  try { testCases.value = (await getTestCases(selectedProject.value || undefined)).data } catch (e) { console.error(e) } finally { loading.value = false }
+  try {
+    const keyword = appStore.searchKeyword?.trim() || undefined
+    testCases.value = (await getTestCases(selectedProject.value || undefined, keyword)).data
+  } catch (e) { console.error(e) } finally { loading.value = false }
 }
+
+// 监听搜索关键词变化（防抖）
+watch(() => appStore.searchKeyword, () => {
+  if (loadTimer) clearTimeout(loadTimer)
+  loadTimer = setTimeout(() => {
+    loadCases()
+  }, 300)
+})
 
 function openCreateDialog() {
   Object.assign(createForm, { title: '', priority: '中', project_id: null })
@@ -110,7 +123,7 @@ async function handleSave() {
 
 function handleDelete(index, row) {
   ElMessageBox.confirm(`确定要删除用例"${row.case_no}"吗？`, '确认删除', { confirmButtonText: '确认删除', cancelButtonText: '取消', type: 'warning' })
-    .then(async () => { await deleteTestCase(row.id); testCases.value.splice(index, 1); ElMessage.success('删除成功'); appStore.refreshSidebarBadges() }).catch(() => {})
+    .then(async () => { await deleteTestCase(row.id); await loadCases(); ElMessage.success('删除成功'); appStore.refreshSidebarBadges() }).catch(() => {})
 }
 
 onMounted(async () => {

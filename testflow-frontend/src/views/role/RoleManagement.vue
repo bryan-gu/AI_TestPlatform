@@ -40,7 +40,7 @@
 </template>
 
 <script setup>
-import { ref, reactive, onMounted } from 'vue'
+import { ref, reactive, onMounted, watch } from 'vue'
 import { useAppStore } from '../../stores/app'
 import { Trophy, Lock, User, View, Edit, Delete } from '@element-plus/icons-vue'
 import * as icons from '@element-plus/icons-vue'
@@ -69,6 +69,24 @@ function getIconBg(name) { return iconBgMap[name] || '#F1EFE8' }
 function getIconColor(name) { return iconColorMap[name] || '#2C2C2A' }
 function formatPermissions(perms) { return Array.isArray(perms) ? perms.join('、') : perms || '' }
 
+let loadTimer = null
+
+async function loadRoles() {
+  loading.value = true
+  try {
+    const keyword = appStore.searchKeyword?.trim() || undefined
+    roles.value = (await getRoles(keyword)).data
+  } catch (e) { console.error(e) } finally { loading.value = false }
+}
+
+// 监听搜索关键词变化（防抖）
+watch(() => appStore.searchKeyword, () => {
+  if (loadTimer) clearTimeout(loadTimer)
+  loadTimer = setTimeout(() => {
+    loadRoles()
+  }, 300)
+})
+
 function openCreateDialog() {
   Object.assign(createForm, { name: '', permissionsText: '' })
   createVisible.value = true
@@ -79,7 +97,7 @@ async function handleCreate() {
   try {
     const permissions = createForm.permissionsText.split(',').map(s => s.trim()).filter(Boolean)
     await createRole({ name: createForm.name, permissions })
-    roles.value = (await getRoles()).data
+    await loadRoles()
     ElMessage.success('创建成功')
     createVisible.value = false
     appStore.refreshSidebarBadges()
@@ -97,7 +115,7 @@ async function handleSave() {
   try {
     const permissions = editForm.permissionsText.split(',').map(s => s.trim()).filter(Boolean)
     await updateRole(editId.value, { name: editForm.name, permissions })
-    roles.value = (await getRoles()).data
+    await loadRoles()
     ElMessage.success('保存成功')
     editVisible.value = false
   } catch (e) { ElMessage.error('保存失败') } finally { saving.value = false }
@@ -105,7 +123,7 @@ async function handleSave() {
 
 function handleDelete(index, row) {
   ElMessageBox.confirm(`确定要删除角色"${row.name}"吗？`, '确认删除', { confirmButtonText: '确认删除', cancelButtonText: '取消', type: 'warning' })
-    .then(async () => { await deleteRole(row.id); roles.value.splice(index, 1); ElMessage.success('删除成功'); appStore.refreshSidebarBadges() }).catch(() => {})
+    .then(async () => { await deleteRole(row.id); await loadRoles(); ElMessage.success('删除成功'); appStore.refreshSidebarBadges() }).catch(() => {})
 }
 
 onMounted(async () => {

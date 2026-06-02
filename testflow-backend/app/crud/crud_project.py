@@ -1,12 +1,21 @@
 from sqlalchemy.orm import Session
+from sqlalchemy import or_
 
 from app.models.project import Project
 from app.models.user import User
 from app.schemas.project import ProjectCreate, ProjectUpdate
 
 
-def get_projects(db: Session) -> list[Project]:
-    return db.query(Project).all()
+def get_projects(db: Session, keyword: str | None = None) -> list[Project]:
+    query = db.query(Project)
+    if keyword:
+        query = query.filter(
+            or_(
+                Project.name.ilike(f"%{keyword}%"),
+                Project.description.ilike(f"%{keyword}%")
+            )
+        )
+    return query.all()
 
 
 def get_project(db: Session, project_id: int) -> Project | None:

@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.orm import Session
 
 from app.core.database import get_db
@@ -27,8 +27,12 @@ def _to_out(user: User, db: Session) -> dict:
 
 
 @router.get("", response_model=ResponseModel)
-def list_users(db: Session = Depends(get_db), _=Depends(get_current_user)):
-    users = crud_user.get_users(db)
+def list_users(
+    keyword: str | None = Query(None, description="搜索关键词"),
+    db: Session = Depends(get_db),
+    _=Depends(get_current_user)
+):
+    users = crud_user.get_users(db, keyword=keyword)
     return ResponseModel(data=[_to_out(u, db) for u in users])
 
 

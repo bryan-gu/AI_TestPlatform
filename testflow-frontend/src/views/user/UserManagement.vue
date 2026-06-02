@@ -51,7 +51,7 @@
 </template>
 
 <script setup>
-import { ref, reactive, onMounted } from 'vue'
+import { ref, reactive, onMounted, watch } from 'vue'
 import { useAppStore } from '../../stores/app'
 import { Edit, Delete } from '@element-plus/icons-vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
@@ -82,6 +82,24 @@ function getAvatarColor(name) { return avatarColorMap[name.charAt(0)] || '#2C2C2
 function getStatusType(s) { return { '活跃': 'success', '离线': 'warning', '待激活': '', '禁用': 'danger' }[s] || 'info' }
 function formatDate(d) { return d ? d.split('T')[0] : '' }
 
+let loadTimer = null
+
+async function loadUsers() {
+  loading.value = true
+  try {
+    const keyword = appStore.searchKeyword?.trim() || undefined
+    users.value = (await getUsers(keyword)).data
+  } catch (e) { console.error(e) } finally { loading.value = false }
+}
+
+// 监听搜索关键词变化（防抖）
+watch(() => appStore.searchKeyword, () => {
+  if (loadTimer) clearTimeout(loadTimer)
+  loadTimer = setTimeout(() => {
+    loadUsers()
+  }, 300)
+})
+
 function openCreateDialog() {
   Object.assign(createForm, { name: '', email: '', password: '', role_id: null, project: '' })
   createVisible.value = true
@@ -91,7 +109,7 @@ async function handleCreate() {
   creating.value = true
   try {
     await createUser({ ...createForm })
-    users.value = (await getUsers()).data
+    await loadUsers()
     ElMessage.success('邀请成功')
     createVisible.value = false
     appStore.refreshSidebarBadges()
@@ -108,7 +126,7 @@ async function handleSave() {
   saving.value = true
   try {
     await updateUser(editId.value, { name: editForm.name, role_id: editForm.role_id, project: editForm.project, status: editForm.status })
-    users.value = (await getUsers()).data
+    await loadUsers()
     ElMessage.success('保存成功')
     editVisible.value = false
   } catch (e) { ElMessage.error('保存失败') } finally { saving.value = false }
@@ -116,7 +134,7 @@ async function handleSave() {
 
 function handleDelete(index, row) {
   ElMessageBox.confirm(`确定要删除用户"${row.name}"吗？`, '确认删除', { confirmButtonText: '确认删除', cancelButtonText: '取消', type: 'warning' })
-    .then(async () => { await deleteUser(row.id); users.value.splice(index, 1); ElMessage.success('删除成功'); appStore.refreshSidebarBadges() }).catch(() => {})
+    .then(async () => { await deleteUser(row.id); await loadUsers(); ElMessage.success('删除成功'); appStore.refreshSidebarBadges() }).catch(() => {})
 }
 
 onMounted(async () => {

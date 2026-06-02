@@ -1,7 +1,7 @@
 import request from '../utils/request'
 
-export function getProjects() {
-  return request({ url: '/projects', method: 'get' })
+export function getProjects(keyword) {
+  return request({ url: '/projects', method: 'get', params: { keyword } })
 }
 
 export function getProject(id) {

@@ -1,5 +1,5 @@
 from sqlalchemy.orm import Session
-from sqlalchemy import func
+from sqlalchemy import func, or_
 
 from app.models.testcase import TestCase
 from app.models.project import Project
@@ -17,12 +17,19 @@ def _generate_case_no(db: Session) -> str:
     return f"TC-{num:03d}"
 
 
-def get_testcases(db: Session, project: str | None = None) -> list[TestCase]:
+def get_testcases(db: Session, project: str | None = None, keyword: str | None = None) -> list[TestCase]:
     query = db.query(TestCase)
     if project:
         proj = db.query(Project).filter(Project.name == project).first()
         if proj:
             query = query.filter(TestCase.project_id == proj.id)
+    if keyword:
+        query = query.filter(
+            or_(
+                TestCase.case_no.ilike(f"%{keyword}%"),
+                TestCase.title.ilike(f"%{keyword}%")
+            )
+        )
     return query.all()
 
 

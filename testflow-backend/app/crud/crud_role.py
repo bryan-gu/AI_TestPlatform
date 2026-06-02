@@ -1,13 +1,16 @@
 from sqlalchemy.orm import Session
-from sqlalchemy import func
+from sqlalchemy import func, or_
 
 from app.models.role import Role
 from app.models.user import User
 from app.schemas.role import RoleCreate, RoleUpdate
 
 
-def get_roles(db: Session) -> list[Role]:
-    return db.query(Role).all()
+def get_roles(db: Session, keyword: str | None = None) -> list[Role]:
+    query = db.query(Role)
+    if keyword:
+        query = query.filter(Role.name.ilike(f"%{keyword}%"))
+    return query.all()
 
 
 def get_role(db: Session, role_id: int) -> Role | None:

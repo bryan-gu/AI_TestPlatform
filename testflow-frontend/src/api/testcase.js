@@ -1,7 +1,9 @@
 import request from '../utils/request'
 
-export function getTestCases(project) {
-  const params = project ? { project } : {}
+export function getTestCases(project, keyword) {
+  const params = {}
+  if (project) params.project = project
+  if (keyword) params.keyword = keyword
   return request({ url: '/testcases', method: 'get', params })
 }
 

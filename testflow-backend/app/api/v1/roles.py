@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, Query, status
 from sqlalchemy.orm import Session
 
 from app.core.database import get_db
@@ -24,8 +24,12 @@ def _to_out(role, db: Session) -> dict:
 
 
 @router.get("", response_model=ResponseModel)
-def list_roles(db: Session = Depends(get_db), _=Depends(get_current_user)):
-    roles = crud_role.get_roles(db)
+def list_roles(
+    keyword: str | None = Query(None, description="搜索关键词"),
+    db: Session = Depends(get_db),
+    _=Depends(get_current_user)
+):
+    roles = crud_role.get_roles(db, keyword=keyword)
     return ResponseModel(data=[_to_out(r, db) for r in roles])
 
 

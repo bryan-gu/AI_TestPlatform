@@ -41,7 +41,7 @@
 </template>
 
 <script setup>
-import { ref, reactive, onMounted } from 'vue'
+import { ref, reactive, onMounted, watch } from 'vue'
 import { useAppStore } from '../../stores/app'
 import { Edit, Delete } from '@element-plus/icons-vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
@@ -64,6 +64,24 @@ const editForm = reactive({ name: '', status: '' })
 
 function formatDate(d) { return d ? d.split('T')[0] : '' }
 
+let loadTimer = null
+
+async function loadReports() {
+  loading.value = true
+  try {
+    const keyword = appStore.searchKeyword?.trim() || undefined
+    reports.value = (await getReports(keyword)).data
+  } catch (e) { console.error(e) } finally { loading.value = false }
+}
+
+// 监听搜索关键词变化（防抖）
+watch(() => appStore.searchKeyword, () => {
+  if (loadTimer) clearTimeout(loadTimer)
+  loadTimer = setTimeout(() => {
+    loadReports()
+  }, 300)
+})
+
 function openCreateDialog() {
   Object.assign(createForm, { name: '', project_id: null })
   createVisible.value = true
@@ -71,19 +89,19 @@ function openCreateDialog() {
 
 async function handleCreate() {
   creating.value = true
-  try { await createReport({ ...createForm }); const res = await getReports(); reports.value = res.data; ElMessage.success('生成成功'); createVisible.value = false; appStore.refreshSidebarBadges() } catch (e) { ElMessage.error('生成失败') } finally { creating.value = false }
+  try { await createReport({ ...createForm }); await loadReports(); ElMessage.success('生成成功'); createVisible.value = false; appStore.refreshSidebarBadges() } catch (e) { ElMessage.error('生成失败') } finally { creating.value = false }
 }
 
 function handleEdit(row) { editId.value = row.id; Object.assign(editForm, { name: row.name, status: row.status }); editVisible.value = true }
 
 async function handleSave() {
   saving.value = true
-  try { await updateReport(editId.value, { ...editForm }); const res = await getReports(); reports.value = res.data; ElMessage.success('保存成功'); editVisible.value = false } catch (e) { ElMessage.error('保存失败') } finally { saving.value = false }
+  try { await updateReport(editId.value, { ...editForm }); await loadReports(); ElMessage.success('保存成功'); editVisible.value = false } catch (e) { ElMessage.error('保存失败') } finally { saving.value = false }
 }
 
 function handleDelete(index, row) {
   ElMessageBox.confirm(`确定要删除报告"${row.name}"吗？`, '确认删除', { confirmButtonText: '确认删除', cancelButtonText: '取消', type: 'warning' })
-    .then(async () => { await deleteReport(row.id); reports.value.splice(index, 1); ElMessage.success('删除成功'); appStore.refreshSidebarBadges() }).catch(() => {})
+    .then(async () => { await deleteReport(row.id); await loadReports(); ElMessage.success('删除成功'); appStore.refreshSidebarBadges() }).catch(() => {})
 }
 
 onMounted(async () => {

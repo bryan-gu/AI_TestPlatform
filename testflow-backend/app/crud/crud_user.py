@@ -1,6 +1,6 @@
 from datetime import datetime, timezone
 from sqlalchemy.orm import Session
-from sqlalchemy import func
+from sqlalchemy import func, or_
 
 from app.models.user import User
 from app.models.role import Role
@@ -8,8 +8,16 @@ from app.schemas.user import UserCreate, UserUpdate
 from app.core.security import hash_password
 
 
-def get_users(db: Session) -> list[User]:
-    return db.query(User).all()
+def get_users(db: Session, keyword: str | None = None) -> list[User]:
+    query = db.query(User)
+    if keyword:
+        query = query.filter(
+            or_(
+                User.name.ilike(f"%{keyword}%"),
+                User.email.ilike(f"%{keyword}%")
+            )
+        )
+    return query.all()
 
 
 def get_user(db: Session, user_id: int) -> User | None:

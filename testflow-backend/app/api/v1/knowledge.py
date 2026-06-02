@@ -1,6 +1,6 @@
 import os
 import uuid
-from fastapi import APIRouter, Depends, HTTPException, UploadFile, File
+from fastapi import APIRouter, Depends, HTTPException, Query, UploadFile, File
 from sqlalchemy.orm import Session
 
 from app.core.database import get_db
@@ -50,8 +50,12 @@ def _doc_to_out(doc, db: Session) -> dict:
 
 # ========== 知识库 ==========
 @router.get("", response_model=ResponseModel)
-def list_knowledge_bases(db: Session = Depends(get_db), _=Depends(get_current_user)):
-    kbs = crud_knowledge.get_knowledge_bases(db)
+def list_knowledge_bases(
+    keyword: str | None = Query(None, description="搜索关键词"),
+    db: Session = Depends(get_db),
+    _=Depends(get_current_user)
+):
+    kbs = crud_knowledge.get_knowledge_bases(db, keyword=keyword)
     return ResponseModel(data=[_kb_to_out(kb, db) for kb in kbs])
 
 

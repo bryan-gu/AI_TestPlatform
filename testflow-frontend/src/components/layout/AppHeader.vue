@@ -30,9 +30,13 @@ import { useAppStore } from '../../stores/app'
 
 const appStore = useAppStore()
 const searchKeyword = ref('')
+let searchTimer = null
 
 function handleSearch() {
-  appStore.setSearchKeyword(searchKeyword.value)
+  if (searchTimer) clearTimeout(searchTimer)
+  searchTimer = setTimeout(() => {
+    appStore.setSearchKeyword(searchKeyword.value)
+  }, 300)
 }
 
 function handleButtonClick() {

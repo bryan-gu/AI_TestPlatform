@@ -1,13 +1,17 @@
 from datetime import datetime, timezone
 from sqlalchemy.orm import Session
+from sqlalchemy import or_
 
 from app.models.report import Report
 from app.models.project import Project
 from app.schemas.report import ReportCreate, ReportUpdate
 
 
-def get_reports(db: Session) -> list[Report]:
-    return db.query(Report).all()
+def get_reports(db: Session, keyword: str | None = None) -> list[Report]:
+    query = db.query(Report)
+    if keyword:
+        query = query.filter(Report.name.ilike(f"%{keyword}%"))
+    return query.all()
 
 
 def get_report(db: Session, report_id: int) -> Report | None:

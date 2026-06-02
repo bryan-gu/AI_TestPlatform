@@ -1,7 +1,7 @@
 import request from '../utils/request'
 
-export function getUsers() {
-  return request({ url: '/users', method: 'get' })
+export function getUsers(keyword) {
+  return request({ url: '/users', method: 'get', params: { keyword } })
 }
 
 export function getUserStats() {

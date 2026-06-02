@@ -1,7 +1,7 @@
 import request from '../utils/request'
 
-export function getReports() {
-  return request({ url: '/reports', method: 'get' })
+export function getReports(keyword) {
+  return request({ url: '/reports', method: 'get', params: { keyword } })
 }
 
 export function getReportStats() {

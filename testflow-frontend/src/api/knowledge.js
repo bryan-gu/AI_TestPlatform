@@ -1,8 +1,8 @@
 import request from '../utils/request'
 
 // ========== 知识库 ==========
-export function getKnowledgeBases() {
-  return request({ url: '/knowledge', method: 'get' })
+export function getKnowledgeBases(keyword) {
+  return request({ url: '/knowledge', method: 'get', params: { keyword } })
 }
 
 export function getKnowledgeStats() {

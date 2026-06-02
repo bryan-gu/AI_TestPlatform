@@ -40,7 +40,7 @@
 </template>
 
 <script setup>
-import { ref, reactive, onMounted } from 'vue'
+import { ref, reactive, onMounted, watch } from 'vue'
 import { useRouter } from 'vue-router'
 import { useAppStore } from '../../stores/app'
 import { Files, Edit, Delete } from '@element-plus/icons-vue'
@@ -66,6 +66,24 @@ const editForm = reactive({ name: '', description: '' })
 function formatDate(d) { return d ? d.split('T')[0] : '' }
 function goToDetail(row) { router.push(`/knowledge/${row.id}`) }
 
+let loadTimer = null
+
+async function loadKnowledgeBases() {
+  loading.value = true
+  try {
+    const keyword = appStore.searchKeyword?.trim() || undefined
+    knowledgeBases.value = (await getKnowledgeBases(keyword)).data
+  } catch (e) { console.error(e) } finally { loading.value = false }
+}
+
+// 监听搜索关键词变化（防抖）
+watch(() => appStore.searchKeyword, () => {
+  if (loadTimer) clearTimeout(loadTimer)
+  loadTimer = setTimeout(() => {
+    loadKnowledgeBases()
+  }, 300)
+})
+
 function openCreateDialog() {
   Object.assign(createForm, { name: '', description: '', project_id: null })
   createVisible.value = true
@@ -73,19 +91,19 @@ function openCreateDialog() {
 
 async function handleCreate() {
   creating.value = true
-  try { await createKnowledgeBase({ ...createForm }); const res = await getKnowledgeBases(); knowledgeBases.value = res.data; ElMessage.success('创建成功'); createVisible.value = false; appStore.refreshSidebarBadges() } catch (e) { ElMessage.error('创建失败') } finally { creating.value = false }
+  try { await createKnowledgeBase({ ...createForm }); await loadKnowledgeBases(); ElMessage.success('创建成功'); createVisible.value = false; appStore.refreshSidebarBadges() } catch (e) { ElMessage.error('创建失败') } finally { creating.value = false }
 }
 
 function handleEdit(row) { editId.value = row.id; Object.assign(editForm, { name: row.name, description: row.description }); editVisible.value = true }
 
 async function handleSave() {
   saving.value = true
-  try { await updateKnowledgeBase(editId.value, { ...editForm }); const res = await getKnowledgeBases(); knowledgeBases.value = res.data; ElMessage.success('保存成功'); editVisible.value = false } catch (e) { ElMessage.error('保存失败') } finally { saving.value = false }
+  try { await updateKnowledgeBase(editId.value, { ...editForm }); await loadKnowledgeBases(); ElMessage.success('保存成功'); editVisible.value = false } catch (e) { ElMessage.error('保存失败') } finally { saving.value = false }
 }
 
 function handleDelete(index, row) {
   ElMessageBox.confirm(`确定要删除知识库"${row.name}"吗？`, '确认删除', { confirmButtonText: '确认删除', cancelButtonText: '取消', type: 'warning' })
-    .then(async () => { await deleteKnowledgeBase(row.id); knowledgeBases.value.splice(index, 1); ElMessage.success('删除成功'); appStore.refreshSidebarBadges() }).catch(() => {})
+    .then(async () => { await deleteKnowledgeBase(row.id); await loadKnowledgeBases(); ElMessage.success('删除成功'); appStore.refreshSidebarBadges() }).catch(() => {})
 }
 
 onMounted(async () => {

@@ -1,4 +1,5 @@
 from sqlalchemy.orm import Session
+from sqlalchemy import or_
 
 from app.models.knowledge import KnowledgeBase, Folder, Document
 from app.models.project import Project
@@ -11,8 +12,16 @@ from app.schemas.knowledge import (
 
 
 # ========== 知识库 ==========
-def get_knowledge_bases(db: Session) -> list[KnowledgeBase]:
-    return db.query(KnowledgeBase).all()
+def get_knowledge_bases(db: Session, keyword: str | None = None) -> list[KnowledgeBase]:
+    query = db.query(KnowledgeBase)
+    if keyword:
+        query = query.filter(
+            or_(
+                KnowledgeBase.name.ilike(f"%{keyword}%"),
+                KnowledgeBase.description.ilike(f"%{keyword}%")
+            )
+        )
+    return query.all()
 
 
 def get_knowledge_base(db: Session, kb_id: int) -> KnowledgeBase | None:
