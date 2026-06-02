@@ -73,7 +73,7 @@ function openCreateDialog() {
 
 async function handleCreate() {
   creating.value = true
-  try { await createKnowledgeBase({ ...createForm }); const res = await getKnowledgeBases(); knowledgeBases.value = res.data; ElMessage.success('创建成功'); createVisible.value = false } catch (e) { ElMessage.error('创建失败') } finally { creating.value = false }
+  try { await createKnowledgeBase({ ...createForm }); const res = await getKnowledgeBases(); knowledgeBases.value = res.data; ElMessage.success('创建成功'); createVisible.value = false; appStore.refreshSidebarBadges() } catch (e) { ElMessage.error('创建失败') } finally { creating.value = false }
 }
 
 function handleEdit(row) { editId.value = row.id; Object.assign(editForm, { name: row.name, description: row.description }); editVisible.value = true }
@@ -85,7 +85,7 @@ async function handleSave() {
 
 function handleDelete(index, row) {
   ElMessageBox.confirm(`确定要删除知识库"${row.name}"吗？`, '确认删除', { confirmButtonText: '确认删除', cancelButtonText: '取消', type: 'warning' })
-    .then(async () => { await deleteKnowledgeBase(row.id); knowledgeBases.value.splice(index, 1); ElMessage.success('删除成功') }).catch(() => {})
+    .then(async () => { await deleteKnowledgeBase(row.id); knowledgeBases.value.splice(index, 1); ElMessage.success('删除成功'); appStore.refreshSidebarBadges() }).catch(() => {})
 }
 
 onMounted(async () => {

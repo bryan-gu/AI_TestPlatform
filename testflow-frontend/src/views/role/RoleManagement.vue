@@ -82,6 +82,7 @@ async function handleCreate() {
     roles.value = (await getRoles()).data
     ElMessage.success('创建成功')
     createVisible.value = false
+    appStore.refreshSidebarBadges()
   } catch (e) { ElMessage.error('创建失败') } finally { creating.value = false }
 }
 
@@ -104,7 +105,7 @@ async function handleSave() {
 
 function handleDelete(index, row) {
   ElMessageBox.confirm(`确定要删除角色"${row.name}"吗？`, '确认删除', { confirmButtonText: '确认删除', cancelButtonText: '取消', type: 'warning' })
-    .then(async () => { await deleteRole(row.id); roles.value.splice(index, 1); ElMessage.success('删除成功') }).catch(() => {})
+    .then(async () => { await deleteRole(row.id); roles.value.splice(index, 1); ElMessage.success('删除成功'); appStore.refreshSidebarBadges() }).catch(() => {})
 }
 
 onMounted(async () => {

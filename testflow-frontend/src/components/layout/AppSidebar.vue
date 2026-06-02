@@ -88,6 +88,7 @@ import { getTestCaseStats } from '../../api/testcase'
 import { getReportStats } from '../../api/report'
 import { getKnowledgeStats } from '../../api/knowledge'
 import { getUsers } from '../../api/user'
+import { getRoleStats } from '../../api/role'
 
 const router = useRouter()
 const route = useRoute()
@@ -110,7 +111,7 @@ const knowledgeMenus = reactive([
 ])
 
 const systemMenus = reactive([
-  { path: '/roles', title: '角色管理', icon: 'Lock' },
+  { path: '/roles', title: '角色管理', icon: 'Lock', badge: 0 },
   { path: '/users', title: '用户管理', icon: 'User', badge: 0 }
 ])
 
@@ -120,12 +121,13 @@ function navigateTo(item) {
 
 async function loadBadges() {
   try {
-    const [projRes, caseStatsRes, reportStatsRes, kbStatsRes, usersRes] = await Promise.allSettled([
+    const [projRes, caseStatsRes, reportStatsRes, kbStatsRes, usersRes, roleStatsRes] = await Promise.allSettled([
       getProjects(),
       getTestCaseStats(),
       getReportStats(),
       getKnowledgeStats(),
-      getUsers()
+      getUsers(),
+      getRoleStats()
     ])
 
     if (projRes.status === 'fulfilled') {
@@ -142,6 +144,9 @@ async function loadBadges() {
     }
     if (usersRes.status === 'fulfilled') {
       systemMenus[1].badge = usersRes.value.data?.length || 0
+    }
+    if (roleStatsRes.status === 'fulfilled') {
+      systemMenus[0].badge = roleStatsRes.value.data?.totalRoles || 0
     }
   } catch (e) {
     console.error('加载侧边栏数据失败:', e)

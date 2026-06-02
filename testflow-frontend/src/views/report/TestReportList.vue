@@ -71,7 +71,7 @@ function openCreateDialog() {
 
 async function handleCreate() {
   creating.value = true
-  try { await createReport({ ...createForm }); const res = await getReports(); reports.value = res.data; ElMessage.success('生成成功'); createVisible.value = false } catch (e) { ElMessage.error('生成失败') } finally { creating.value = false }
+  try { await createReport({ ...createForm }); const res = await getReports(); reports.value = res.data; ElMessage.success('生成成功'); createVisible.value = false; appStore.refreshSidebarBadges() } catch (e) { ElMessage.error('生成失败') } finally { creating.value = false }
 }
 
 function handleEdit(row) { editId.value = row.id; Object.assign(editForm, { name: row.name, status: row.status }); editVisible.value = true }
@@ -83,7 +83,7 @@ async function handleSave() {
 
 function handleDelete(index, row) {
   ElMessageBox.confirm(`确定要删除报告"${row.name}"吗？`, '确认删除', { confirmButtonText: '确认删除', cancelButtonText: '取消', type: 'warning' })
-    .then(async () => { await deleteReport(row.id); reports.value.splice(index, 1); ElMessage.success('删除成功') }).catch(() => {})
+    .then(async () => { await deleteReport(row.id); reports.value.splice(index, 1); ElMessage.success('删除成功'); appStore.refreshSidebarBadges() }).catch(() => {})
 }
 
 onMounted(async () => {

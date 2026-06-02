@@ -94,6 +94,7 @@ async function handleCreate() {
     users.value = (await getUsers()).data
     ElMessage.success('邀请成功')
     createVisible.value = false
+    appStore.refreshSidebarBadges()
   } catch (e) { ElMessage.error('邀请失败') } finally { creating.value = false }
 }
 
@@ -115,7 +116,7 @@ async function handleSave() {
 
 function handleDelete(index, row) {
   ElMessageBox.confirm(`确定要删除用户"${row.name}"吗？`, '确认删除', { confirmButtonText: '确认删除', cancelButtonText: '取消', type: 'warning' })
-    .then(async () => { await deleteUser(row.id); users.value.splice(index, 1); ElMessage.success('删除成功') }).catch(() => {})
+    .then(async () => { await deleteUser(row.id); users.value.splice(index, 1); ElMessage.success('删除成功'); appStore.refreshSidebarBadges() }).catch(() => {})
 }
 
 onMounted(async () => {
