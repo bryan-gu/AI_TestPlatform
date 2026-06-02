@@ -8,6 +8,7 @@ export const useAppStore = defineStore('app', () => {
   const mainButtonText = ref('')
   const showMainButton = ref(false)
   const mainButtonCallback = ref(null)
+  const sidebarBadgesVersion = ref(0)
 
   // 切换侧边栏折叠状态
   function toggleSidebar() {
@@ -37,6 +38,11 @@ export const useAppStore = defineStore('app', () => {
     }
   }
 
+  // 触发侧边栏 badges 刷新
+  function refreshSidebarBadges() {
+    sidebarBadgesVersion.value++
+  }
+
   return {
     sidebarCollapsed,
     currentPage,
@@ -44,8 +50,10 @@ export const useAppStore = defineStore('app', () => {
     mainButtonText,
     showMainButton,
     mainButtonCallback,
+    sidebarBadgesVersion,
     toggleSidebar,
     setCurrentPage,
-    triggerMainButton
+    triggerMainButton,
+    refreshSidebarBadges
   }
 })

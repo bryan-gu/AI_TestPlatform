@@ -78,7 +78,7 @@
 </template>
 
 <script setup>
-import { computed, reactive, onMounted } from 'vue'
+import { computed, reactive, onMounted, watch } from 'vue'
 import { useRouter, useRoute } from 'vue-router'
 import { useAppStore } from '../../stores/app'
 import { useAuthStore } from '../../stores/auth'
@@ -147,6 +147,11 @@ async function loadBadges() {
     console.error('加载侧边栏数据失败:', e)
   }
 }
+
+// 监听 sidebarBadgesVersion 变化，刷新 badges
+watch(() => appStore.sidebarBadgesVersion, () => {
+  loadBadges()
+})
 
 onMounted(() => {
   loadBadges()
