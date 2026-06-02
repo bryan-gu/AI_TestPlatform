@@ -9,7 +9,7 @@
 
     <div class="card">
       <div class="card-head"><div class="card-title">项目列表</div></div>
-      <el-table :data="projects" style="width: 100%" @row-click="goToDetail" v-loading="loading">
+      <el-table :data="filteredProjects" style="width: 100%" @row-click="goToDetail" v-loading="loading">
         <el-table-column prop="name" label="项目名称" min-width="200" />
         <el-table-column label="进度" width="200">
           <template #default="{ row }"><div style="display: flex; align-items: center; gap: 8px"><el-progress :percentage="row.progress" :stroke-width="5" :show-text="false" style="flex: 1" /><span style="font-size: 12px; color: var(--color-text-secondary); white-space: nowrap">{{ row.progress }}%</span></div></template>
@@ -54,7 +54,7 @@
 </template>
 
 <script setup>
-import { ref, reactive, onMounted } from 'vue'
+import { ref, reactive, computed, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
 import { useAppStore } from '../../stores/app'
 import { Edit, Delete } from '@element-plus/icons-vue'
@@ -80,6 +80,12 @@ function getStatusType(s) { return { testing: '', completed: 'success', active: 
 function getStatusText(s) { return { testing: '测试中', completed: '已完成', active: '进行中', pending: '待启动' }[s] || s }
 function formatDate(d) { return d ? d.split('T')[0] : '' }
 function goToDetail(row) { router.push(`/projects/${row.id}`) }
+
+const filteredProjects = computed(() => {
+  const keyword = appStore.searchKeyword?.trim().toLowerCase()
+  if (!keyword) return projects.value
+  return projects.value.filter(p => p.name?.toLowerCase().includes(keyword))
+})
 
 function openCreateDialog() {
   Object.assign(createForm, { name: '', description: '', status: 'pending', progress: 0 })

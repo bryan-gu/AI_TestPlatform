@@ -9,6 +9,7 @@ export const useAppStore = defineStore('app', () => {
   const showMainButton = ref(false)
   const mainButtonCallback = ref(null)
   const sidebarBadgesVersion = ref(0)
+  const searchKeyword = ref('')
 
   // 切换侧边栏折叠状态
   function toggleSidebar() {
@@ -20,6 +21,7 @@ export const useAppStore = defineStore('app', () => {
   function setCurrentPage(page, title, buttonText, callback) {
     currentPage.value = page
     pageTitle.value = title
+    searchKeyword.value = ''
     if (buttonText) {
       mainButtonText.value = buttonText
       showMainButton.value = true
@@ -43,6 +45,11 @@ export const useAppStore = defineStore('app', () => {
     sidebarBadgesVersion.value++
   }
 
+  // 设置搜索关键词
+  function setSearchKeyword(keyword) {
+    searchKeyword.value = keyword
+  }
+
   return {
     sidebarCollapsed,
     currentPage,
@@ -51,9 +58,11 @@ export const useAppStore = defineStore('app', () => {
     showMainButton,
     mainButtonCallback,
     sidebarBadgesVersion,
+    searchKeyword,
     toggleSidebar,
     setCurrentPage,
     triggerMainButton,
-    refreshSidebarBadges
+    refreshSidebarBadges,
+    setSearchKeyword
   }
 })

@@ -3,7 +3,13 @@
     <div class="header-title">{{ appStore.pageTitle }}</div>
     <div class="header-search">
       <el-icon><Search /></el-icon>
-      <span>搜索...</span>
+      <el-input
+        v-model="searchKeyword"
+        placeholder="搜索..."
+        clearable
+        @input="handleSearch"
+        @clear="handleSearch"
+      />
     </div>
     <el-button
       v-if="appStore.showMainButton"
@@ -18,11 +24,16 @@
 </template>
 
 <script setup>
+import { ref } from 'vue'
 import { Search, Plus } from '@element-plus/icons-vue'
 import { useAppStore } from '../../stores/app'
-import { ElMessage } from 'element-plus'
 
 const appStore = useAppStore()
+const searchKeyword = ref('')
+
+function handleSearch() {
+  appStore.setSearchKeyword(searchKeyword.value)
+}
 
 function handleButtonClick() {
   appStore.triggerMainButton()
@@ -58,8 +69,7 @@ function handleButtonClick() {
   padding: 6px 12px;
   font-size: 13px;
   color: var(--color-text-tertiary);
-  cursor: text;
-  min-width: 180px;
+  min-width: 200px;
   transition: border-color 0.2s;
 }
 
@@ -69,6 +79,26 @@ function handleButtonClick() {
 
 .header-search .el-icon {
   font-size: 15px;
+  flex-shrink: 0;
+}
+
+.header-search :deep(.el-input) {
+  flex: 1;
+}
+
+.header-search :deep(.el-input__wrapper) {
+  background: transparent;
+  box-shadow: none !important;
+  padding: 0;
+}
+
+.header-search :deep(.el-input__inner) {
+  font-size: 13px;
+  color: var(--color-text-primary);
+}
+
+.header-search :deep(.el-input__inner::placeholder) {
+  color: var(--color-text-tertiary);
 }
 
 .btn-primary {
