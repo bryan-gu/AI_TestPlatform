@@ -8,7 +8,10 @@
     </div>
 
     <div class="card">
-      <div class="card-head"><div class="card-title">测试报告列表</div></div>
+      <div class="card-head">
+        <div class="card-title">测试报告列表</div>
+        <div class="card-action" @click="openCreateDialog">生成报告</div>
+      </div>
       <el-table :data="reports" style="width: 100%" v-loading="loading">
         <el-table-column prop="name" label="报告名称" min-width="250" show-overflow-tooltip />
         <el-table-column prop="project" label="所属项目" width="150" />
@@ -16,8 +19,8 @@
         <el-table-column prop="defect_count" label="缺陷数" width="80" />
         <el-table-column label="状态" width="100"><template #default="{ row }"><el-tag :type="row.status === '已审批' ? 'success' : 'warning'" size="small">{{ row.status }}</el-tag></template></el-table-column>
         <el-table-column label="生成时间" width="120"><template #default="{ row }">{{ formatDate(row.created_at) }}</template></el-table-column>
-        <el-table-column label="操作" width="140" fixed="right">
-          <template #default="{ row, $index }"><div class="action-btns"><el-button type="primary" link size="small" @click="handleEdit(row)"><el-icon><Edit /></el-icon>编辑</el-button><el-button type="danger" link size="small" @click="handleDelete($index, row)"><el-icon><Delete /></el-icon>删除</el-button></div></template>
+        <el-table-column label="操作" width="200" fixed="right">
+          <template #default="{ row, $index }"><div class="action-btns"><el-button v-if="row.status === '待审批'" type="success" link size="small" @click="handleApprove(row)" style="background:#dcfce7;color:#16a34a;border-radius:4px;padding:2px 8px"><el-icon><Check /></el-icon>审批</el-button><el-button type="primary" link size="small" @click="handleEdit(row)"><el-icon><Edit /></el-icon>编辑</el-button><el-button type="danger" link size="small" @click="handleDelete($index, row)"><el-icon><Delete /></el-icon>删除</el-button></div></template>
         </el-table-column>
       </el-table>
     </div>
@@ -43,7 +46,7 @@
 <script setup>
 import { ref, reactive, onMounted, watch } from 'vue'
 import { useAppStore } from '../../stores/app'
-import { Edit, Delete } from '@element-plus/icons-vue'
+import { Edit, Delete, Check } from '@element-plus/icons-vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { getReports, getReportStats, createReport, updateReport, deleteReport } from '../../api/report'
 import { getProjects } from '../../api/project'
@@ -63,6 +66,15 @@ const editId = ref(null)
 const editForm = reactive({ name: '', status: '' })
 
 function formatDate(d) { return d ? d.split('T')[0] : '' }
+
+async function handleApprove(row) {
+  try {
+    await updateReport(row.id, { ...row, status: '已审批' })
+    row.status = '已审批'
+    ElMessage.success('审批成功')
+    stats.value.pendingApproval = Math.max(0, (stats.value.pendingApproval || 0) - 1)
+  } catch (e) { ElMessage.error('审批失败') }
+}
 
 let loadTimer = null
 
@@ -119,4 +131,6 @@ onMounted(async () => {
 <style scoped>
 .report-list { max-width: 1400px; }
 .action-btns { display: flex; gap: 4px; }
+.card-action { font-size: 12px; color: var(--accent); cursor: pointer; font-weight: 500; }
+.card-action:hover { text-decoration: underline; }
 </style>

@@ -10,9 +10,14 @@
     <div class="card">
       <div class="card-head">
         <div class="card-title">测试用例列表</div>
-        <el-select v-model="selectedProject" placeholder="全部项目" size="small" style="width: 150px" clearable @change="loadCases">
-          <el-option v-for="p in projectOptions" :key="p.id" :label="p.name" :value="p.name" />
-        </el-select>
+        <div style="display:flex;gap:8px">
+          <el-select v-model="selectedProject" placeholder="全部项目" size="small" style="width: 150px" clearable @change="loadCases">
+            <el-option v-for="p in projectOptions" :key="p.id" :label="p.name" :value="p.name" />
+          </el-select>
+          <el-button type="primary" size="small" @click="batchExecute">
+            <el-icon><VideoPlay /></el-icon>批量执行
+          </el-button>
+        </div>
       </div>
       <el-table :data="testCases" style="width: 100%" v-loading="loading">
         <el-table-column prop="case_no" label="用例编号" width="100" />
@@ -56,7 +61,7 @@
 <script setup>
 import { ref, reactive, onMounted, watch } from 'vue'
 import { useAppStore } from '../../stores/app'
-import { Edit, Delete } from '@element-plus/icons-vue'
+import { Edit, Delete, VideoPlay } from '@element-plus/icons-vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { getTestCases, getTestCaseStats, createTestCase, updateTestCase, deleteTestCase } from '../../api/testcase'
 import { getProjects } from '../../api/project'
@@ -79,6 +84,7 @@ const editForm = reactive({ title: '', priority: '', exec_status: '' })
 function getPriorityClass(p) { return { 高: 'badge badge-red', 中: 'badge badge-amber', 低: 'badge badge-blue' }[p] || 'badge badge-gray' }
 function getExecStatusType(s) { return { 通过: 'success', 失败: 'danger', 执行中: 'warning', 待执行: 'info' }[s] || 'info' }
 function formatDate(d) { return d ? d.split('T')[0] : '' }
+function batchExecute() { ElMessage.info('批量执行功能开发中...') }
 
 let loadTimer = null
 

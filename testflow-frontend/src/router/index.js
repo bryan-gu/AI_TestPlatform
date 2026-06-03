@@ -84,6 +84,13 @@ const routes = [
         component: () => import('../views/graph/KnowledgeGraph.vue'),
         meta: { title: '图谱详情' }
       },
+      // AI
+      {
+        path: 'ai-workbench',
+        name: 'AIWorkbench',
+        component: () => import('../views/ai/AIWorkbench.vue'),
+        meta: { title: 'AI 工作台' }
+      },
       // 系统管理
       {
         path: 'roles',

@@ -49,6 +49,22 @@
     </div>
 
     <div class="nav-section">
+      <div class="nav-label">AI</div>
+      <div
+        v-for="item in aiMenus"
+        :key="item.path"
+        class="nav-item"
+        :class="{ active: currentRoute === item.path }"
+        @click="navigateTo(item)"
+        :title="item.title"
+      >
+        <el-icon><component :is="icons[item.icon]" /></el-icon>
+        <span>{{ item.title }}</span>
+        <span v-if="item.badgeText" class="nav-badge nav-badge-text">{{ item.badgeText }}</span>
+      </div>
+    </div>
+
+    <div class="nav-section">
       <div class="nav-label">系统管理</div>
       <div
         v-for="item in systemMenus"
@@ -108,6 +124,10 @@ const projectMenus = reactive([
 const knowledgeMenus = reactive([
   { path: '/knowledge', title: '知识库', icon: 'Collection', badge: 0 },
   { path: '/graphs', title: '知识图谱', icon: 'Share' }
+])
+
+const aiMenus = reactive([
+  { path: '/ai-workbench', title: 'AI 工作台', icon: 'MagicStick', badgeText: '运行中' }
 ])
 
 const systemMenus = reactive([
@@ -307,6 +327,12 @@ onMounted(() => {
   color: var(--color-text-tertiary);
   padding: 1px 7px;
   border-radius: 10px;
+}
+
+.nav-badge-text {
+  background: var(--accent-light);
+  color: var(--accent);
+  font-size: 10px;
 }
 
 .nav-item.active .nav-badge {
