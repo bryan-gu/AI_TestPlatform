@@ -5,7 +5,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from app.core.config import settings
-from app.core.database import engine, Base, SessionLocal
+from app.core.database import SessionLocal
 from app.api.v1.router import api_router
 
 
@@ -60,11 +60,11 @@ def _seed_database():
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    # 启动时创建表并初始化数据
-    Base.metadata.create_all(bind=engine)
+    # 启动时初始化种子数据（表结构由 Alembic 迁移管理）
     _seed_database()
     os.makedirs(settings.UPLOAD_DIR, exist_ok=True)
     print(f"✓ {settings.APP_NAME} v{settings.APP_VERSION} 已启动")
+    print("  提示: 请使用 'alembic upgrade head' 管理数据库表结构")
     yield
 
 
