@@ -1,0 +1,96 @@
+<div id="page-graph-list" style="display:none">
+          <!-- 项目上下文栏 -->
+          <div class="project-context-bar">
+            <div class="project-icon"><i class="ti ti-folder" style="color:var(--accent);font-size:16px" aria-hidden="true"></i></div>
+            <div style="flex:1">
+              <div style="display:flex;align-items:center;gap:8px">
+                <select class="form-select" style="width:200px;height:32px;font-size:13px;font-weight:600;border:none;background:transparent;padding:0;cursor:pointer;color:var(--color-text-primary)">
+                  <option>电商平台 v3.0</option>
+                  <option>支付系统</option>
+                  <option>用户中心重构</option>
+                  <option>推荐算法 A/B</option>
+                </select>
+                <span class="badge badge-blue" style="font-size:10px">测试中</span>
+              </div>
+              <div style="font-size:12px;color:var(--color-text-secondary);margin-top:2px">该知识图谱由 AI 在需求分析阶段自动生成 · 共 4 张图谱、29 个节点</div>
+            </div>
+          </div>
+          <div style="display:flex;align-items:center;gap:12px;margin-bottom:16px;padding:12px 16px;background:var(--accent-light);border-radius:var(--border-radius-md);border:1px solid rgba(37,99,235,0.15)">
+            <i class="ti ti-sparkles" style="font-size:18px;color:var(--accent)"></i>
+            <div style="flex:1">
+              <div style="font-size:13px;font-weight:500;color:var(--color-text-primary)">AI 自动生成</div>
+              <div style="font-size:12px;color:var(--color-text-secondary)">知识图谱由 AI 在需求分析阶段自动生成，作为后续测试用例和脚本生成的预处理数据层。</div>
+            </div>
+            <button class="btn-primary" id="graph-regen-btn" style="font-size:12px;padding:6px 12px" onclick="regenerateGraph(this)">
+              <i class="ti ti-refresh" style="font-size:14px"></i>重新生成
+            </button>
+          </div>
+
+          <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:12px;margin-bottom:16px">
+            <div class="stat-card"><div class="stat-label">图谱总数</div><div class="stat-value">4</div><div class="stat-sub"><span class="stat-dot dot-blue"></span>AI 自动生成</div></div>
+            <div class="stat-card"><div class="stat-label">总节点数</div><div class="stat-value">29</div><div class="stat-sub"><span class="stat-dot dot-green"></span>文档 + 模块 + 用例</div></div>
+            <div class="stat-card"><div class="stat-label">总关联数</div><div class="stat-value">47</div><div class="stat-sub"><span class="stat-dot dot-green"></span>跨模块关联</div></div>
+            <div class="stat-card"><div class="stat-label">覆盖率</div><div class="stat-value">100%</div><div class="stat-sub"><span class="stat-dot dot-green"></span>全部文档已关联</div></div>
+          </div>
+
+          <div class="card">
+            <div class="card-head">
+              <div class="card-title">知识图谱列表</div>
+              <div style="display:flex;gap:8px">
+                <select class="form-select" style="width:160px;height:30px;font-size:12px">
+                  <option>全部项目</option>
+                  <option>电商平台 v3.0</option>
+                  <option>支付系统</option>
+                  <option>用户中心重构</option>
+                </select>
+              </div>
+            </div>
+            <table class="table">
+              <thead><tr><th>图谱名称</th><th>所属项目</th><th>Sprint</th><th>节点数</th><th>关联数</th><th>生成时间</th><th>状态</th><th>操作</th></tr></thead>
+              <tbody>
+                <tr onclick="switchPage('graph')" style="cursor:pointer">
+                  <td><i class="ti ti-atom" style="color:var(--accent);font-size:15px;margin-right:6px" aria-hidden="true"></i>电商平台需求图谱</td>
+                  <td>电商平台 v3.0</td>
+                  <td><span class="badge badge-blue">sprint_all</span></td>
+                  <td><span style="font-family:var(--font-mono);font-weight:500">10</span></td>
+                  <td><span style="font-family:var(--font-mono);font-weight:500">14</span></td>
+                  <td>今天 10:30</td>
+                  <td><span class="badge badge-green">最新</span></td>
+                  <td onclick="event.stopPropagation()"><div class="action-btns"><button class="btn-edit" onclick="switchPage('graph')"><i class="ti ti-eye"></i>查看</button></div></td>
+                </tr>
+                <tr onclick="switchPage('graph')" style="cursor:pointer">
+                  <td><i class="ti ti-atom" style="color:#378ADD;font-size:15px;margin-right:6px" aria-hidden="true"></i>支付系统接口图谱</td>
+                  <td>支付系统</td>
+                  <td><span class="badge badge-blue">sprint_all</span></td>
+                  <td><span style="font-family:var(--font-mono);font-weight:500">8</span></td>
+                  <td><span style="font-family:var(--font-mono);font-weight:500">11</span></td>
+                  <td>昨天 16:20</td>
+                  <td><span class="badge badge-green">最新</span></td>
+                  <td onclick="event.stopPropagation()"><div class="action-btns"><button class="btn-edit" onclick="switchPage('graph')"><i class="ti ti-eye"></i>查看</button></div></td>
+                </tr>
+                <tr onclick="switchPage('graph')" style="cursor:pointer">
+                  <td><i class="ti ti-atom" style="color:#8B5CF6;font-size:15px;margin-right:6px" aria-hidden="true"></i>用户中心重构图谱</td>
+                  <td>用户中心重构</td>
+                  <td><span class="badge badge-blue">sprint_all</span></td>
+                  <td><span style="font-family:var(--font-mono);font-weight:500">6</span></td>
+                  <td><span style="font-family:var(--font-mono);font-weight:500">9</span></td>
+                  <td>3 天前</td>
+                  <td><span class="badge badge-green">最新</span></td>
+                  <td onclick="event.stopPropagation()"><div class="action-btns"><button class="btn-edit" onclick="switchPage('graph')"><i class="ti ti-eye"></i>查看</button></div></td>
+                </tr>
+                <tr onclick="switchPage('graph')" style="cursor:pointer">
+                  <td><i class="ti ti-atom" style="color:#EF9F27;font-size:15px;margin-right:6px" aria-hidden="true"></i>推荐算法实验图谱</td>
+                  <td>推荐算法 A/B</td>
+                  <td><span class="badge badge-blue">sprint_all</span></td>
+                  <td><span style="font-family:var(--font-mono);font-weight:500">5</span></td>
+                  <td><span style="font-family:var(--font-mono);font-weight:500">7</span></td>
+                  <td>1 周前</td>
+                  <td><span class="badge badge-amber">需更新</span></td>
+                  <td onclick="event.stopPropagation()"><div class="action-btns"><button class="btn-edit" onclick="showToast('info','正在重新生成...')"><i class="ti ti-refresh"></i>刷新</button><button class="btn-edit" onclick="switchPage('graph')"><i class="ti ti-eye"></i>查看</button></div></td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+
+        <!-- Knowledge graph detail -->

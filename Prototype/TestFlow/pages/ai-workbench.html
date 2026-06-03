@@ -1,0 +1,213 @@
+<div id="page-ai-workbench" style="display:none">
+          <!-- SKILL 模式选择 -->
+          <div id="skill-mode-cards" style="display:flex;gap:12px;margin-bottom:20px">
+            <div class="skill-mode-card" style="flex:1;padding:16px 20px;border-radius:var(--border-radius-lg);border:2px solid var(--accent);background:var(--accent-light);cursor:pointer">
+              <div style="display:flex;align-items:center;gap:10px;margin-bottom:8px">
+                <i class="ti ti-refresh-dot" style="font-size:20px;color:var(--accent)"></i>
+                <span style="font-size:14px;font-weight:600;color:var(--color-text-primary)">全量模式</span>
+              </div>
+              <div style="font-size:12px;color:var(--color-text-secondary)">从零开始，完整执行 SKILL 全部 4 个阶段。适用于新项目或重大版本迭代。</div>
+            </div>
+            <div class="skill-mode-card" style="flex:1;padding:16px 20px;border-radius:var(--border-radius-lg);border:1px solid var(--color-border-tertiary);background:var(--color-background-primary);cursor:pointer">
+              <div style="display:flex;align-items:center;gap:10px;margin-bottom:8px">
+                <i class="ti ti-git-branch" style="font-size:20px;color:var(--color-text-secondary)"></i>
+                <span style="font-size:14px;font-weight:600;color:var(--color-text-primary)">增量模式</span>
+              </div>
+              <div style="font-size:12px;color:var(--color-text-secondary)">基于当前 Sprint 快照，仅分析变更部分并生成增量用例。适用于迭代回归。</div>
+            </div>
+          </div>
+
+          <!-- Sprint 选择 -->
+          <div class="card" style="margin-bottom:16px">
+            <div class="card-head">
+              <div class="card-title">Sprint 选择</div>
+              <div style="display:flex;gap:8px">
+                <select class="form-select" style="width:160px;height:32px;font-size:13px">
+                  <option>电商平台 v3.0</option>
+                  <option>支付系统</option>
+                  <option>用户中心重构</option>
+                </select>
+              </div>
+            </div>
+            <div style="padding:14px 18px;display:flex;gap:10px;flex-wrap:wrap">
+              <span class="badge badge-blue" style="padding:6px 14px;cursor:pointer;font-size:12px">Sprint 0</span>
+              <span class="badge badge-blue" style="padding:6px 14px;cursor:pointer;font-size:12px">Sprint 1</span>
+              <span class="badge" style="padding:6px 14px;cursor:pointer;font-size:12px;background:var(--accent);color:#fff">Sprint 2</span>
+              <span class="badge badge-blue" style="padding:6px 14px;cursor:pointer;font-size:12px">Sprint 3</span>
+              <span class="badge badge-gray" style="padding:6px 14px;cursor:pointer;font-size:12px">sprint_all（最新汇总）</span>
+            </div>
+          </div>
+
+          <!-- SKILL 4 阶段流水线 -->
+          <div class="card" style="margin-bottom:16px">
+            <div class="card-head">
+              <div class="card-title">SKILL 流水线</div>
+              <div style="display:flex;align-items:center;gap:8px">
+                <span class="badge badge-green">运行中</span>
+                <span style="font-size:11px;color:var(--color-text-tertiary)">已运行 12 分 34 秒</span>
+              </div>
+            </div>
+            <div style="padding:20px 18px">
+              <!-- 阶段 1: 需求分析 -->
+              <div style="display:flex;gap:16px;margin-bottom:20px;position:relative">
+                <div style="display:flex;flex-direction:column;align-items:center;flex-shrink:0">
+                  <div style="width:36px;height:36px;border-radius:50%;background:#dcfce7;display:flex;align-items:center;justify-content:center">
+                    <i class="ti ti-check" style="font-size:18px;color:#16a34a"></i>
+                  </div>
+                  <div style="width:2px;flex:1;background:#dcfce7;margin-top:4px"></div>
+                </div>
+                <div style="flex:1;padding-bottom:16px">
+                  <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:6px">
+                    <div style="font-size:14px;font-weight:600;color:var(--color-text-primary)">阶段 1：需求分析</div>
+                    <span class="badge badge-green">已完成</span>
+                  </div>
+                  <div style="font-size:12px;color:var(--color-text-secondary);margin-bottom:10px">AI 解析知识库中的需求文档，提取功能点、业务规则、接口定义，构建知识图谱关联。</div>
+                  <div style="display:flex;gap:16px;font-size:11px;color:var(--color-text-tertiary)">
+                    <span>模型：<strong style="color:var(--color-text-secondary)">GPT-4o</strong></span>
+                    <span>耗时：<strong style="color:var(--color-text-secondary)">3m 12s</strong></span>
+                    <span>输入 Token：<strong style="font-family:var(--font-mono);color:var(--color-text-secondary)">12,847</strong></span>
+                    <span>输出 Token：<strong style="font-family:var(--font-mono);color:var(--color-text-secondary)">8,234</strong></span>
+                  </div>
+                  <!-- 展开的详细结果 -->
+                  <div style="margin-top:12px;padding:12px;background:var(--color-background-secondary);border-radius:var(--border-radius-md);font-size:12px">
+                    <div style="font-weight:500;margin-bottom:8px;color:var(--color-text-primary)">分析结果摘要</div>
+                    <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:12px">
+                      <div style="text-align:center;padding:8px;background:var(--color-background-primary);border-radius:var(--border-radius-sm)">
+                        <div style="font-size:18px;font-weight:600;color:var(--accent)">23</div>
+                        <div style="color:var(--color-text-tertiary);font-size:11px">功能点</div>
+                      </div>
+                      <div style="text-align:center;padding:8px;background:var(--color-background-primary);border-radius:var(--border-radius-sm)">
+                        <div style="font-size:18px;font-weight:600;color:var(--accent)">15</div>
+                        <div style="color:var(--color-text-tertiary);font-size:11px">业务规则</div>
+                      </div>
+                      <div style="text-align:center;padding:8px;background:var(--color-background-primary);border-radius:var(--border-radius-sm)">
+                        <div style="font-size:18px;font-weight:600;color:var(--accent)">8</div>
+                        <div style="color:var(--color-text-tertiary);font-size:11px">API 端点</div>
+                      </div>
+                      <div style="text-align:center;padding:8px;background:var(--color-background-primary);border-radius:var(--border-radius-sm)">
+                        <div style="font-size:18px;font-weight:600;color:var(--accent)">12</div>
+                        <div style="color:var(--color-text-tertiary);font-size:11px">图谱关联</div>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              <!-- 阶段 2: 测试用例生成 -->
+              <div style="display:flex;gap:16px;margin-bottom:20px;position:relative">
+                <div style="display:flex;flex-direction:column;align-items:center;flex-shrink:0">
+                  <div style="width:36px;height:36px;border-radius:50%;background:var(--accent-light);display:flex;align-items:center;justify-content:center;border:2px solid var(--accent)">
+                    <div style="width:12px;height:12px;border-radius:50%;border:2px solid var(--accent);border-top-color:transparent;animation:spin 1s linear infinite"></div>
+                  </div>
+                  <div style="width:2px;flex:1;background:var(--color-border-tertiary);margin-top:4px"></div>
+                </div>
+                <div style="flex:1;padding-bottom:16px">
+                  <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:6px">
+                    <div style="font-size:14px;font-weight:600;color:var(--color-text-primary)">阶段 2：测试用例生成</div>
+                    <span class="badge" style="background:var(--accent-light);color:var(--accent)">执行中</span>
+                  </div>
+                  <div style="font-size:12px;color:var(--color-text-secondary);margin-bottom:10px">基于需求分析结果，AI 自动生成测试用例，覆盖正向、异常、边界场景。</div>
+                  <div style="display:flex;gap:16px;font-size:11px;color:var(--color-text-tertiary);margin-bottom:10px">
+                    <span>模型：<strong style="color:var(--color-text-secondary)">Claude 3.5 Sonnet</strong></span>
+                    <span>已生成：<strong style="color:var(--color-text-secondary)">47 / ~80 条</strong></span>
+                  </div>
+                  <!-- 进度条 -->
+                  <div style="height:6px;background:var(--color-background-secondary);border-radius:3px;overflow:hidden">
+                    <div style="width:59%;height:100%;background:var(--accent);border-radius:3px;transition:width 0.3s"></div>
+                  </div>
+                  <div style="font-size:11px;color:var(--color-text-tertiary);margin-top:6px">预计剩余 2 分钟</div>
+                </div>
+              </div>
+
+              <!-- 阶段 3: E2E 脚本生成 -->
+              <div style="display:flex;gap:16px;margin-bottom:20px;position:relative">
+                <div style="display:flex;flex-direction:column;align-items:center;flex-shrink:0">
+                  <div style="width:36px;height:36px;border-radius:50%;background:var(--color-background-secondary);display:flex;align-items:center;justify-content:center">
+                    <span style="font-size:14px;font-weight:600;color:var(--color-text-tertiary)">3</span>
+                  </div>
+                  <div style="width:2px;flex:1;background:var(--color-border-tertiary);margin-top:4px"></div>
+                </div>
+                <div style="flex:1;padding-bottom:16px">
+                  <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:6px">
+                    <div style="font-size:14px;font-weight:600;color:var(--color-text-tertiary)">阶段 3：E2E 脚本生成</div>
+                    <span class="badge badge-gray">等待中</span>
+                  </div>
+                  <div style="font-size:12px;color:var(--color-text-tertiary)">将测试用例转化为可执行的 Playwright / Selenium 自动化脚本。</div>
+                </div>
+              </div>
+
+              <!-- 阶段 4: 执行与自愈 -->
+              <div style="display:flex;gap:16px">
+                <div style="display:flex;flex-direction:column;align-items:center;flex-shrink:0">
+                  <div style="width:36px;height:36px;border-radius:50%;background:var(--color-background-secondary);display:flex;align-items:center;justify-content:center">
+                    <span style="font-size:14px;font-weight:600;color:var(--color-text-tertiary)">4</span>
+                  </div>
+                </div>
+                <div style="flex:1">
+                  <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:6px">
+                    <div style="font-size:14px;font-weight:600;color:var(--color-text-tertiary)">阶段 4：执行与自愈</div>
+                    <span class="badge badge-gray">等待中</span>
+                  </div>
+                  <div style="font-size:12px;color:var(--color-text-tertiary)">执行自动化脚本，失败时 AI 自动分析原因并尝试修复脚本。</div>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <!-- 知识图谱预处理状态 -->
+          <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px">
+            <div class="card">
+              <div class="card-head">
+                <div class="card-title">知识图谱预处理</div>
+                <span class="badge badge-green">已完成</span>
+              </div>
+              <div style="padding:14px 18px">
+                <div style="font-size:12px;color:var(--color-text-secondary);margin-bottom:12px">AI 在执行前自动解析知识库文档，构建跨模块关联图谱，供后续阶段使用。</div>
+                <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px">
+                  <div style="padding:10px;background:var(--color-background-secondary);border-radius:var(--border-radius-sm);text-align:center">
+                    <div style="font-size:16px;font-weight:600;color:var(--accent)">29</div>
+                    <div style="font-size:10px;color:var(--color-text-tertiary)">图谱节点</div>
+                  </div>
+                  <div style="padding:10px;background:var(--color-background-secondary);border-radius:var(--border-radius-sm);text-align:center">
+                    <div style="font-size:16px;font-weight:600;color:var(--accent)">47</div>
+                    <div style="font-size:10px;color:var(--color-text-tertiary)">关联边</div>
+                  </div>
+                </div>
+                <div style="margin-top:12px">
+                  <span style="font-size:12px;color:var(--accent);cursor:pointer" onclick="switchPage('graph-list')">查看知识图谱 →</span>
+                </div>
+              </div>
+            </div>
+
+            <div class="card">
+              <div class="card-head">
+                <div class="card-title">执行历史</div>
+              </div>
+              <div style="padding:4px 18px">
+                <div style="padding:10px 0;border-bottom:0.5px solid var(--color-border-tertiary);display:flex;align-items:center;justify-content:space-between">
+                  <div>
+                    <div style="font-size:13px;color:var(--color-text-primary)">Sprint 2 全量执行</div>
+                    <div style="font-size:11px;color:var(--color-text-tertiary);margin-top:2px">今天 14:20 · 运行中</div>
+                  </div>
+                  <span class="badge badge-green">运行中</span>
+                </div>
+                <div style="padding:10px 0;border-bottom:0.5px solid var(--color-border-tertiary);display:flex;align-items:center;justify-content:space-between">
+                  <div>
+                    <div style="font-size:13px;color:var(--color-text-primary)">Sprint 1 增量执行</div>
+                    <div style="font-size:11px;color:var(--color-text-tertiary);margin-top:2px">昨天 16:45 · 18m 32s</div>
+                  </div>
+                  <span class="badge badge-blue">已完成</span>
+                </div>
+                <div style="padding:10px 0;display:flex;align-items:center;justify-content:space-between">
+                  <div>
+                    <div style="font-size:13px;color:var(--color-text-primary)">Sprint 0 全量执行</div>
+                    <div style="font-size:11px;color:var(--color-text-tertiary);margin-top:2px">3 天前 · 24m 10s</div>
+                  </div>
+                  <span class="badge badge-blue">已完成</span>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- ========== AI 配置页 ========== -->

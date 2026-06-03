@@ -1,0 +1,71 @@
+<div id="page-knowledge-detail" style="display:none" data-od-id="path-0-1-1-4">
+          <!-- 面包屑：项目 > Sprint 列表 > 当前 Sprint -->
+          <div class="breadcrumb">
+            <span class="breadcrumb-item" onclick="switchPage('project')"><i class="ti ti-folder" style="font-size:13px" aria-hidden="true"></i>电商平台 v3.0</span>
+            <span class="breadcrumb-sep">/</span>
+            <span class="breadcrumb-item" onclick="switchPage('knowledge')">Sprint 列表</span>
+            <span class="breadcrumb-sep">/</span>
+            <span class="breadcrumb-item current">Sprint 2</span>
+          </div>
+          <div class="card" style="margin-bottom:16px">
+            <div class="card-head">
+              <div style="display:flex;align-items:center;gap:8px">
+                <i class="ti ti-git-branch" style="color:var(--accent);font-size:16px" aria-hidden="true"></i>
+                <div>
+                  <div class="card-title">Sprint 2</div>
+                  <div style="font-size:11px;color:var(--color-text-tertiary);margin-top:2px">电商平台 v3.0 · 进行中 · 4 个模块</div>
+                </div>
+              </div>
+            </div>
+            <div style="padding:14px 18px;display:flex;gap:20px;font-size:12px;color:var(--color-text-secondary)">
+              <span>所属项目：<strong>电商平台 v3.0</strong></span>
+              <span>文档数：<strong>10</strong></span>
+              <span>功能点：<strong>23</strong></span>
+              <span>图谱节点：<strong>18</strong></span>
+            </div>
+          </div>
+
+          <!-- 模块列表 -->
+          <div class="card">
+            <div class="card-head"><div class="card-title">模块列表</div><div style="display:flex;gap:10px"><div class="card-action" onclick="openDialog('folder-create')">添加模块</div><div class="card-action" onclick="openDialog('doc-upload')">上传文档</div></div></div>
+            <table class="table">
+              <thead><tr><th>模块名称</th><th>文档数</th><th>功能点</th><th>关联用例</th><th>AI 状态</th><th>操作</th></tr></thead>
+              <tbody>
+                <tr onclick="switchPage('knowledge-docs')" style="cursor:pointer">
+                  <td><i class="ti ti-cube" style="color:var(--accent);font-size:15px;margin-right:6px" aria-hidden="true"></i>用户登录注册</td>
+                  <td><span style="font-family:var(--font-mono)">3</span></td>
+                  <td><span style="font-family:var(--font-mono)">8</span></td>
+                  <td><span style="font-family:var(--font-mono)">23</span></td>
+                  <td><span class="badge badge-green">已分析</span></td>
+                  <td onclick="event.stopPropagation()"><div class="action-btns"><button class="btn-edit" onclick="openDialog('folder-edit')"><i class="ti ti-edit"></i>编辑</button><button class="btn-delete" onclick="openDialog('folder-delete')"><i class="ti ti-trash"></i>删除</button></div></td>
+                </tr>
+                <tr onclick="switchPage('knowledge-docs')" style="cursor:pointer">
+                  <td><i class="ti ti-cube" style="color:#378ADD;font-size:15px;margin-right:6px" aria-hidden="true"></i>购物车模块</td>
+                  <td><span style="font-family:var(--font-mono)">2</span></td>
+                  <td><span style="font-family:var(--font-mono)">6</span></td>
+                  <td><span style="font-family:var(--font-mono)">18</span></td>
+                  <td><span class="badge badge-green">已分析</span></td>
+                  <td onclick="event.stopPropagation()"><div class="action-btns"><button class="btn-edit" onclick="openDialog('folder-edit')"><i class="ti ti-edit"></i>编辑</button><button class="btn-delete" onclick="openDialog('folder-delete')"><i class="ti ti-trash"></i>删除</button></div></td>
+                </tr>
+                <tr onclick="switchPage('knowledge-docs')" style="cursor:pointer">
+                  <td><i class="ti ti-cube" style="color:#E24B4A;font-size:15px;margin-right:6px" aria-hidden="true"></i>订单模块</td>
+                  <td><span style="font-family:var(--font-mono)">3</span></td>
+                  <td><span style="font-family:var(--font-mono)">5</span></td>
+                  <td><span style="font-family:var(--font-mono)">14</span></td>
+                  <td><span class="badge" style="background:var(--accent-light);color:var(--accent)">分析中</span></td>
+                  <td onclick="event.stopPropagation()"><div class="action-btns"><button class="btn-edit" onclick="openDialog('folder-edit')"><i class="ti ti-edit"></i>编辑</button><button class="btn-delete" onclick="openDialog('folder-delete')"><i class="ti ti-trash"></i>删除</button></div></td>
+                </tr>
+                <tr onclick="switchPage('knowledge-docs')" style="cursor:pointer">
+                  <td><i class="ti ti-cube" style="color:#EF9F27;font-size:15px;margin-right:6px" aria-hidden="true"></i>支付模块</td>
+                  <td><span style="font-family:var(--font-mono)">2</span></td>
+                  <td><span style="font-family:var(--font-mono)">4</span></td>
+                  <td><span style="font-family:var(--font-mono)">11</span></td>
+                  <td><span class="badge badge-green">已分析</span></td>
+                  <td onclick="event.stopPropagation()"><div class="action-btns"><button class="btn-edit" onclick="openDialog('folder-edit')"><i class="ti ti-edit"></i>编辑</button><button class="btn-delete" onclick="openDialog('folder-delete')"><i class="ti ti-trash"></i>删除</button></div></td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+
+        <!-- Knowledge docs (Level 3: 模块内的文档 + 功能点) -->
