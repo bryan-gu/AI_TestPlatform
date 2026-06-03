@@ -1,3 +1,4 @@
+import os
 from logging.config import fileConfig
 
 from sqlalchemy import engine_from_config, pool
@@ -7,6 +8,12 @@ from app.core.database import Base
 from app.models import *  # noqa: F401,F403 - 导入所有模型以便Alembic检测
 
 config = context.config
+
+# 优先使用环境变量中的 DATABASE_URL（Docker 容器内 / 本地 .env 均可覆盖）
+database_url = os.getenv("DATABASE_URL")
+if database_url:
+    config.set_main_option("sqlalchemy.url", database_url)
+
 if config.config_file_name is not None:
     fileConfig(config.config_file_name)
 
