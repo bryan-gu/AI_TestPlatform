@@ -18,52 +18,48 @@
           </div>
           <div class="stats-grid" style="grid-template-columns:repeat(4,1fr)">
             <div class="stat-card"><div class="stat-label">Sprint 数</div><div class="stat-value">4</div><div class="stat-sub"><span class="stat-dot dot-blue"></span>含 sprint_all</div></div>
-            <div class="stat-card"><div class="stat-label">模块数</div><div class="stat-value">12</div><div class="stat-sub"><span class="stat-dot dot-green"></span>全部已关联</div></div>
             <div class="stat-card"><div class="stat-label">文档总数</div><div class="stat-value">36</div><div class="stat-sub"><span class="stat-dot dot-amber"></span>本月新增 8 篇</div></div>
             <div class="stat-card"><div class="stat-label">功能点</div><div class="stat-value">89</div><div class="stat-sub"><span class="stat-dot dot-green"></span>AI 已提取</div></div>
+            <div class="stat-card"><div class="stat-label">涉及模块</div><div class="stat-value">12</div><div class="stat-sub"><span class="stat-dot dot-blue"></span>AI 自动识别</div></div>
           </div>
           <div class="card">
             <div class="card-head"><div class="card-title">Sprint 知识快照</div></div>
             <table class="table">
-              <thead><tr><th>Sprint</th><th>状态</th><th>模块数</th><th>文档数</th><th>功能点</th><th>图谱节点</th><th>更新时间</th><th>操作</th></tr></thead>
+              <thead><tr><th>Sprint</th><th>状态</th><th>文档数</th><th>功能点</th><th>涉及模块</th><th>更新时间</th><th>操作</th></tr></thead>
               <tbody>
                 <tr onclick="switchPage('knowledge-detail')" style="cursor:pointer">
                   <td><i class="ti ti-git-branch" style="color:var(--accent);font-size:15px;margin-right:6px" aria-hidden="true"></i><strong>Sprint 0</strong></td>
                   <td><span class="badge badge-blue">基线</span></td>
-                  <td><span style="font-family:var(--font-mono)">3</span></td>
                   <td><span style="font-family:var(--font-mono)">8</span></td>
                   <td><span style="font-family:var(--font-mono)">21</span></td>
-                  <td><span style="font-family:var(--font-mono)">15</span></td>
+                  <td style="font-size:12px;color:var(--color-text-secondary)">用户认证, 商品展示</td>
                   <td>2026-03-15</td>
                   <td onclick="event.stopPropagation()"><div class="action-btns"><button class="btn-edit" onclick="openDialog('kb-edit')"><i class="ti ti-edit"></i>编辑</button></div></td>
                 </tr>
                 <tr onclick="switchPage('knowledge-detail')" style="cursor:pointer">
                   <td><i class="ti ti-git-branch" style="color:var(--accent);font-size:15px;margin-right:6px" aria-hidden="true"></i><strong>Sprint 1</strong></td>
                   <td><span class="badge badge-green">已完成</span></td>
-                  <td><span style="font-family:var(--font-mono)">5</span></td>
                   <td><span style="font-family:var(--font-mono)">12</span></td>
                   <td><span style="font-family:var(--font-mono)">34</span></td>
-                  <td><span style="font-family:var(--font-mono)">22</span></td>
+                  <td style="font-size:12px;color:var(--color-text-secondary)">购物车, 订单, 支付</td>
                   <td>2026-04-01</td>
                   <td onclick="event.stopPropagation()"><div class="action-btns"><button class="btn-edit" onclick="openDialog('kb-edit')"><i class="ti ti-edit"></i>编辑</button></div></td>
                 </tr>
                 <tr onclick="switchPage('knowledge-detail')" style="cursor:pointer">
                   <td><i class="ti ti-git-branch" style="color:var(--accent);font-size:15px;margin-right:6px" aria-hidden="true"></i><strong>Sprint 2</strong></td>
                   <td><span class="badge" style="background:var(--accent-light);color:var(--accent)">进行中</span></td>
-                  <td><span style="font-family:var(--font-mono)">4</span></td>
                   <td><span style="font-family:var(--font-mono)">10</span></td>
                   <td><span style="font-family:var(--font-mono)">23</span></td>
-                  <td><span style="font-family:var(--font-mono)">18</span></td>
+                  <td style="font-size:12px;color:var(--color-text-secondary)">登录注册, 订单, 支付</td>
                   <td>今天 10:30</td>
                   <td onclick="event.stopPropagation()"><div class="action-btns"><button class="btn-edit" onclick="openDialog('kb-edit')"><i class="ti ti-edit"></i>编辑</button></div></td>
                 </tr>
                 <tr onclick="switchPage('knowledge-detail')" style="cursor:pointer">
                   <td><i class="ti ti-layers-intersect" style="color:#8B5CF6;font-size:15px;margin-right:6px" aria-hidden="true"></i><strong>sprint_all</strong></td>
                   <td><span class="badge badge-purple" style="background:#EEEDFE;color:#26215C">最新汇总</span></td>
-                  <td><span style="font-family:var(--font-mono)">12</span></td>
                   <td><span style="font-family:var(--font-mono)">36</span></td>
                   <td><span style="font-family:var(--font-mono)">89</span></td>
-                  <td><span style="font-family:var(--font-mono)">29</span></td>
+                  <td style="font-size:12px;color:var(--color-text-secondary)">全部 12 个模块</td>
                   <td>自动同步</td>
                   <td onclick="event.stopPropagation()"><div class="action-btns"><button class="btn-edit" onclick="switchPage('graph-list')"><i class="ti ti-atom"></i>图谱</button></div></td>
                 </tr>
