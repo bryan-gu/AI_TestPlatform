@@ -3,7 +3,9 @@ from app.models.user import User
 from app.models.project import Project
 from app.models.testcase import TestCase
 from app.models.report import Report
-from app.models.knowledge import KnowledgeBase, Folder, Document
+from app.models.sprint import Sprint
+from app.models.module import Module
+from app.models.document import Document
 from app.models.activity import Activity
 
 __all__ = [
@@ -12,8 +14,8 @@ __all__ = [
     "Project",
     "TestCase",
     "Report",
-    "KnowledgeBase",
-    "Folder",
+    "Sprint",
+    "Module",
     "Document",
     "Activity",
 ]

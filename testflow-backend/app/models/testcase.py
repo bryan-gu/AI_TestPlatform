@@ -1,4 +1,4 @@
-from sqlalchemy import Column, Integer, String, DateTime, ForeignKey, func
+from sqlalchemy import Column, Integer, String, Text, DateTime, ForeignKey, func
 from sqlalchemy.orm import relationship
 
 from app.core.database import Base
@@ -14,6 +14,9 @@ class TestCase(Base):
     exec_status = Column(String(20), nullable=False, default="待执行")  # 通过/失败/执行中/待执行
     executor_id = Column(Integer, ForeignKey("users.id"), nullable=True)
     project_id = Column(Integer, ForeignKey("projects.id"), nullable=True)
+    preconditions = Column(Text, default="")  # 前置条件
+    test_steps = Column(Text, default="")  # 测试步骤
+    expected_result = Column(Text, default="")  # 预期结果
     created_at = Column(DateTime, server_default=func.now())
     updated_at = Column(DateTime, server_default=func.now(), onupdate=func.now())
 
