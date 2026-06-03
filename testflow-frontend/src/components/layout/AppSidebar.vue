@@ -107,12 +107,13 @@ const projectMenus = reactive([
 
 const knowledgeMenus = reactive([
   { path: '/knowledge', title: '知识库', icon: 'Collection', badge: 0 },
-  { path: '/knowledge/graph', title: '知识图谱', icon: 'Share' }
+  { path: '/graphs', title: '知识图谱', icon: 'Share' }
 ])
 
 const systemMenus = reactive([
   { path: '/roles', title: '角色管理', icon: 'Lock', badge: 0 },
-  { path: '/users', title: '用户管理', icon: 'User', badge: 0 }
+  { path: '/users', title: '用户管理', icon: 'User', badge: 0 },
+  { path: '/ai-config', title: 'AI 配置', icon: 'Setting', badge: 3 }
 ])
 
 function navigateTo(item) {

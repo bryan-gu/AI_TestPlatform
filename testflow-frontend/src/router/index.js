@@ -22,6 +22,7 @@ const routes = [
         path: '',
         redirect: '/dashboard'
       },
+      // 项目模块
       {
         path: 'dashboard',
         name: 'Dashboard',
@@ -35,12 +36,6 @@ const routes = [
         meta: { title: '项目管理' }
       },
       {
-        path: 'projects/:id',
-        name: 'ProjectDetail',
-        component: () => import('../views/project/ProjectDetail.vue'),
-        meta: { title: '项目详情' }
-      },
-      {
         path: 'testcases',
         name: 'TestCaseList',
         component: () => import('../views/testcase/TestCaseList.vue'),
@@ -52,6 +47,7 @@ const routes = [
         component: () => import('../views/report/TestReportList.vue'),
         meta: { title: '测试报告' }
       },
+      // 知识模块
       {
         path: 'knowledge',
         name: 'KnowledgeBase',
@@ -65,17 +61,30 @@ const routes = [
         meta: { title: '知识库详情' }
       },
       {
-        path: 'knowledge/:id/folder/:folderId',
+        path: 'knowledge/:id/folder',
         name: 'KnowledgeDocs',
         component: () => import('../views/knowledge/KnowledgeDocs.vue'),
         meta: { title: '文档列表' }
       },
       {
-        path: 'knowledge/graph',
-        name: 'KnowledgeGraph',
-        component: () => import('../views/knowledge/KnowledgeGraph.vue'),
+        path: 'knowledge/doc/:id',
+        name: 'DocumentPreview',
+        component: () => import('../views/knowledge/DocumentPreview.vue'),
+        meta: { title: '文档预览' }
+      },
+      {
+        path: 'graphs',
+        name: 'GraphList',
+        component: () => import('../views/graph/GraphList.vue'),
         meta: { title: '知识图谱' }
       },
+      {
+        path: 'graphs/:id',
+        name: 'GraphDetail',
+        component: () => import('../views/graph/KnowledgeGraph.vue'),
+        meta: { title: '图谱详情' }
+      },
+      // 系统管理
       {
         path: 'roles',
         name: 'RoleManagement',
@@ -87,6 +96,12 @@ const routes = [
         name: 'UserManagement',
         component: () => import('../views/user/UserManagement.vue'),
         meta: { title: '用户管理' }
+      },
+      {
+        path: 'ai-config',
+        name: 'AIConfig',
+        component: () => import('../views/settings/AIConfig.vue'),
+        meta: { title: 'AI配置' }
       }
     ]
   },
