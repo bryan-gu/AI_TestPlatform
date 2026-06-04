@@ -2,7 +2,7 @@ from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 
 from app.core.database import get_db
-from app.core.response import ResponseModel
+from app.schemas.common import ResponseModel
 from app.models.graph import Graph, GraphNode, GraphEdge
 from app.schemas.graph import (
     GraphCreate, GraphOut, GraphDetailOut,
