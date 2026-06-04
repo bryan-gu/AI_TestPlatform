@@ -267,7 +267,7 @@ document.addEventListener('click', (e) => {
   top: calc(100% + 6px);
   left: 0;
   right: 0;
-  min-width: 360px;
+  min-width: 440px;
   max-height: 420px;
   overflow-y: auto;
   background: var(--color-background-primary);
@@ -342,9 +342,9 @@ document.addEventListener('click', (e) => {
 .search-item-desc {
   font-size: 11px;
   color: var(--color-text-tertiary);
-  flex-shrink: 0;
+  flex-shrink: 1;
   margin-left: 12px;
-  max-width: 180px;
+  max-width: 200px;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
