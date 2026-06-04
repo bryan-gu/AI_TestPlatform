@@ -1,9 +1,15 @@
 <template>
   <div class="knowledge-graph">
-    <div class="card">
+    <div class="card" v-loading="loading">
       <div class="card-head">
-        <div class="card-title">知识图谱 — 需求关联可视化</div>
-        <div class="card-action">编辑关联</div>
+        <div class="card-title">
+          知识图谱 — {{ graphData.name || '需求关联可视化' }}
+        </div>
+        <div class="card-action">
+          <el-button size="small" @click="goBack">
+            <el-icon><ArrowLeft /></el-icon>返回列表
+          </el-button>
+        </div>
       </div>
 
       <div class="graph-content">
@@ -12,32 +18,34 @@
         </div>
 
         <!-- 节点区域 -->
-        <div class="graph-nodes">
+        <div class="graph-nodes" v-if="nodes.length > 0">
           <div
             v-for="node in nodes"
             :key="node.id"
             class="graph-node"
-            :class="node.colorClass"
+            :class="getNodeColorClass(node.node_type)"
           >
-            <el-icon><component :is="icons[node.icon]" /></el-icon>
-            <span>{{ node.label }}</span>
+            <el-icon><component :is="getNodeIcon(node.node_type)" /></el-icon>
+            <span>{{ node.name }}</span>
           </div>
         </div>
+        <div v-else class="graph-empty">暂无节点数据</div>
 
         <!-- 关联区域 -->
-        <div class="graph-edges">
+        <div class="graph-edges" v-if="edges.length > 0">
           <div
             v-for="edge in edges"
             :key="edge.id"
             class="graph-edge"
           >
-            <span class="edge-node" :class="edge.fromClass">{{ edge.from }}</span>
+            <span class="edge-node" :class="getEdgeNodeClass(edge.source_node_name)">{{ edge.source_node_name }}</span>
             <span class="edge-line"></span>
-            <span class="edge-label">{{ edge.relation }}</span>
+            <span class="edge-label">{{ getRelationLabel(edge.relation_type) }}</span>
             <span class="edge-line"></span>
-            <span class="edge-node" :class="edge.toClass">{{ edge.to }}</span>
+            <span class="edge-node" :class="getEdgeNodeClass(edge.target_node_name)">{{ edge.target_node_name }}</span>
           </div>
         </div>
+        <div v-else-if="!loading" class="graph-empty">暂无关联数据</div>
 
         <!-- 图谱统计 -->
         <div class="graph-stats">
@@ -45,19 +53,19 @@
           <div class="graph-stats-items">
             <div class="graph-stat-item">
               <span class="graph-stat-label">节点数</span>
-              <span class="graph-stat-value">{{ graphStats.nodeCount }}</span>
+              <span class="graph-stat-value">{{ graphData.node_count || 0 }}</span>
             </div>
             <div class="graph-stat-item">
               <span class="graph-stat-label">关联数</span>
-              <span class="graph-stat-value">{{ graphStats.edgeCount }}</span>
+              <span class="graph-stat-value">{{ graphData.edge_count || 0 }}</span>
             </div>
             <div class="graph-stat-item">
               <span class="graph-stat-label">文档覆盖</span>
-              <span class="graph-stat-value">{{ graphStats.docCoverage }}</span>
+              <span class="graph-stat-value">{{ docCoverage }}</span>
             </div>
             <div class="graph-stat-item">
               <span class="graph-stat-label">孤立节点</span>
-              <span class="graph-stat-value" style="color: #E24B4A">{{ graphStats.isolatedNodes }}</span>
+              <span class="graph-stat-value" style="color: #E24B4A">{{ isolatedCount }}</span>
             </div>
           </div>
         </div>
@@ -67,38 +75,109 @@
 </template>
 
 <script setup>
-import { ref, onMounted } from 'vue'
+import { ref, computed, onMounted } from 'vue'
+import { useRoute, useRouter } from 'vue-router'
 import { useAppStore } from '../../stores/app'
 import * as icons from '@element-plus/icons-vue'
+import { ArrowLeft } from '@element-plus/icons-vue'
+import { getGraphDetail } from '../../api/graph'
 
+const route = useRoute()
+const router = useRouter()
 const appStore = useAppStore()
 
-const nodes = ref([
-  { id: 1, label: '电商平台需求 v3.2', icon: 'Document', colorClass: 'gn-blue' },
-  { id: 2, label: '支付系统接口文档', icon: 'Document', colorClass: 'gn-purple' },
-  { id: 3, label: '用户中心 PRD', icon: 'Document', colorClass: 'gn-teal' },
-  { id: 4, label: '购物车模块', icon: 'Box', colorClass: 'gn-amber' },
-  { id: 5, label: '订单模块', icon: 'Box', colorClass: 'gn-coral' },
-  { id: 6, label: '登录鉴权', icon: 'Box', colorClass: 'gn-blue' },
-  { id: 7, label: 'TC-001 ~ TC-047', icon: 'List', colorClass: 'gn-teal' },
-  { id: 8, label: 'TC-048 ~ TC-091', icon: 'List', colorClass: 'gn-purple' }
-])
+const loading = ref(false)
+const nodes = ref([])
+const edges = ref([])
+const graphData = ref({})
 
-const edges = ref([
-  { id: 1, from: '电商平台需求', fromClass: 'gn-blue', relation: '依赖', to: '支付系统接口', toClass: 'gn-purple' },
-  { id: 2, from: '用户中心 PRD', fromClass: 'gn-teal', relation: '包含', to: '登录鉴权', toClass: 'gn-blue' },
-  { id: 3, from: '购物车模块', fromClass: 'gn-amber', relation: '覆盖', to: 'TC-001 ~ TC-047', toClass: 'gn-teal' }
-])
-
-const graphStats = ref({
-  nodeCount: 8,
-  edgeCount: 12,
-  docCoverage: '4 / 4',
-  isolatedNodes: 0
+// 计算文档覆盖：有至少一条关联的文档节点数 / 总文档节点数
+const docCoverage = computed(() => {
+  const docNodes = nodes.value.filter(n => n.node_type === 'document')
+  if (docNodes.length === 0) return '0 / 0'
+  const connectedNodeIds = new Set()
+  edges.value.forEach(e => {
+    connectedNodeIds.add(e.source_node_id)
+    connectedNodeIds.add(e.target_node_id)
+  })
+  const connected = docNodes.filter(n => connectedNodeIds.has(n.id)).length
+  return `${connected} / ${docNodes.length}`
 })
 
+// 计算孤立节点数
+const isolatedCount = computed(() => {
+  const connectedNodeIds = new Set()
+  edges.value.forEach(e => {
+    connectedNodeIds.add(e.source_node_id)
+    connectedNodeIds.add(e.target_node_id)
+  })
+  return nodes.value.filter(n => !connectedNodeIds.has(n.id)).length
+})
+
+function getNodeColorClass(nodeType) {
+  const map = {
+    document: 'gn-blue',
+    module: 'gn-amber',
+    testcase: 'gn-teal',
+    feature: 'gn-purple',
+  }
+  return map[nodeType] || 'gn-blue'
+}
+
+function getNodeIcon(nodeType) {
+  const map = {
+    document: 'Document',
+    module: 'Box',
+    testcase: 'List',
+    feature: 'Star',
+  }
+  return map[nodeType] || 'Document'
+}
+
+function getRelationLabel(relationType) {
+  const map = {
+    dependency: '依赖',
+    include: '包含',
+    call: '调用',
+    dataflow: '数据流',
+  }
+  return map[relationType] || relationType
+}
+
+// 边节点的颜色（基于节点名称的简单哈希）
+const COLOR_CLASSES = ['gn-blue', 'gn-purple', 'gn-teal', 'gn-amber', 'gn-coral']
+function getEdgeNodeClass(name) {
+  if (!name) return 'gn-blue'
+  let hash = 0
+  for (let i = 0; i < name.length; i++) hash = name.charCodeAt(i) + ((hash << 5) - hash)
+  return COLOR_CLASSES[Math.abs(hash) % COLOR_CLASSES.length]
+}
+
+function goBack() {
+  router.push('/graphs')
+}
+
+async function loadGraphDetail() {
+  const graphId = route.params.id
+  if (!graphId) return
+
+  loading.value = true
+  try {
+    const res = await getGraphDetail(graphId)
+    const data = res.data?.data || res.data || {}
+    graphData.value = data
+    nodes.value = data.nodes || []
+    edges.value = data.edges || []
+  } catch (e) {
+    console.error('加载图谱详情失败', e)
+  } finally {
+    loading.value = false
+  }
+}
+
 onMounted(() => {
-  appStore.setCurrentPage('knowledge-graph', '知识图谱', '编辑关联')
+  appStore.setCurrentPage('knowledge-graph', '知识图谱', '查看详情')
+  loadGraphDetail()
 })
 </script>
 
@@ -115,6 +194,13 @@ onMounted(() => {
   font-size: 12px;
   color: var(--color-text-tertiary);
   margin-bottom: 16px;
+}
+
+.graph-empty {
+  text-align: center;
+  padding: 24px;
+  color: var(--color-text-tertiary);
+  font-size: 13px;
 }
 
 /* 节点区域 */

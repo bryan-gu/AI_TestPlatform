@@ -9,6 +9,7 @@ from app.models.document import Document
 from app.models.activity import Activity
 from app.models.feature_point import FeaturePoint
 from app.models.ai_config import AIProvider, ModelStrategy, AIGlobalConfig, AICallLog
+from app.models.graph import Graph, GraphNode, GraphEdge
 
 __all__ = [
     "Role",
@@ -25,4 +26,7 @@ __all__ = [
     "ModelStrategy",
     "AIGlobalConfig",
     "AICallLog",
+    "Graph",
+    "GraphNode",
+    "GraphEdge",
 ]

@@ -7,10 +7,10 @@
       </div>
       <div style="flex:1">
         <div style="display:flex;align-items:center;gap:8px">
-          <el-select v-model="selectedProject" style="width:200px" size="small">
+          <el-select v-model="selectedProject" style="width:200px" size="small" @change="onProjectChange">
             <el-option v-for="p in projects" :key="p.id" :label="p.name" :value="p.id" />
           </el-select>
-          <el-tag type="primary" size="small" effect="plain" round>{{ currentProjectStatus }}</el-tag>
+          <el-tag v-if="currentProjectStatus" type="primary" size="small" effect="plain" round>{{ currentProjectStatus }}</el-tag>
         </div>
         <div style="font-size:12px;color:var(--color-text-secondary);margin-top:2px">
           该知识图谱由 AI 在需求分析阶段自动生成 · 共 {{ stats.totalGraphs }} 张图谱、{{ stats.totalNodes }} 个节点
@@ -59,38 +59,42 @@
       <div class="card-head">
         <div class="card-title">知识图谱列表</div>
         <div style="display:flex;gap:8px">
-          <el-select v-model="filterProject" size="small" style="width:160px" placeholder="全部项目">
-            <el-option label="全部项目" value="" />
+          <el-select v-model="filterProjectId" size="small" style="width:160px" placeholder="全部项目" clearable @change="loadGraphs">
             <el-option v-for="p in projects" :key="p.id" :label="p.name" :value="p.id" />
           </el-select>
         </div>
       </div>
-      <el-table :data="filteredGraphs" style="width:100%" @row-click="goToDetail">
+      <el-table :data="graphs" style="width:100%" @row-click="goToDetail" v-loading="loading">
         <el-table-column label="图谱名称" min-width="200">
           <template #default="{ row }">
             <div class="graph-name">
-              <el-icon :size="15" :style="{ color: row.iconColor }"><Share /></el-icon>
+              <el-icon :size="15" :style="{ color: row.iconColor || 'var(--accent)' }"><Share /></el-icon>
               <span>{{ row.name }}</span>
             </div>
           </template>
         </el-table-column>
-        <el-table-column prop="project" label="所属项目" width="140" />
+        <el-table-column prop="project_name" label="所属项目" width="140" />
         <el-table-column label="Sprint" width="100">
           <template #default="{ row }">
-            <el-tag type="primary" size="small" effect="plain" round>{{ row.sprint }}</el-tag>
+            <el-tag v-if="row.sprint_name" type="primary" size="small" effect="plain" round>{{ row.sprint_name }}</el-tag>
+            <span v-else style="color:var(--color-text-tertiary)">-</span>
           </template>
         </el-table-column>
         <el-table-column label="节点数" width="80">
           <template #default="{ row }">
-            <span class="mono-val">{{ row.nodeCount }}</span>
+            <span class="mono-val">{{ row.node_count }}</span>
           </template>
         </el-table-column>
         <el-table-column label="关联数" width="80">
           <template #default="{ row }">
-            <span class="mono-val">{{ row.edgeCount }}</span>
+            <span class="mono-val">{{ row.edge_count }}</span>
           </template>
         </el-table-column>
-        <el-table-column prop="generatedAt" label="生成时间" width="120" />
+        <el-table-column label="生成时间" width="120">
+          <template #default="{ row }">
+            {{ formatTime(row.generated_at) }}
+          </template>
+        </el-table-column>
         <el-table-column label="状态" width="90">
           <template #default="{ row }">
             <el-tag :type="row.status === '最新' ? 'success' : 'warning'" size="small" effect="plain" round>{{ row.status }}</el-tag>
@@ -109,6 +113,7 @@
           </template>
         </el-table-column>
       </el-table>
+      <el-empty v-if="!loading && graphs.length === 0" description="暂无图谱数据，请在 AI 工作台中生成" />
     </div>
   </div>
 </template>
@@ -118,38 +123,94 @@ import { ref, reactive, computed, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
 import { Folder, Share, View, Refresh, MagicStick } from '@element-plus/icons-vue'
 import { ElMessage } from 'element-plus'
+import { getProjects } from '../../api/project'
+import { getGraphs, getGraphStats, regenerateGraph } from '../../api/graph'
 
 const router = useRouter()
 const regenerating = ref(false)
-const selectedProject = ref(1)
-const filterProject = ref('')
-const currentProjectStatus = ref('测试中')
+const loading = ref(false)
+const selectedProject = ref(null)
+const filterProjectId = ref('')
+const currentProjectStatus = ref('')
 
-const projects = ref([
-  { id: 1, name: '电商平台 v3.0', status: '测试中' },
-  { id: 2, name: '支付系统', status: '已完成' },
-  { id: 3, name: '用户中心重构', status: '进行中' },
-  { id: 4, name: '推荐算法 A/B', status: '待启动' }
-])
+const projects = ref([])
+const graphs = ref([])
 
 const stats = reactive({
-  totalGraphs: 4,
-  totalNodes: 29,
-  totalEdges: 47,
-  coverage: '100%'
+  totalGraphs: 0,
+  totalNodes: 0,
+  totalEdges: 0,
+  coverage: '0%'
 })
 
-const graphs = ref([
-  { id: 1, name: '电商平台需求图谱', project: '电商平台 v3.0', sprint: 'sprint_all', nodeCount: 10, edgeCount: 14, generatedAt: '今天 10:30', status: '最新', iconColor: 'var(--accent)' },
-  { id: 2, name: '支付系统接口图谱', project: '支付系统', sprint: 'sprint_all', nodeCount: 8, edgeCount: 11, generatedAt: '昨天 16:20', status: '最新', iconColor: '#378ADD' },
-  { id: 3, name: '用户中心重构图谱', project: '用户中心重构', sprint: 'sprint_all', nodeCount: 6, edgeCount: 9, generatedAt: '3 天前', status: '最新', iconColor: '#8B5CF6' },
-  { id: 4, name: '推荐算法实验图谱', project: '推荐算法 A/B', sprint: 'sprint_all', nodeCount: 5, edgeCount: 7, generatedAt: '1 周前', status: '需更新', iconColor: '#EF9F27' }
-])
+const GRAPH_COLORS = ['var(--accent)', '#378ADD', '#8B5CF6', '#EF9F27', '#10B981', '#F43F5E']
 
-const filteredGraphs = computed(() => {
-  if (!filterProject.value) return graphs.value
-  return graphs.value.filter(g => g.project === projects.value.find(p => p.id === filterProject.value)?.name)
-})
+function formatTime(dateStr) {
+  if (!dateStr) return '-'
+  const d = new Date(dateStr)
+  const now = new Date()
+  const diff = now - d
+  const mins = Math.floor(diff / 60000)
+  if (mins < 1) return '刚刚'
+  if (mins < 60) return `${mins} 分钟前`
+  const hours = Math.floor(mins / 60)
+  if (hours < 24) return `${hours} 小时前`
+  const days = Math.floor(hours / 24)
+  if (days < 7) return `${days} 天前`
+  return `${d.getMonth() + 1}/${d.getDate()}`
+}
+
+function onProjectChange(pid) {
+  const p = projects.value.find(p => p.id === pid)
+  currentProjectStatus.value = p?.status || ''
+  filterProjectId.value = pid
+  loadGraphs()
+}
+
+async function loadProjects() {
+  try {
+    const res = await getProjects()
+    projects.value = res.data?.data || res.data || []
+    if (projects.value.length > 0 && !selectedProject.value) {
+      selectedProject.value = projects.value[0].id
+      currentProjectStatus.value = projects.value[0].status || ''
+    }
+  } catch (e) {
+    console.error('加载项目失败', e)
+  }
+}
+
+async function loadGraphs() {
+  loading.value = true
+  try {
+    const params = {}
+    if (filterProjectId.value) params.project_id = filterProjectId.value
+    else if (selectedProject.value) params.project_id = selectedProject.value
+    const res = await getGraphs(params)
+    const list = res.data?.data || res.data || []
+    graphs.value = list.map((g, i) => ({
+      ...g,
+      iconColor: GRAPH_COLORS[i % GRAPH_COLORS.length]
+    }))
+  } catch (e) {
+    console.error('加载图谱失败', e)
+  } finally {
+    loading.value = false
+  }
+}
+
+async function loadStats() {
+  try {
+    const res = await getGraphStats()
+    const s = res.data?.data || res.data || {}
+    stats.totalGraphs = s.total_graphs ?? 0
+    stats.totalNodes = s.total_nodes ?? 0
+    stats.totalEdges = s.total_edges ?? 0
+    stats.coverage = s.coverage ?? '0%'
+  } catch (e) {
+    console.error('加载统计失败', e)
+  }
+}
 
 function goToDetail(row) {
   router.push(`/graphs/${row.id}`)
@@ -158,8 +219,15 @@ function goToDetail(row) {
 async function handleRegenerate() {
   regenerating.value = true
   try {
-    await new Promise(r => setTimeout(r, 2000))
-    ElMessage.success('图谱重新生成完成')
+    // 对当前筛选条件下的第一张图谱触发重新生成
+    if (graphs.value.length > 0) {
+      await regenerateGraph(graphs.value[0].id)
+      ElMessage.success('图谱重新生成完成')
+      await loadGraphs()
+      await loadStats()
+    } else {
+      ElMessage.info('暂无图谱可重新生成')
+    }
   } catch (e) {
     ElMessage.error('重新生成失败')
   } finally {
@@ -167,12 +235,20 @@ async function handleRegenerate() {
   }
 }
 
-function handleRefresh(row) {
-  ElMessage.info(`正在刷新"${row.name}"...`)
+async function handleRefresh(row) {
+  try {
+    await regenerateGraph(row.id)
+    ElMessage.success(`"${row.name}" 已刷新`)
+    await loadGraphs()
+    await loadStats()
+  } catch (e) {
+    ElMessage.error('刷新失败')
+  }
 }
 
-onMounted(() => {
-  // TODO: 从API获取数据
+onMounted(async () => {
+  await loadProjects()
+  await Promise.all([loadGraphs(), loadStats()])
 })
 </script>
 

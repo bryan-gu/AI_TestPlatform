@@ -113,9 +113,9 @@ API 文档：http://localhost:8000/docs
 - [x] TestCase + Report Schema/CRUD/API 暴露新字段 + 批量执行 + 审批接口（Phase 2B）
 - [x] FeaturePoint 功能点模型 + API + 前端功能点管理（Phase 3）
 - [x] AI 配置模块（Provider/Strategy/Config/CallLog）+ 前端对接（Phase 4）
+- [x] 知识图谱模块（Graph/Node/Edge）+ 前端对接（Phase 5）
 
 ### 进行中（参见 全栈开发方案.md）
-- [ ] 知识图谱后端（Graph/Node/Edge）（Phase 5）
 - [ ] AI 流水线后端（PipelineExecution/Stage）（Phase 6）
 - [ ] 全局搜索 + Dashboard 增强（Phase 7）
 - [ ] 前端对接真实 API（替换 Mock 数据）
