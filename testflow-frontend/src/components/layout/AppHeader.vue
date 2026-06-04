@@ -268,7 +268,7 @@ document.addEventListener('click', (e) => {
   top: calc(100% + 6px);
   left: 0;
   right: 0;
-  min-width: 360px;
+  width: 100%;
   max-height: 420px;
   overflow-y: auto;
   background: var(--color-background-primary);
