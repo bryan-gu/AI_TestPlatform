@@ -145,7 +145,7 @@
 
     <!-- 添加/编辑服务商对话框 -->
     <el-dialog v-model="providerEditVisible" :title="isEditProvider ? '编辑服务商' : '添加服务商'" width="500px" destroy-on-close>
-      <el-form :model="providerForm" label-width="80px">
+      <el-form :model="providerForm" label-width="100px">
         <el-form-item label="服务商类型">
           <el-select v-model="providerForm.provider_type" placeholder="选择服务商类型" style="width:100%">
             <el-option label="OpenAI" value="OpenAI" />
