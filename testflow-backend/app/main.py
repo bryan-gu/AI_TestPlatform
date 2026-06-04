@@ -35,8 +35,8 @@ def _seed_database():
             admin_role = db.query(Role).filter(Role.name == "超级管理员").first()
             admin = User(
                 name="张测试",
-                email="zhang@test.com",
-                password_hash=hash_password("123456"),
+                email="admin@test.com",
+                password_hash=hash_password("Aa123456"),
                 role_id=admin_role.id if admin_role else None,
                 project="全部",
                 status="活跃",

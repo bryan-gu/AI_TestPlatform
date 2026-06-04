@@ -319,6 +319,7 @@ document.addEventListener('click', (e) => {
   display: flex;
   align-items: center;
   justify-content: space-between;
+  gap: 8px;
   padding: 8px 16px;
   cursor: pointer;
   transition: background 0.15s;
@@ -332,6 +333,10 @@ document.addEventListener('click', (e) => {
   font-size: 13px;
   color: var(--color-text-primary);
   font-weight: 500;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  min-width: 0;
 }
 
 .search-item-desc {
@@ -339,6 +344,10 @@ document.addEventListener('click', (e) => {
   color: var(--color-text-tertiary);
   flex-shrink: 0;
   margin-left: 12px;
+  max-width: 180px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 /* 按钮 */
