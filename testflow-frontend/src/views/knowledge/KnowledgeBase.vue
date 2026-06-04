@@ -50,8 +50,8 @@
       </div>
       <div class="stat-card">
         <div class="stat-label">功能点</div>
-        <div class="stat-value">--</div>
-        <div class="stat-sub"><span class="stat-dot dot-green"></span>Phase 3 开发</div>
+        <div class="stat-value">{{ stats.featurePointCount }}</div>
+        <div class="stat-sub"><span class="stat-dot dot-green"></span>AI 提取</div>
       </div>
     </div>
 
@@ -158,6 +158,7 @@ const stats = ref({
   sprintCount: 0,
   moduleCount: 0,
   totalDocs: 0,
+  featurePointCount: 0,
 })
 
 const sprints = ref([])
@@ -206,7 +207,7 @@ async function loadData() {
       getSprintStats(selectedProject.value),
     ])
     sprints.value = sprintRes.data || []
-    stats.value = statsRes.data || { sprintCount: 0, moduleCount: 0, totalDocs: 0 }
+    stats.value = statsRes.data || { sprintCount: 0, moduleCount: 0, totalDocs: 0, featurePointCount: 0 }
   } catch (e) {
     console.error(e)
   } finally {

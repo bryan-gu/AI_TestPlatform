@@ -7,6 +7,7 @@ from app.models.sprint import Sprint
 from app.models.module import Module
 from app.models.document import Document
 from app.models.activity import Activity
+from app.models.feature_point import FeaturePoint
 
 __all__ = [
     "Role",
@@ -18,4 +19,5 @@ __all__ = [
     "Module",
     "Document",
     "Activity",
+    "FeaturePoint",
 ]

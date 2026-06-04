@@ -111,9 +111,9 @@ API 文档：http://localhost:8000/docs
 - [x] TestCase 字段补充（前置条件/测试步骤/预期结果）
 - [x] Report 字段补充（报告类型/审批流程）
 - [x] TestCase + Report Schema/CRUD/API 暴露新字段 + 批量执行 + 审批接口（Phase 2B）
+- [x] FeaturePoint 功能点模型 + API + 前端功能点管理（Phase 3）
 
 ### 进行中（参见 全栈开发方案.md）
-- [ ] FeaturePoint 功能点模型 + API（Phase 3）
 - [ ] AI 配置后端（Provider/Strategy/Config/CallLog）（Phase 4）
 - [ ] 知识图谱后端（Graph/Node/Edge）（Phase 5）
 - [ ] AI 流水线后端（PipelineExecution/Stage）（Phase 6）

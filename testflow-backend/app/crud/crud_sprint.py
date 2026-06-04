@@ -3,6 +3,7 @@ from sqlalchemy import or_
 
 from app.models.sprint import Sprint
 from app.models.document import Document
+from app.models.feature_point import FeaturePoint
 from app.models.project import Project
 from app.schemas.sprint import SprintCreate, SprintUpdate
 
@@ -59,7 +60,7 @@ def delete_sprint(db: Session, sprint: Sprint) -> None:
 
 
 def get_sprint_stats(db: Session, project_id: int | None = None) -> dict:
-    """统计：sprintCount / totalDocs / moduleCount"""
+    """统计：sprintCount / totalDocs / moduleCount / featurePointCount"""
     sprint_query = db.query(Sprint)
     if project_id:
         sprint_query = sprint_query.filter(Sprint.project_id == project_id)
@@ -68,17 +69,25 @@ def get_sprint_stats(db: Session, project_id: int | None = None) -> dict:
     sprint_count = len(sprints)
     total_docs = 0
     all_module_ids = set()
+    sprint_ids = []
     for s in sprints:
+        sprint_ids.append(s.id)
         docs = db.query(Document).filter(Document.sprint_id == s.id).all()
         total_docs += len(docs)
         for doc in docs:
             if doc.module_ids:
                 all_module_ids.update(doc.module_ids)
 
+    # 统计功能点数量
+    fp_count = 0
+    if sprint_ids:
+        fp_count = db.query(FeaturePoint).filter(FeaturePoint.sprint_id.in_(sprint_ids)).count()
+
     return {
         "sprintCount": sprint_count,
         "totalDocs": total_docs,
         "moduleCount": len(all_module_ids),
+        "featurePointCount": fp_count,
     }
 
 

@@ -9,6 +9,7 @@ from app.api.v1.sprints import router as sprints_router
 from app.api.v1.modules import router as modules_router
 from app.api.v1.roles import router as roles_router
 from app.api.v1.users import router as users_router
+from app.api.v1.feature_points import router as feature_points_router
 
 api_router = APIRouter(prefix="/api/v1")
 
@@ -21,3 +22,4 @@ api_router.include_router(sprints_router)
 api_router.include_router(modules_router)
 api_router.include_router(roles_router)
 api_router.include_router(users_router)
+api_router.include_router(feature_points_router)

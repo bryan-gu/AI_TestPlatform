@@ -126,6 +126,102 @@
       </template>
     </el-dialog>
 
+    <!-- 功能点列表 -->
+    <div class="card" style="margin-bottom:16px">
+      <div class="card-head">
+        <div style="display:flex;align-items:center;gap:8px">
+          <el-icon :size="16" style="color:#8B5CF6"><MagicStick /></el-icon>
+          <div class="card-title">功能点</div>
+          <span style="font-size:11px;color:var(--color-text-tertiary)">AI 从文档中提取</span>
+        </div>
+        <div class="card-action" @click="openCreateFpDialog">添加功能点</div>
+      </div>
+      <el-table :data="featurePoints" style="width:100%" v-loading="fpLoading">
+        <el-table-column prop="name" label="功能点名称" min-width="200" show-overflow-tooltip />
+        <el-table-column label="来源文档" width="160">
+          <template #default="{ row }">
+            <span v-if="row.source_doc_name" style="color:var(--accent);cursor:pointer" @click="goToPreview({id: row.source_doc_id})">{{ row.source_doc_name }}</span>
+            <span v-else style="color:var(--color-text-tertiary)">-</span>
+          </template>
+        </el-table-column>
+        <el-table-column label="模块标签" width="120">
+          <template #default="{ row }">
+            <el-tag v-if="row.module_name" size="small" effect="plain" type="info">{{ row.module_name }}</el-tag>
+            <span v-else style="color:var(--color-text-tertiary)">-</span>
+          </template>
+        </el-table-column>
+        <el-table-column prop="linked_cases" label="关联用例" width="140">
+          <template #default="{ row }">{{ row.linked_cases || '-' }}</template>
+        </el-table-column>
+        <el-table-column label="创建时间" width="110">
+          <template #default="{ row }">{{ formatDate(row.created_at) }}</template>
+        </el-table-column>
+        <el-table-column label="操作" width="140" fixed="right">
+          <template #default="{ row, $index }">
+            <div class="action-btns">
+              <el-button type="primary" link size="small" @click="handleEditFp(row)">
+                <el-icon><Edit /></el-icon>编辑
+              </el-button>
+              <el-button type="danger" link size="small" @click="handleDeleteFp($index, row)">
+                <el-icon><Delete /></el-icon>删除
+              </el-button>
+            </div>
+          </template>
+        </el-table-column>
+      </el-table>
+      <div v-if="!fpLoading && featurePoints.length === 0" style="text-align:center;padding:40px;color:var(--color-text-tertiary)">
+        暂无功能点，点击"添加功能点"手动添加
+      </div>
+    </div>
+
+    <!-- 新建功能点对话框 -->
+    <el-dialog v-model="createFpVisible" title="添加功能点" width="520px" destroy-on-close>
+      <el-form :model="createFpForm" label-width="80px">
+        <el-form-item label="名称"><el-input v-model="createFpForm.name" placeholder="请输入功能点名称" /></el-form-item>
+        <el-form-item label="来源文档">
+          <el-select v-model="createFpForm.source_doc_id" style="width:100%" placeholder="选择文档（可选）" clearable>
+            <el-option v-for="d in documents" :key="d.id" :label="d.name" :value="d.id" />
+          </el-select>
+        </el-form-item>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:0 16px">
+          <el-form-item label="模块标签">
+            <el-select v-model="createFpForm.module_id" style="width:100%" placeholder="选择模块" clearable>
+              <el-option v-for="m in modules" :key="m.id" :label="m.name" :value="m.id" />
+            </el-select>
+          </el-form-item>
+          <el-form-item label="关联用例"><el-input v-model="createFpForm.linked_cases" placeholder="如 TC-001~TC-005" /></el-form-item>
+        </div>
+      </el-form>
+      <template #footer>
+        <el-button @click="createFpVisible = false">取消</el-button>
+        <el-button type="primary" @click="handleCreateFp" :loading="fpSaving">创建</el-button>
+      </template>
+    </el-dialog>
+
+    <!-- 编辑功能点对话框 -->
+    <el-dialog v-model="editFpVisible" title="编辑功能点" width="520px" destroy-on-close>
+      <el-form :model="editFpForm" label-width="80px">
+        <el-form-item label="名称"><el-input v-model="editFpForm.name" /></el-form-item>
+        <el-form-item label="来源文档">
+          <el-select v-model="editFpForm.source_doc_id" style="width:100%" placeholder="选择文档（可选）" clearable>
+            <el-option v-for="d in documents" :key="d.id" :label="d.name" :value="d.id" />
+          </el-select>
+        </el-form-item>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:0 16px">
+          <el-form-item label="模块标签">
+            <el-select v-model="editFpForm.module_id" style="width:100%" placeholder="选择模块" clearable>
+              <el-option v-for="m in modules" :key="m.id" :label="m.name" :value="m.id" />
+            </el-select>
+          </el-form-item>
+          <el-form-item label="关联用例"><el-input v-model="editFpForm.linked_cases" placeholder="如 TC-001~TC-005" /></el-form-item>
+        </div>
+      </el-form>
+      <template #footer>
+        <el-button @click="editFpVisible = false">取消</el-button>
+        <el-button type="primary" @click="handleSaveFp" :loading="fpSaving">保存</el-button>
+      </template>
+    </el-dialog>
+
     <!-- 模块标签管理对话框 -->
     <el-dialog v-model="moduleManagerVisible" title="模块标签管理" width="520px" destroy-on-close>
       <div style="margin-bottom:12px;display:flex;gap:8px">
@@ -168,13 +264,16 @@
 import { ref, reactive, onMounted } from 'vue'
 import { useRouter, useRoute } from 'vue-router'
 import { useAppStore } from '../../stores/app'
-import { Folder, Promotion, Document, Edit, Delete, Upload } from '@element-plus/icons-vue'
+import { Folder, Promotion, Document, Edit, Delete, Upload, MagicStick } from '@element-plus/icons-vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import {
   getSprint, getSprintDocuments, uploadSprintDocument,
   updateSprintDocument, deleteSprintDocument,
   getModules, createModule, updateModule, deleteModule,
 } from '../../api/sprint'
+import {
+  getFeaturePoints, createFeaturePoint, updateFeaturePoint, deleteFeaturePoint,
+} from '../../api/featurePoint'
 
 const router = useRouter()
 const route = useRoute()
@@ -182,6 +281,8 @@ const appStore = useAppStore()
 const loading = ref(false)
 const saving = ref(false)
 const uploading = ref(false)
+const fpLoading = ref(false)
+const fpSaving = ref(false)
 
 const sprintId = route.params.id
 
@@ -214,6 +315,14 @@ const selectedFile = ref(null)
 const editDocVisible = ref(false)
 const editDocId = ref(null)
 const editDocForm = reactive({ name: '' })
+
+// 功能点
+const featurePoints = ref([])
+const createFpVisible = ref(false)
+const editFpVisible = ref(false)
+const editFpId = ref(null)
+const createFpForm = reactive({ name: '', source_doc_id: null, module_id: null, linked_cases: '' })
+const editFpForm = reactive({ name: '', source_doc_id: null, module_id: null, linked_cases: '' })
 
 function formatDate(dateStr) {
   if (!dateStr) return '--'
@@ -333,6 +442,85 @@ function handleDeleteDoc(index, row) {
   }).catch(() => {})
 }
 
+// ========== 功能点操作 ==========
+
+async function loadFeaturePoints() {
+  fpLoading.value = true
+  try {
+    const res = await getFeaturePoints({ sprint_id: sprintId })
+    featurePoints.value = res.data || []
+  } catch (e) {
+    console.error(e)
+  } finally {
+    fpLoading.value = false
+  }
+}
+
+function openCreateFpDialog() {
+  Object.assign(createFpForm, { name: '', source_doc_id: null, module_id: null, linked_cases: '' })
+  createFpVisible.value = true
+}
+
+async function handleCreateFp() {
+  if (!createFpForm.name.trim()) {
+    ElMessage.warning('请输入功能点名称')
+    return
+  }
+  fpSaving.value = true
+  try {
+    await createFeaturePoint({
+      ...createFpForm,
+      sprint_id: parseInt(sprintId),
+    })
+    ElMessage.success('创建成功')
+    createFpVisible.value = false
+    await loadFeaturePoints()
+  } catch (e) {
+    ElMessage.error('创建失败')
+  } finally {
+    fpSaving.value = false
+  }
+}
+
+function handleEditFp(row) {
+  editFpId.value = row.id
+  Object.assign(editFpForm, {
+    name: row.name,
+    source_doc_id: row.source_doc_id,
+    module_id: row.module_id,
+    linked_cases: row.linked_cases || '',
+  })
+  editFpVisible.value = true
+}
+
+async function handleSaveFp() {
+  fpSaving.value = true
+  try {
+    await updateFeaturePoint(editFpId.value, { ...editFpForm })
+    ElMessage.success('保存成功')
+    editFpVisible.value = false
+    await loadFeaturePoints()
+  } catch (e) {
+    ElMessage.error('保存失败')
+  } finally {
+    fpSaving.value = false
+  }
+}
+
+function handleDeleteFp(index, row) {
+  ElMessageBox.confirm(`确定要删除功能点"${row.name}"吗？`, '确认删除', {
+    confirmButtonText: '确认删除', cancelButtonText: '取消', type: 'warning',
+  }).then(async () => {
+    try {
+      await deleteFeaturePoint(row.id)
+      ElMessage.success('删除成功')
+      await loadFeaturePoints()
+    } catch (e) {
+      ElMessage.error('删除失败')
+    }
+  }).catch(() => {})
+}
+
 // ========== 模块标签管理 ==========
 
 async function openModuleManager() {
@@ -412,6 +600,7 @@ function handleDeleteModule(index, row) {
 onMounted(() => {
   appStore.setCurrentPage('knowledge', '文档列表', '上传文档', openUploadDialog)
   loadData()
+  loadFeaturePoints()
 })
 </script>
 
