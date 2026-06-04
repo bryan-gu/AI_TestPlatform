@@ -63,8 +63,6 @@ API 文档：http://localhost:8000/docs
 ├── 后续开发规划方案.md                    # 后续 4 个方向详细规划
 ├── RAG知识库与知识图谱技术方案.md         # RAG/图谱技术架构文档
 │
-├── Prototype/TestFlow/                 # 原型设计（HTML + 功能描述）
-│
 ├── testflow-frontend/                  # 前端 Vue3 项目
 │   └── src/
 │       ├── api/                        # API 接口定义
@@ -93,14 +91,12 @@ API 文档：http://localhost:8000/docs
 │       ├── models/                     # SQLAlchemy 数据模型
 │       └── schemas/                    # Pydantic 请求/响应模型
 │
-├── deploy.ps1                          # 部署脚本（Git push + Docker 重建）
-└── software_test_platform.html         # HTML 静态原型（早期）
+└── deploy.ps1                          # 部署脚本（Git push + Docker 重建）
 ```
 
 ## 开发进度
 
 ### 已完成
-- [x] 原型设计（`Prototype/TestFlow/` 含功能描述文档）
 - [x] 前端全部页面（14 个路由，含 Sprint 知识快照、AI 工作台、AI 配置）
 - [x] 后端核心 API（认证、项目、用例、报告、角色、用户、仪表盘）
 - [x] Docker Compose 部署（前端 + 后端 + PostgreSQL）
