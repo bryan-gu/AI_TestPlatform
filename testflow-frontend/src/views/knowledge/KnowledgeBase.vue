@@ -46,12 +46,12 @@
       <div class="stat-card">
         <div class="stat-label">文档总数</div>
         <div class="stat-value">{{ stats.totalDocs }}</div>
-        <div class="stat-sub"><span class="stat-dot dot-amber"></span>本月新增 {{ stats.newDocs }} 篇</div>
+        <div class="stat-sub"><span class="stat-dot dot-amber"></span>项目级汇总</div>
       </div>
       <div class="stat-card">
         <div class="stat-label">功能点</div>
-        <div class="stat-value">{{ stats.featurePoints }}</div>
-        <div class="stat-sub"><span class="stat-dot dot-green"></span>AI 已提取</div>
+        <div class="stat-value">--</div>
+        <div class="stat-sub"><span class="stat-dot dot-green"></span>Phase 3 开发</div>
       </div>
     </div>
 
@@ -78,20 +78,23 @@
         </el-table-column>
         <el-table-column prop="moduleCount" label="模块数" width="80" />
         <el-table-column prop="docCount" label="文档数" width="80" />
-        <el-table-column prop="featurePoints" label="功能点" width="80" />
-        <el-table-column prop="graphNodes" label="图谱节点" width="90" />
         <el-table-column label="更新时间" width="120">
-          <template #default="{ row }">{{ row.updatedAt }}</template>
+          <template #default="{ row }">{{ formatDate(row.updatedAt || row.updated_at) }}</template>
         </el-table-column>
-        <el-table-column label="操作" width="100" fixed="right">
+        <el-table-column label="操作" width="140" fixed="right">
           <template #default="{ row }">
             <div class="action-btns" @click.stop>
-              <el-button v-if="row.isAll" type="primary" link size="small" @click="goToGraphList(row)">
+              <el-button v-if="row.isAll" type="primary" link size="small" @click="goToGraphList">
                 <el-icon><Share /></el-icon>图谱
               </el-button>
-              <el-button v-else type="primary" link size="small" @click="handleEdit(row)">
-                <el-icon><Edit /></el-icon>编辑
-              </el-button>
+              <template v-else>
+                <el-button type="primary" link size="small" @click="handleEdit(row)">
+                  <el-icon><Edit /></el-icon>编辑
+                </el-button>
+                <el-button type="danger" link size="small" @click="handleDelete(row)">
+                  <el-icon><Delete /></el-icon>删除
+                </el-button>
+              </template>
             </div>
           </template>
         </el-table-column>
@@ -136,9 +139,10 @@
 import { ref, reactive, onMounted, watch } from 'vue'
 import { useRouter } from 'vue-router'
 import { useAppStore } from '../../stores/app'
-import { Folder, Plus, Edit, Promotion, CopyDocument, Share } from '@element-plus/icons-vue'
-import { ElMessage } from 'element-plus'
+import { Folder, Plus, Edit, Delete, Promotion, CopyDocument, Share } from '@element-plus/icons-vue'
+import { ElMessage, ElMessageBox } from 'element-plus'
 import { getProjects } from '../../api/project'
+import { getSprints, getSprintStats, createSprint, updateSprint, deleteSprint } from '../../api/sprint'
 
 const router = useRouter()
 const appStore = useAppStore()
@@ -146,42 +150,17 @@ const loading = ref(false)
 const saving = ref(false)
 const creating = ref(false)
 
-const selectedProject = ref(1)
-const currentProjectStatus = ref('测试中')
-const projectOptions = ref([
-  { id: 1, name: '电商平台 v3.0', status: '测试中' },
-  { id: 2, name: '支付系统', status: '已完成' },
-  { id: 3, name: '用户中心重构', status: '进行中' },
-  { id: 4, name: '推荐算法 A/B', status: '待启动' }
-])
+const selectedProject = ref(null)
+const currentProjectStatus = ref('')
+const projectOptions = ref([])
 
 const stats = ref({
-  sprintCount: 4,
-  moduleCount: 12,
-  totalDocs: 36,
-  newDocs: 8,
-  featurePoints: 89
+  sprintCount: 0,
+  moduleCount: 0,
+  totalDocs: 0,
 })
 
-// Sprint 数据 (Mock)
-const sprints = ref([
-  {
-    id: 'sprint-0', name: 'Sprint 0', status: '基线', moduleCount: 3, docCount: 8,
-    featurePoints: 21, graphNodes: 15, updatedAt: '2026-03-15', isAll: false
-  },
-  {
-    id: 'sprint-1', name: 'Sprint 1', status: '已完成', moduleCount: 5, docCount: 12,
-    featurePoints: 34, graphNodes: 22, updatedAt: '2026-04-01', isAll: false
-  },
-  {
-    id: 'sprint-2', name: 'Sprint 2', status: '进行中', moduleCount: 4, docCount: 10,
-    featurePoints: 23, graphNodes: 18, updatedAt: '今天 10:30', isAll: false
-  },
-  {
-    id: 'sprint-all', name: 'sprint_all', status: '最新汇总', moduleCount: 12, docCount: 36,
-    featurePoints: 89, graphNodes: 29, updatedAt: '自动同步', isAll: true
-  }
-])
+const sprints = ref([])
 
 const createVisible = ref(false)
 const createForm = reactive({ name: '', description: '' })
@@ -189,8 +168,15 @@ const editVisible = ref(false)
 const editId = ref(null)
 const editForm = reactive({ name: '', description: '' })
 
+function formatDate(dateStr) {
+  if (!dateStr) return '--'
+  const d = new Date(dateStr)
+  if (isNaN(d.getTime())) return dateStr
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
+}
+
 function getSprintStatusType(status) {
-  const map = { '基线': 'info', '已完成': 'success', '进行中': '', '最新汇总': 'warning' }
+  const map = { '基线': 'info', '已完成': 'success', '进行中': '', '最新汇总': 'warning', '待启动': 'info' }
   return map[status] || 'info'
 }
 
@@ -211,70 +197,112 @@ function openCreateDialog() {
   createVisible.value = true
 }
 
+async function loadData() {
+  if (!selectedProject.value) return
+  loading.value = true
+  try {
+    const [sprintRes, statsRes] = await Promise.all([
+      getSprints({ project_id: selectedProject.value }),
+      getSprintStats(selectedProject.value),
+    ])
+    sprints.value = sprintRes.data || []
+    stats.value = statsRes.data || { sprintCount: 0, moduleCount: 0, totalDocs: 0 }
+  } catch (e) {
+    console.error(e)
+  } finally {
+    loading.value = false
+  }
+}
+
 async function handleCreate() {
+  if (!createForm.name.trim()) {
+    ElMessage.warning('请输入 Sprint 名称')
+    return
+  }
   creating.value = true
   try {
-    // TODO: 调用API
-    await new Promise(r => setTimeout(r, 500))
-    sprints.value.splice(sprints.value.length - 1, 0, {
-      id: `sprint-${Date.now()}`, name: createForm.name, status: '待启动',
-      moduleCount: 0, docCount: 0, featurePoints: 0, graphNodes: 0,
-      updatedAt: new Date().toISOString().split('T')[0], isAll: false
+    await createSprint({
+      name: createForm.name,
+      description: createForm.description,
+      project_id: selectedProject.value,
     })
-    stats.value.sprintCount++
     ElMessage.success('创建成功')
     createVisible.value = false
-  } catch (e) { ElMessage.error('创建失败') } finally { creating.value = false }
+    await loadData()
+  } catch (e) {
+    ElMessage.error('创建失败')
+  } finally {
+    creating.value = false
+  }
 }
 
 function handleEdit(row) {
   editId.value = row.id
-  Object.assign(editForm, { name: row.name, description: '' })
+  Object.assign(editForm, { name: row.name, description: row.description || '' })
   editVisible.value = true
 }
 
 async function handleSave() {
   saving.value = true
   try {
-    // TODO: 调用API
-    await new Promise(r => setTimeout(r, 500))
-    const sprint = sprints.value.find(s => s.id === editId.value)
-    if (sprint) sprint.name = editForm.name
+    await updateSprint(editId.value, { name: editForm.name, description: editForm.description })
     ElMessage.success('保存成功')
     editVisible.value = false
-  } catch (e) { ElMessage.error('保存失败') } finally { saving.value = false }
+    await loadData()
+  } catch (e) {
+    ElMessage.error('保存失败')
+  } finally {
+    saving.value = false
+  }
+}
+
+function handleDelete(row) {
+  ElMessageBox.confirm(`确定要删除 Sprint"${row.name}"吗？关联的文档也将被删除。`, '确认删除', {
+    confirmButtonText: '确认删除', cancelButtonText: '取消', type: 'warning',
+  }).then(async () => {
+    try {
+      await deleteSprint(row.id)
+      ElMessage.success('删除成功')
+      await loadData()
+    } catch (e) {
+      ElMessage.error('删除失败')
+    }
+  }).catch(() => {})
 }
 
 function handleProjectChange(id) {
   const proj = projectOptions.value.find(p => p.id === id)
-  if (proj) currentProjectStatus.value = proj.status
-  // TODO: 重新加载该项目的Sprint数据
+  if (proj) currentProjectStatus.value = proj.status || ''
+  loadData()
 }
 
 // 监听搜索关键词
 let loadTimer = null
-watch(() => appStore.searchKeyword, () => {
+watch(() => appStore.searchKeyword, (kw) => {
   if (loadTimer) clearTimeout(loadTimer)
-  loadTimer = setTimeout(() => {
-    // TODO: 搜索过滤Sprint
+  loadTimer = setTimeout(async () => {
+    if (!selectedProject.value) return
+    loading.value = true
+    try {
+      const res = await getSprints({ project_id: selectedProject.value, keyword: kw || undefined })
+      sprints.value = res.data || []
+    } catch (e) { console.error(e) } finally { loading.value = false }
   }, 300)
 })
 
 onMounted(async () => {
   appStore.setCurrentPage('knowledge', '知识库', '新建 Sprint', openCreateDialog)
-  loading.value = true
   try {
-    const projRes = await Promise.allSettled([getProjects()])
-    if (projRes[0].status === 'fulfilled' && projRes[0].value.data?.length) {
-      projectOptions.value = projRes[0].value.data.map(p => ({
-        id: p.id, name: p.name, status: p.status || '进行中'
+    const projRes = await getProjects()
+    if (projRes.data?.length) {
+      projectOptions.value = projRes.data.map(p => ({
+        id: p.id, name: p.name, status: p.status || '进行中',
       }))
-      if (projectOptions.value.length > 0) {
-        selectedProject.value = projectOptions.value[0].id
-        currentProjectStatus.value = projectOptions.value[0].status
-      }
+      selectedProject.value = projectOptions.value[0].id
+      currentProjectStatus.value = projectOptions.value[0].status
+      await loadData()
     }
-  } catch (e) { console.error(e) } finally { loading.value = false }
+  } catch (e) { console.error(e) }
 })
 </script>
 

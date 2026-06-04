@@ -5,7 +5,8 @@ from app.api.v1.dashboard import router as dashboard_router
 from app.api.v1.projects import router as projects_router
 from app.api.v1.testcases import router as testcases_router
 from app.api.v1.reports import router as reports_router
-# from app.api.v1.knowledge import router as knowledge_router  # Phase 1: 临时禁用，Phase 2A 用 Sprint/Module API 替换
+from app.api.v1.sprints import router as sprints_router
+from app.api.v1.modules import router as modules_router
 from app.api.v1.roles import router as roles_router
 from app.api.v1.users import router as users_router
 
@@ -16,6 +17,7 @@ api_router.include_router(dashboard_router)
 api_router.include_router(projects_router)
 api_router.include_router(testcases_router)
 api_router.include_router(reports_router)
-# api_router.include_router(knowledge_router)  # Phase 1: 临时禁用
+api_router.include_router(sprints_router)
+api_router.include_router(modules_router)
 api_router.include_router(roles_router)
 api_router.include_router(users_router)

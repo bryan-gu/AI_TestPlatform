@@ -61,12 +61,6 @@ const routes = [
         meta: { title: '知识库详情' }
       },
       {
-        path: 'knowledge/:id/folder',
-        name: 'KnowledgeDocs',
-        component: () => import('../views/knowledge/KnowledgeDocs.vue'),
-        meta: { title: '文档列表' }
-      },
-      {
         path: 'knowledge/doc/:id',
         name: 'DocumentPreview',
         component: () => import('../views/knowledge/DocumentPreview.vue'),
