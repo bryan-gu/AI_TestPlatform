@@ -217,6 +217,8 @@ document.addEventListener('click', (e) => {
 /* 搜索区域 */
 .search-wrapper {
   position: relative;
+  width: 320px;
+  flex-shrink: 0;
 }
 
 .header-search {
@@ -229,7 +231,6 @@ document.addEventListener('click', (e) => {
   padding: 6px 12px;
   font-size: 13px;
   color: var(--color-text-tertiary);
-  min-width: 280px;
   transition: border-color 0.2s;
 }
 
