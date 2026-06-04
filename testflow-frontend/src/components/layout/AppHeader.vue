@@ -267,7 +267,7 @@ document.addEventListener('click', (e) => {
   top: calc(100% + 6px);
   left: 0;
   right: 0;
-  min-width: 440px;
+  min-width: 360px;
   max-height: 420px;
   overflow-y: auto;
   background: var(--color-background-primary);
@@ -344,7 +344,7 @@ document.addEventListener('click', (e) => {
   color: var(--color-text-tertiary);
   flex-shrink: 1;
   margin-left: 12px;
-  max-width: 200px;
+  max-width: 180px;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;

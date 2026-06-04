@@ -27,7 +27,6 @@ import AppHeader from './AppHeader.vue'
   flex: 1;
   display: flex;
   flex-direction: column;
-  overflow: hidden;
   min-width: 0;
 }
 
