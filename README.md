@@ -60,7 +60,7 @@ API 文档：http://localhost:8000/docs
 
 ```
 ├── CLAUDE.md                           # 项目说明（Claude Code 指令）
-├── 全栈开发方案.md                      # 前后端全栈开发方案
+├── 后续开发规划方案.md                    # 后续 4 个方向详细规划
 ├── RAG知识库与知识图谱技术方案.md         # RAG/图谱技术架构文档
 │
 ├── Prototype/TestFlow/                 # 原型设计（HTML + 功能描述）
@@ -117,5 +117,8 @@ API 文档：http://localhost:8000/docs
 - [x] AI 流水线/工作台（PipelineExecution/Stage）+ 前端对接（Phase 6）
 - [x] 全局搜索 + Dashboard 增强（Phase 7）
 
-### 进行中（参见 全栈开发方案.md）
-- 无
+### 后续方向（参见 后续开发规划方案.md）
+- RAG 知识库与知识图谱
+- 真实 AI 服务对接
+- 用户权限与角色完善
+- 性能优化与测试
