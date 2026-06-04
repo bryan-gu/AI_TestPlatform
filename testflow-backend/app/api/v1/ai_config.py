@@ -26,7 +26,6 @@ def _provider_to_out(p) -> dict:
         api_key_masked=crud_ai_config.mask_api_key(p.api_key),
         model=p.model,
         endpoint_url=p.endpoint_url,
-        temperature=p.temperature if p.temperature is not None else 0.3,
         max_tokens=p.max_tokens if p.max_tokens is not None else 4096,
         status=p.status or "正常",
         last_call_at=p.last_call_at,
@@ -40,7 +39,6 @@ def _strategy_to_out(s, db: Session) -> dict:
         task_type=s.task_type,
         provider_id=s.provider_id,
         model_name=s.model_name,
-        temperature=s.temperature if s.temperature is not None else 0.3,
         provider_name=crud_ai_config.get_provider_name(db, s.provider_id),
     ).model_dump()
 

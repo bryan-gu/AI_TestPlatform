@@ -82,7 +82,6 @@
               <el-tag type="primary" size="small" effect="plain">{{ row.model_name }}</el-tag>
             </template>
           </el-table-column>
-          <el-table-column prop="temperature" label="温度" width="80" />
         </el-table>
       </div>
 
@@ -167,9 +166,6 @@
         <el-form-item label="自定义端点">
           <el-input v-model="providerForm.endpoint_url" placeholder="可选，留空使用默认端点" />
         </el-form-item>
-        <el-form-item label="温度">
-          <el-slider v-model="providerForm.temperature" :min="0" :max="1" :step="0.1" show-input />
-        </el-form-item>
         <el-form-item label="最大Token">
           <el-input-number v-model="providerForm.max_tokens" :min="256" :max="128000" :step="256" />
         </el-form-item>
@@ -187,11 +183,6 @@
         <el-table-column label="分配模型" width="180">
           <template #default="{ row }">
             <el-input v-model="row.model_name" size="small" placeholder="模型名称" />
-          </template>
-        </el-table-column>
-        <el-table-column label="温度" width="140">
-          <template #default="{ row }">
-            <el-slider v-model="row.temperature" :min="0" :max="1" :step="0.1" size="small" />
           </template>
         </el-table-column>
       </el-table>
@@ -253,7 +244,6 @@ const providerForm = reactive({
   model: '',
   api_key: '',
   endpoint_url: '',
-  temperature: 0.3,
   max_tokens: 4096,
 })
 
@@ -374,7 +364,7 @@ function handleAddProvider() {
   editProviderId.value = null
   Object.assign(providerForm, {
     provider_type: 'OpenAI', name: '', model: '', api_key: '',
-    endpoint_url: '', temperature: 0.3, max_tokens: 4096,
+    endpoint_url: '', max_tokens: 4096,
   })
   providerEditVisible.value = true
 }
@@ -388,7 +378,6 @@ function handleEditProvider(row) {
     model: row.model,
     api_key: '',  // 不回显 API Key
     endpoint_url: row.endpoint_url || '',
-    temperature: row.temperature ?? 0.3,
     max_tokens: row.max_tokens ?? 4096,
   })
   providerEditVisible.value = true
@@ -411,7 +400,6 @@ async function handleSaveProvider() {
         name: providerForm.name,
         model: providerForm.model,
         endpoint_url: providerForm.endpoint_url || null,
-        temperature: providerForm.temperature,
         max_tokens: providerForm.max_tokens,
       }
       if (providerForm.api_key.trim()) {
@@ -425,7 +413,6 @@ async function handleSaveProvider() {
         model: providerForm.model,
         api_key: providerForm.api_key,
         endpoint_url: providerForm.endpoint_url || null,
-        temperature: providerForm.temperature,
         max_tokens: providerForm.max_tokens,
       })
     }
@@ -470,7 +457,6 @@ function openStrategyEdit() {
   strategyEditForm.value = strategies.value.map(s => ({
     task_type: s.task_type,
     model_name: s.model_name,
-    temperature: s.temperature,
     provider_id: s.provider_id,
   }))
   strategyEditVisible.value = true

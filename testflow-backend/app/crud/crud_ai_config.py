@@ -26,7 +26,6 @@ def create_provider(db: Session, data: AIProviderCreate) -> AIProvider:
         api_key=data.api_key,
         model=data.model,
         endpoint_url=data.endpoint_url,
-        temperature=data.temperature,
         max_tokens=data.max_tokens,
     )
     db.add(provider)
@@ -46,8 +45,6 @@ def update_provider(db: Session, provider: AIProvider, data: AIProviderUpdate) -
         provider.model = data.model
     if data.endpoint_url is not None:
         provider.endpoint_url = data.endpoint_url
-    if data.temperature is not None:
-        provider.temperature = data.temperature
     if data.max_tokens is not None:
         provider.max_tokens = data.max_tokens
     if data.status is not None:
@@ -91,14 +88,12 @@ def batch_update_strategies(db: Session, data: ModelStrategyBatchUpdate) -> list
         if strategy:
             strategy.provider_id = item.provider_id
             strategy.model_name = item.model_name
-            strategy.temperature = item.temperature
         else:
             # 如果不存在则创建
             new_strategy = ModelStrategy(
                 task_type=item.task_type,
                 provider_id=item.provider_id,
                 model_name=item.model_name,
-                temperature=item.temperature,
             )
             db.add(new_strategy)
     db.commit()
@@ -167,7 +162,6 @@ def seed_strategies(db: Session) -> None:
             db.add(ModelStrategy(
                 task_type=task_type,
                 model_name="--",
-                temperature=0.3,
             ))
     db.commit()
 

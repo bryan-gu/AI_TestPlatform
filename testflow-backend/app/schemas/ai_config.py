@@ -10,7 +10,6 @@ class AIProviderCreate(BaseModel):
     api_key: str
     model: str
     endpoint_url: str | None = None
-    temperature: float = 0.3
     max_tokens: int = 4096
 
 
@@ -20,7 +19,6 @@ class AIProviderUpdate(BaseModel):
     api_key: str | None = None
     model: str | None = None
     endpoint_url: str | None = None
-    temperature: float | None = None
     max_tokens: int | None = None
     status: str | None = None
 
@@ -32,7 +30,6 @@ class AIProviderOut(BaseModel):
     api_key_masked: str = ""  # 脱敏后的 API Key
     model: str
     endpoint_url: str | None = None
-    temperature: float = 0.3
     max_tokens: int = 4096
     status: str = "正常"
     last_call_at: datetime | None = None
@@ -49,7 +46,6 @@ class ModelStrategyUpdate(BaseModel):
     task_type: str
     provider_id: int | None = None
     model_name: str
-    temperature: float = 0.3
 
 
 class ModelStrategyBatchUpdate(BaseModel):
@@ -62,7 +58,6 @@ class ModelStrategyOut(BaseModel):
     task_type: str
     provider_id: int | None = None
     model_name: str
-    temperature: float = 0.3
     provider_name: str = ""  # computed
 
     class Config:
