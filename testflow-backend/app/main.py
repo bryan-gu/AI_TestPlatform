@@ -54,6 +54,16 @@ def _seed_database():
                 db.add_all(activities)
                 db.commit()
                 print("✓ 初始动态已创建")
+
+        # AI 配置种子数据
+        try:
+            from app.crud import crud_ai_config
+            crud_ai_config.seed_global_configs(db)
+            crud_ai_config.seed_strategies(db)
+            print("✓ AI 配置种子数据已初始化")
+        except Exception:
+            # 表可能尚未迁移，跳过
+            pass
     finally:
         db.close()
 

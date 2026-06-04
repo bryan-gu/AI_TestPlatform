@@ -8,6 +8,7 @@ from app.models.module import Module
 from app.models.document import Document
 from app.models.activity import Activity
 from app.models.feature_point import FeaturePoint
+from app.models.ai_config import AIProvider, ModelStrategy, AIGlobalConfig, AICallLog
 
 __all__ = [
     "Role",
@@ -20,4 +21,8 @@ __all__ = [
     "Document",
     "Activity",
     "FeaturePoint",
+    "AIProvider",
+    "ModelStrategy",
+    "AIGlobalConfig",
+    "AICallLog",
 ]
