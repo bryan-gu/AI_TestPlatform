@@ -42,7 +42,7 @@
       <el-form :model="editForm" label-width="80px">
         <el-form-item label="项目名称"><el-input v-model="editForm.name" /></el-form-item>
         <el-form-item label="项目描述"><el-input v-model="editForm.description" type="textarea" :rows="3" /></el-form-item>
-        <el-form-item label="负责人"><el-select v-model="editForm.owner_id" placeholder="请选择负责人" clearable style="width:100%"><el-option v-for="u in userOptions" :key="u.id" :label="u.name" :value="u.id" /></el-select></el-form-item>
+        <el-form-item label="负责人"><el-select v-model="editForm.owner_id" placeholder="输入姓名搜索" clearable filterable style="width:100%"><el-option v-for="u in userOptions" :key="u.id" :label="u.name" :value="u.id" /></el-select></el-form-item>
         <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 0 16px">
           <el-form-item label="状态"><el-select v-model="editForm.status" style="width: 100%"><el-option label="待启动" value="pending" /><el-option label="进行中" value="active" /><el-option label="测试中" value="testing" /><el-option label="已完成" value="completed" /></el-select></el-form-item>
           <el-form-item label="进度"><el-input-number v-model="editForm.progress" :min="0" :max="100" style="width: 100%" /></el-form-item>
