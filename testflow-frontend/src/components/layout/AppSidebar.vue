@@ -87,7 +87,17 @@
           <div class="user-name">{{ user?.name || '用户' }}</div>
           <div class="user-role">{{ user?.role?.name || '普通用户' }}</div>
         </div>
-        <el-icon><component :is="icons.Setting" /></el-icon>
+        <el-popover placement="top-end" :width="140" trigger="click" :popper-style="{ padding: '4px' }">
+          <template #reference>
+            <el-icon class="setting-icon"><component :is="icons.Setting" /></el-icon>
+          </template>
+          <div class="popover-menu">
+            <div class="popover-item" @click="handleLogout">
+              <el-icon><component :is="icons.SwitchButton" /></el-icon>
+              <span>退出登录</span>
+            </div>
+          </div>
+        </el-popover>
       </div>
     </div>
   </aside>
@@ -178,6 +188,11 @@ async function loadBadges() {
 watch(() => appStore.sidebarBadgesVersion, () => {
   loadBadges()
 })
+
+async function handleLogout() {
+  await authStore.logoutAction()
+  router.push('/login')
+}
 
 onMounted(() => {
   loadBadges()
@@ -357,6 +372,43 @@ onMounted(() => {
 
 .user-row:hover {
   background: var(--color-background-secondary);
+}
+
+.setting-icon {
+  cursor: pointer;
+  color: var(--color-text-tertiary);
+  transition: color 0.2s;
+  flex-shrink: 0;
+}
+
+.setting-icon:hover {
+  color: var(--color-text-primary);
+}
+
+.popover-menu {
+  display: flex;
+  flex-direction: column;
+}
+
+.popover-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 12px;
+  border-radius: 6px;
+  cursor: pointer;
+  font-size: 13px;
+  color: var(--color-text-primary);
+  transition: background 0.12s;
+}
+
+.popover-item:hover {
+  background: var(--color-background-secondary);
+}
+
+.popover-item .el-icon {
+  font-size: 15px;
+  color: var(--color-text-tertiary);
 }
 
 .avatar {
