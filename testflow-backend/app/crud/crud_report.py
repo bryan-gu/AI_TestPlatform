@@ -4,6 +4,7 @@ from sqlalchemy import or_
 
 from app.models.report import Report
 from app.models.project import Project
+from app.models.user import User
 from app.schemas.report import ReportCreate, ReportUpdate
 
 
@@ -19,7 +20,12 @@ def get_report(db: Session, report_id: int) -> Report | None:
 
 
 def create_report(db: Session, data: ReportCreate) -> Report:
-    report = Report(name=data.name, project_id=data.project_id)
+    report = Report(
+        name=data.name,
+        project_id=data.project_id,
+        report_type=data.report_type,
+        test_scope=data.test_scope,
+    )
     db.add(report)
     db.commit()
     db.refresh(report)
@@ -31,9 +37,29 @@ def update_report(db: Session, report: Report, data: ReportUpdate) -> Report:
         report.name = data.name
     if data.status is not None:
         report.status = data.status
+    if data.report_type is not None:
+        report.report_type = data.report_type
+    if data.test_scope is not None:
+        report.test_scope = data.test_scope
     db.commit()
     db.refresh(report)
     return report
+
+
+def approve_report(db: Session, report: Report, approver_id: int) -> Report:
+    report.status = "已审批"
+    report.approved_by = approver_id
+    report.approved_at = datetime.now(timezone.utc)
+    db.commit()
+    db.refresh(report)
+    return report
+
+
+def get_approver_name(db: Session, approver_id: int | None) -> str:
+    if not approver_id:
+        return ""
+    user = db.query(User).filter(User.id == approver_id).first()
+    return user.name if user else ""
 
 
 def delete_report(db: Session, report: Report) -> None:

@@ -14,12 +14,30 @@
           <el-select v-model="selectedProject" placeholder="全部项目" size="small" style="width: 150px" clearable @change="loadCases">
             <el-option v-for="p in projectOptions" :key="p.id" :label="p.name" :value="p.name" />
           </el-select>
-          <el-button type="primary" size="small" @click="batchExecute">
+          <el-button type="primary" size="small" @click="handleBatchExecute" :loading="batchExecuting">
             <el-icon><VideoPlay /></el-icon>批量执行
           </el-button>
         </div>
       </div>
-      <el-table :data="testCases" style="width: 100%" v-loading="loading">
+      <el-table :data="testCases" style="width: 100%" v-loading="loading" row-key="id">
+        <el-table-column type="expand">
+          <template #default="{ row }">
+            <div class="expand-content">
+              <div class="expand-row">
+                <div class="expand-label">前置条件</div>
+                <div class="expand-value">{{ row.preconditions || '无' }}</div>
+              </div>
+              <div class="expand-row">
+                <div class="expand-label">测试步骤</div>
+                <div class="expand-value"><pre class="steps-pre">{{ row.test_steps || '无' }}</pre></div>
+              </div>
+              <div class="expand-row">
+                <div class="expand-label">预期结果</div>
+                <div class="expand-value">{{ row.expected_result || '无' }}</div>
+              </div>
+            </div>
+          </template>
+        </el-table-column>
         <el-table-column prop="case_no" label="用例编号" width="100" />
         <el-table-column prop="title" label="用例标题" min-width="250" show-overflow-tooltip />
         <el-table-column label="优先级" width="80"><template #default="{ row }"><span :class="getPriorityClass(row.priority)">{{ row.priority }}</span></template></el-table-column>
@@ -33,25 +51,31 @@
     </div>
 
     <!-- 新建对话框 -->
-    <el-dialog v-model="createVisible" title="新建用例" width="520px" destroy-on-close>
+    <el-dialog v-model="createVisible" title="新建用例" width="580px" destroy-on-close>
       <el-form :model="createForm" label-width="80px">
         <el-form-item label="用例标题"><el-input v-model="createForm.title" placeholder="请输入用例标题" /></el-form-item>
         <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 0 16px">
           <el-form-item label="优先级"><el-select v-model="createForm.priority" style="width: 100%"><el-option label="高" value="高" /><el-option label="中" value="中" /><el-option label="低" value="低" /></el-select></el-form-item>
           <el-form-item label="所属项目"><el-select v-model="createForm.project_id" style="width: 100%"><el-option v-for="p in projectOptions" :key="p.id" :label="p.name" :value="p.id" /></el-select></el-form-item>
         </div>
+        <el-form-item label="前置条件"><el-input v-model="createForm.preconditions" type="textarea" :rows="2" placeholder="请输入前置条件" /></el-form-item>
+        <el-form-item label="测试步骤"><el-input v-model="createForm.test_steps" type="textarea" :rows="3" placeholder="建议用编号列表格式，如：1. 打开登录页 2. 输入账号密码 3. 点击登录" /></el-form-item>
+        <el-form-item label="预期结果"><el-input v-model="createForm.expected_result" type="textarea" :rows="2" placeholder="请输入预期结果" /></el-form-item>
       </el-form>
       <template #footer><el-button @click="createVisible = false">取消</el-button><el-button type="primary" @click="handleCreate" :loading="creating">创建</el-button></template>
     </el-dialog>
 
     <!-- 编辑对话框 -->
-    <el-dialog v-model="editVisible" title="编辑用例" width="520px" destroy-on-close>
+    <el-dialog v-model="editVisible" title="编辑用例" width="580px" destroy-on-close>
       <el-form :model="editForm" label-width="80px">
         <el-form-item label="用例标题"><el-input v-model="editForm.title" /></el-form-item>
         <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 0 16px">
           <el-form-item label="优先级"><el-select v-model="editForm.priority" style="width: 100%"><el-option label="高" value="高" /><el-option label="中" value="中" /><el-option label="低" value="低" /></el-select></el-form-item>
           <el-form-item label="执行状态"><el-select v-model="editForm.exec_status" style="width: 100%"><el-option label="通过" value="通过" /><el-option label="失败" value="失败" /><el-option label="执行中" value="执行中" /><el-option label="待执行" value="待执行" /></el-select></el-form-item>
         </div>
+        <el-form-item label="前置条件"><el-input v-model="editForm.preconditions" type="textarea" :rows="2" /></el-form-item>
+        <el-form-item label="测试步骤"><el-input v-model="editForm.test_steps" type="textarea" :rows="3" /></el-form-item>
+        <el-form-item label="预期结果"><el-input v-model="editForm.expected_result" type="textarea" :rows="2" /></el-form-item>
       </el-form>
       <template #footer><el-button @click="editVisible = false">取消</el-button><el-button type="primary" @click="handleSave" :loading="saving">保存</el-button></template>
     </el-dialog>
@@ -63,28 +87,50 @@ import { ref, reactive, onMounted, watch } from 'vue'
 import { useAppStore } from '../../stores/app'
 import { Edit, Delete, VideoPlay } from '@element-plus/icons-vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
-import { getTestCases, getTestCaseStats, createTestCase, updateTestCase, deleteTestCase } from '../../api/testcase'
+import { getTestCases, getTestCaseStats, createTestCase, updateTestCase, deleteTestCase, batchExecuteTestCases } from '../../api/testcase'
 import { getProjects } from '../../api/project'
 
 const appStore = useAppStore()
 const loading = ref(false)
 const saving = ref(false)
 const creating = ref(false)
+const batchExecuting = ref(false)
 const stats = ref({ total: 0, projectCount: 0, passed: 0, passRate: 0, failed: 0, pending: 0 })
 const selectedProject = ref('')
 const projectOptions = ref([])
 const testCases = ref([])
 
 const createVisible = ref(false)
-const createForm = reactive({ title: '', priority: '中', project_id: null })
+const createForm = reactive({ title: '', priority: '高', project_id: null, preconditions: '', test_steps: '', expected_result: '' })
 const editVisible = ref(false)
 const editId = ref(null)
-const editForm = reactive({ title: '', priority: '', exec_status: '' })
+const editForm = reactive({ title: '', priority: '', exec_status: '', preconditions: '', test_steps: '', expected_result: '' })
 
 function getPriorityClass(p) { return { 高: 'badge badge-red', 中: 'badge badge-amber', 低: 'badge badge-blue' }[p] || 'badge badge-gray' }
 function getExecStatusType(s) { return { 通过: 'success', 失败: 'danger', 执行中: 'warning', 待执行: 'info' }[s] || 'info' }
 function formatDate(d) { return d ? d.split('T')[0] : '' }
-function batchExecute() { ElMessage.info('批量执行功能开发中...') }
+
+async function handleBatchExecute() {
+  batchExecuting.value = true
+  try {
+    // 获取当前筛选项目的 project_id
+    let projectId = null
+    if (selectedProject.value) {
+      const proj = projectOptions.value.find(p => p.name === selectedProject.value)
+      if (proj) projectId = proj.id
+    }
+    const res = await batchExecuteTestCases(projectId)
+    const count = res.data?.executed_count || 0
+    ElMessage.success(`已批量执行 ${count} 条用例`)
+    await loadCases()
+    // 刷新统计
+    try { stats.value = (await getTestCaseStats()).data } catch (e) { /* ignore */ }
+  } catch (e) {
+    ElMessage.error('批量执行失败')
+  } finally {
+    batchExecuting.value = false
+  }
+}
 
 let loadTimer = null
 
@@ -105,7 +151,7 @@ watch(() => appStore.searchKeyword, () => {
 })
 
 function openCreateDialog() {
-  Object.assign(createForm, { title: '', priority: '中', project_id: null })
+  Object.assign(createForm, { title: '', priority: '高', project_id: null, preconditions: '', test_steps: '', expected_result: '' })
   createVisible.value = true
 }
 
@@ -120,7 +166,14 @@ async function handleCreate() {
   } catch (e) { ElMessage.error('创建失败') } finally { creating.value = false }
 }
 
-function handleEdit(row) { editId.value = row.id; Object.assign(editForm, { title: row.title, priority: row.priority, exec_status: row.exec_status }); editVisible.value = true }
+function handleEdit(row) {
+  editId.value = row.id
+  Object.assign(editForm, {
+    title: row.title, priority: row.priority, exec_status: row.exec_status,
+    preconditions: row.preconditions || '', test_steps: row.test_steps || '', expected_result: row.expected_result || '',
+  })
+  editVisible.value = true
+}
 
 async function handleSave() {
   saving.value = true
@@ -147,4 +200,41 @@ onMounted(async () => {
 <style scoped>
 .testcase-list { max-width: 1400px; }
 .action-btns { display: flex; gap: 4px; }
+
+.expand-content {
+  padding: 12px 20px 16px 60px;
+  background: #FAFBFC;
+}
+
+.expand-row {
+  display: flex;
+  gap: 12px;
+  margin-bottom: 8px;
+  font-size: 13px;
+}
+
+.expand-row:last-child {
+  margin-bottom: 0;
+}
+
+.expand-label {
+  color: var(--color-text-tertiary);
+  width: 70px;
+  flex-shrink: 0;
+  font-weight: 500;
+}
+
+.expand-value {
+  color: var(--color-text-primary);
+  flex: 1;
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
+.steps-pre {
+  margin: 0;
+  font-family: inherit;
+  white-space: pre-wrap;
+  word-break: break-word;
+}
 </style>

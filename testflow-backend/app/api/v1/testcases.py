@@ -16,7 +16,11 @@ def _to_out(case, db: Session) -> dict:
         priority=case.priority, exec_status=case.exec_status,
         executor=crud_testcase.get_executor_name(db, case.executor_id),
         project=crud_testcase.get_project_name(db, case.project_id),
-        project_id=case.project_id, updated_at=case.updated_at,
+        project_id=case.project_id,
+        preconditions=case.preconditions or "",
+        test_steps=case.test_steps or "",
+        expected_result=case.expected_result or "",
+        updated_at=case.updated_at,
     ).model_dump()
 
 
@@ -34,6 +38,16 @@ def list_testcases(
 @router.get("/stats", response_model=ResponseModel)
 def testcase_stats(db: Session = Depends(get_db), _=Depends(get_current_user)):
     return ResponseModel(data=crud_testcase.get_testcase_stats(db))
+
+
+@router.post("/batch-execute", response_model=ResponseModel)
+def batch_execute(
+    project_id: int | None = None,
+    db: Session = Depends(get_db),
+    current_user=Depends(get_current_user)
+):
+    count = crud_testcase.batch_execute(db, project_id)
+    return ResponseModel(data={"executed_count": count}, message=f"已批量执行 {count} 条用例")
 
 
 @router.post("", response_model=ResponseModel)

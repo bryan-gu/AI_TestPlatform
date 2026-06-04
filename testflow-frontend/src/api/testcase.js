@@ -22,3 +22,9 @@ export function updateTestCase(id, data) {
 export function deleteTestCase(id) {
   return request({ url: `/testcases/${id}`, method: 'delete' })
 }
+
+export function batchExecuteTestCases(projectId) {
+  const params = {}
+  if (projectId) params.project_id = projectId
+  return request({ url: '/testcases/batch-execute', method: 'post', params })
+}

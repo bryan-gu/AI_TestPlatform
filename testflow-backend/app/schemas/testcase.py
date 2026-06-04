@@ -4,10 +4,13 @@ from datetime import datetime
 
 class TestCaseCreate(BaseModel):
     title: str
-    priority: str = "中"
+    priority: str = "高"
     exec_status: str = "待执行"
     executor_id: int | None = None
     project_id: int | None = None
+    preconditions: str = ""       # 前置条件
+    test_steps: str = ""          # 测试步骤
+    expected_result: str = ""     # 预期结果
 
 
 class TestCaseUpdate(BaseModel):
@@ -15,17 +18,23 @@ class TestCaseUpdate(BaseModel):
     priority: str | None = None
     exec_status: str | None = None
     executor_id: int | None = None
+    preconditions: str | None = None
+    test_steps: str | None = None
+    expected_result: str | None = None
 
 
 class TestCaseOut(BaseModel):
     id: int
     case_no: str
     title: str
-    priority: str = "中"
+    priority: str = "高"
     exec_status: str = "待执行"
     executor: str = ""  # 执行人姓名
     project: str = ""  # 项目名称
     project_id: int | None = None
+    preconditions: str = ""
+    test_steps: str = ""
+    expected_result: str = ""
     updated_at: datetime | None = None
 
     class Config:

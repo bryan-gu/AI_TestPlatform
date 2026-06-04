@@ -45,6 +45,9 @@ def create_testcase(db: Session, data: TestCaseCreate) -> TestCase:
         exec_status=data.exec_status,
         executor_id=data.executor_id,
         project_id=data.project_id,
+        preconditions=data.preconditions,
+        test_steps=data.test_steps,
+        expected_result=data.expected_result,
     )
     db.add(case)
     db.commit()
@@ -61,9 +64,26 @@ def update_testcase(db: Session, case: TestCase, data: TestCaseUpdate) -> TestCa
         case.exec_status = data.exec_status
     if data.executor_id is not None:
         case.executor_id = data.executor_id
+    if data.preconditions is not None:
+        case.preconditions = data.preconditions
+    if data.test_steps is not None:
+        case.test_steps = data.test_steps
+    if data.expected_result is not None:
+        case.expected_result = data.expected_result
     db.commit()
     db.refresh(case)
     return case
+
+
+def batch_execute(db: Session, project_id: int | None = None) -> int:
+    """将所有'待执行'的用例批量标记为'通过'，返回受影响行数"""
+    query = db.query(TestCase).filter(TestCase.exec_status == "待执行")
+    if project_id:
+        query = query.filter(TestCase.project_id == project_id)
+    count = query.count()
+    query.update({"exec_status": "通过"})
+    db.commit()
+    return count
 
 
 def delete_testcase(db: Session, case: TestCase) -> None:
