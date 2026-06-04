@@ -26,13 +26,25 @@
       </div>
     </div>
 
-    <!-- Sprint 选择 -->
+    <!-- Sprint 选择 + 启动按钮 -->
     <div class="card" style="margin-bottom:16px">
       <div class="card-head">
         <div class="card-title">Sprint 选择</div>
-        <el-select v-model="selectedProject" size="small" style="width:160px">
-          <el-option v-for="p in projects" :key="p.id" :label="p.name" :value="p.id" />
-        </el-select>
+        <div style="display:flex;gap:8px;align-items:center">
+          <el-select v-model="selectedProject" size="small" style="width:160px" @change="onProjectChange">
+            <el-option v-for="p in projects" :key="p.id" :label="p.name" :value="p.id" />
+          </el-select>
+          <el-button
+            type="primary"
+            size="small"
+            :disabled="!selectedProject || !selectedSprint"
+            :loading="starting"
+            @click="handleStart"
+          >
+            <el-icon><VideoPlay /></el-icon>
+            {{ currentExecution && currentExecution.status === 'running' ? '执行中...' : '启动执行' }}
+          </el-button>
+        </div>
       </div>
       <div class="sprint-badges">
         <span
@@ -42,6 +54,9 @@
           :class="{ active: selectedSprint === s.id }"
           @click="selectedSprint = s.id"
         >{{ s.name }}</span>
+        <div v-if="sprints.length === 0" style="font-size:12px;color:var(--color-text-tertiary);padding:10px">
+          请先选择一个项目
+        </div>
       </div>
     </div>
 
@@ -49,109 +64,129 @@
     <div class="card" style="margin-bottom:16px">
       <div class="card-head">
         <div class="card-title">SKILL 流水线</div>
-        <div style="display:flex;align-items:center;gap:8px">
-          <el-tag type="success" size="small" effect="plain" round>运行中</el-tag>
-          <span style="font-size:11px;color:var(--color-text-tertiary)">已运行 12 分 34 秒</span>
+        <div style="display:flex;align-items:center;gap:8px" v-if="currentExecution">
+          <el-tag
+            :type="statusTagType(currentExecution.status)"
+            size="small"
+            effect="plain"
+            round
+          >{{ statusLabel(currentExecution.status) }}</el-tag>
+          <span v-if="currentExecution.duration_display" style="font-size:11px;color:var(--color-text-tertiary)">
+            总耗时 {{ currentExecution.duration_display }}
+          </span>
+          <el-button
+            v-if="currentExecution.status === 'running'"
+            type="warning"
+            size="small"
+            @click="handlePause"
+          >
+            <el-icon><VideoPause /></el-icon>暂停
+          </el-button>
+          <el-button
+            v-if="currentExecution.status === 'paused'"
+            type="success"
+            size="small"
+            @click="handleResume"
+          >
+            <el-icon><VideoPlay /></el-icon>继续
+          </el-button>
         </div>
       </div>
-      <div class="pipeline">
-        <!-- 阶段 1: 需求分析 -->
-        <div class="pipeline-stage">
+
+      <div class="pipeline" v-if="currentStages.length > 0">
+        <div
+          v-for="stage in currentStages"
+          :key="stage.stage_no"
+          class="pipeline-stage"
+        >
           <div class="stage-timeline">
-            <div class="stage-dot completed">
-              <el-icon :size="18"><Check /></el-icon>
+            <div
+              class="stage-dot"
+              :class="{
+                completed: stage.status === 'completed',
+                running: stage.status === 'running',
+                failed: stage.status === 'failed',
+                waiting: stage.status === 'waiting',
+              }"
+            >
+              <el-icon v-if="stage.status === 'completed'" :size="18"><Check /></el-icon>
+              <el-icon v-else-if="stage.status === 'failed'" :size="18"><Close /></el-icon>
+              <div v-else-if="stage.status === 'running'" class="spinner"></div>
+              <span v-else>{{ stage.stage_no }}</span>
             </div>
-            <div class="stage-line completed"></div>
+            <div
+              class="stage-line"
+              :class="stage.status === 'completed' ? 'completed' : 'pending'"
+            ></div>
           </div>
           <div class="stage-content">
             <div class="stage-header">
-              <div class="stage-name">阶段 1：需求分析</div>
-              <el-tag type="success" size="small" effect="plain" round>已完成</el-tag>
+              <div
+                class="stage-name"
+                :class="{ 'waiting-text': stage.status === 'waiting' }"
+              >
+                阶段 {{ stage.stage_no }}：{{ stage.stage_name }}
+              </div>
+              <el-tag
+                :type="stageStatusTagType(stage.status)"
+                size="small"
+                effect="plain"
+                round
+              >{{ stageStatusLabel(stage.status) }}</el-tag>
             </div>
-            <div class="stage-desc">AI 解析知识库中的需求文档，提取功能点、业务规则、接口定义，构建知识图谱关联。</div>
-            <div class="stage-meta">
-              <span>模型：<strong>GPT-4o</strong></span>
-              <span>耗时：<strong>3m 12s</strong></span>
-              <span>输入 Token：<strong class="mono">12,847</strong></span>
-              <span>输出 Token：<strong class="mono">8,234</strong></span>
+            <div
+              class="stage-desc"
+              :class="{ 'waiting-text': stage.status === 'waiting' }"
+            >
+              {{ stageDescription(stage.stage_no) }}
             </div>
-            <!-- 展开的分析结果 -->
-            <div class="stage-result">
-              <div class="result-title">分析结果摘要</div>
-              <div class="result-grid">
-                <div class="result-item">
-                  <div class="result-value" style="color:var(--accent)">23</div>
-                  <div class="result-label">功能点</div>
-                </div>
-                <div class="result-item">
-                  <div class="result-value" style="color:var(--accent)">15</div>
-                  <div class="result-label">业务规则</div>
-                </div>
-                <div class="result-item">
-                  <div class="result-value" style="color:var(--accent)">8</div>
-                  <div class="result-label">API 端点</div>
-                </div>
-                <div class="result-item">
-                  <div class="result-value" style="color:var(--accent)">12</div>
-                  <div class="result-label">图谱关联</div>
+
+            <!-- 已完成：展示结果 -->
+            <template v-if="stage.status === 'completed'">
+              <div class="stage-meta">
+                <span>模型：<strong>{{ stage.model || '-' }}</strong></span>
+                <span>耗时：<strong>{{ stage.duration_display || '-' }}</strong></span>
+                <span>输入 Token：<strong class="mono">{{ formatNumber(stage.input_tokens) }}</strong></span>
+                <span>输出 Token：<strong class="mono">{{ formatNumber(stage.output_tokens) }}</strong></span>
+              </div>
+              <div class="stage-result" v-if="stage.result_summary && Object.keys(stage.result_summary).length > 0">
+                <div class="result-title">分析结果摘要</div>
+                <div class="result-grid">
+                  <div
+                    v-for="(val, key) in stage.result_summary"
+                    :key="key"
+                    class="result-item"
+                  >
+                    <div class="result-value" style="color:var(--accent)">{{ val }}</div>
+                    <div class="result-label">{{ key }}</div>
+                  </div>
                 </div>
               </div>
-            </div>
+            </template>
+
+            <!-- 运行中 -->
+            <template v-else-if="stage.status === 'running'">
+              <div class="stage-meta">
+                <span>模型：<strong>{{ stage.model || '-' }}</strong></span>
+              </div>
+              <div class="progress-bar">
+                <div class="progress-fill indeterminate"></div>
+              </div>
+              <div style="font-size:11px;color:var(--color-text-tertiary);margin-top:6px">正在执行中...</div>
+            </template>
+
+            <!-- 失败 -->
+            <template v-else-if="stage.status === 'failed'">
+              <div style="font-size:12px;color:#E24B4A">执行失败，请检查 AI 配置或重试</div>
+            </template>
           </div>
         </div>
+      </div>
 
-        <!-- 阶段 2: 测试用例生成 -->
-        <div class="pipeline-stage">
-          <div class="stage-timeline">
-            <div class="stage-dot running">
-              <div class="spinner"></div>
-            </div>
-            <div class="stage-line pending"></div>
-          </div>
-          <div class="stage-content">
-            <div class="stage-header">
-              <div class="stage-name">阶段 2：测试用例生成</div>
-              <el-tag type="primary" size="small" effect="plain" round>执行中</el-tag>
-            </div>
-            <div class="stage-desc">基于需求分析结果，AI 自动生成测试用例，覆盖正向、异常、边界场景。</div>
-            <div class="stage-meta" style="margin-bottom:10px">
-              <span>模型：<strong>Claude 3.5 Sonnet</strong></span>
-              <span>已生成：<strong>47 / ~80 条</strong></span>
-            </div>
-            <div class="progress-bar">
-              <div class="progress-fill" style="width:59%"></div>
-            </div>
-            <div style="font-size:11px;color:var(--color-text-tertiary);margin-top:6px">预计剩余 2 分钟</div>
-          </div>
-        </div>
-
-        <!-- 阶段 3: E2E 脚本生成 -->
-        <div class="pipeline-stage">
-          <div class="stage-timeline">
-            <div class="stage-dot waiting"><span>3</span></div>
-            <div class="stage-line pending"></div>
-          </div>
-          <div class="stage-content">
-            <div class="stage-header">
-              <div class="stage-name waiting-text">阶段 3：E2E 脚本生成</div>
-              <el-tag type="info" size="small" effect="plain" round>等待中</el-tag>
-            </div>
-            <div class="stage-desc waiting-text">将测试用例转化为可执行的 Playwright / Selenium 自动化脚本。</div>
-          </div>
-        </div>
-
-        <!-- 阶段 4: 执行与自愈 -->
-        <div class="pipeline-stage">
-          <div class="stage-timeline">
-            <div class="stage-dot waiting"><span>4</span></div>
-          </div>
-          <div class="stage-content">
-            <div class="stage-header">
-              <div class="stage-name waiting-text">阶段 4：执行与自愈</div>
-              <el-tag type="info" size="small" effect="plain" round>等待中</el-tag>
-            </div>
-            <div class="stage-desc waiting-text">执行自动化脚本，失败时 AI 自动分析原因并尝试修复脚本。</div>
-          </div>
+      <div v-else class="pipeline-empty">
+        <div style="text-align:center;padding:40px 0;color:var(--color-text-tertiary)">
+          <el-icon :size="32" style="margin-bottom:8px;color:var(--color-border-secondary)"><Cpu /></el-icon>
+          <div style="font-size:13px">选择项目与 Sprint，点击「启动执行」开始 SKILL 流水线</div>
         </div>
       </div>
     </div>
@@ -162,7 +197,6 @@
       <div class="card">
         <div class="card-head">
           <div class="card-title">知识图谱预处理</div>
-          <el-tag type="success" size="small" effect="plain" round>已完成</el-tag>
         </div>
         <div class="preprocess-content">
           <div style="font-size:12px;color:var(--color-text-secondary);margin-bottom:12px">
@@ -170,11 +204,11 @@
           </div>
           <div class="preprocess-stats">
             <div class="preprocess-item">
-              <div class="preprocess-value">29</div>
+              <div class="preprocess-value">{{ graphStats.totalNodes }}</div>
               <div class="preprocess-label">图谱节点</div>
             </div>
             <div class="preprocess-item">
-              <div class="preprocess-value">47</div>
+              <div class="preprocess-value">{{ graphStats.totalEdges }}</div>
               <div class="preprocess-label">关联边</div>
             </div>
           </div>
@@ -189,14 +223,28 @@
         <div class="card-head">
           <div class="card-title">执行历史</div>
         </div>
-        <div class="history-list">
-          <div v-for="h in executionHistory" :key="h.name" class="history-item">
+        <div class="history-list" v-if="executionHistory.length > 0">
+          <div v-for="h in executionHistory" :key="h.id" class="history-item" @click="loadExecution(h)">
             <div class="history-info">
-              <div class="history-name">{{ h.name }}</div>
-              <div class="history-time">{{ h.time }}</div>
+              <div class="history-name">
+                {{ h.sprint_name || h.project_name || '未指定' }}
+                <el-tag size="small" style="margin-left:4px">{{ h.mode === 'incremental' ? '增量' : '全量' }}</el-tag>
+              </div>
+              <div class="history-time">
+                {{ formatTime(h.created_at) }}
+                <template v-if="h.duration_display"> · {{ h.duration_display }}</template>
+              </div>
             </div>
-            <el-tag :type="h.status === '运行中' ? 'success' : 'primary'" size="small" effect="plain" round>{{ h.status }}</el-tag>
+            <el-tag
+              :type="statusTagType(h.status)"
+              size="small"
+              effect="plain"
+              round
+            >{{ statusLabel(h.status) }}</el-tag>
           </div>
+        </div>
+        <div v-else style="padding:20px;text-align:center;color:var(--color-text-tertiary);font-size:12px">
+          暂无执行记录
         </div>
       </div>
     </div>
@@ -204,44 +252,232 @@
 </template>
 
 <script setup>
-import { ref, onMounted } from 'vue'
+import { ref, reactive, computed, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
-import { RefreshRight, Operation, Check } from '@element-plus/icons-vue'
+import { RefreshRight, Operation, Check, Close, VideoPlay, VideoPause, Cpu } from '@element-plus/icons-vue'
+import { ElMessage } from 'element-plus'
 import { useAppStore } from '../../stores/app'
+import { getProjects } from '../../api/project'
+import { getSprints } from '../../api/sprint'
+import { getGraphStats } from '../../api/graph'
+import { getExecutions, createExecution, pauseExecution, resumeExecution, getExecution } from '../../api/pipeline'
 
 const router = useRouter()
 const appStore = useAppStore()
 
+// ── 选择状态 ──
 const selectedMode = ref('full')
-const selectedProject = ref(1)
-const selectedSprint = ref('sprint-2')
+const selectedProject = ref(null)
+const selectedSprint = ref(null)
+const starting = ref(false)
 
-const projects = ref([
-  { id: 1, name: '电商平台 v3.0' },
-  { id: 2, name: '支付系统' },
-  { id: 3, name: '用户中心重构' }
-])
+// ── 数据 ──
+const projects = ref([])
+const sprints = ref([])
+const executionHistory = ref([])
+const currentExecution = ref(null)
 
-const sprints = ref([
-  { id: 'sprint-0', name: 'Sprint 0' },
-  { id: 'sprint-1', name: 'Sprint 1' },
-  { id: 'sprint-2', name: 'Sprint 2' },
-  { id: 'sprint-3', name: 'Sprint 3' },
-  { id: 'sprint-all', name: 'sprint_all（最新汇总）' }
-])
+const graphStats = reactive({ totalNodes: 0, totalEdges: 0 })
 
-const executionHistory = ref([
-  { name: 'Sprint 2 全量执行', time: '今天 14:20 · 运行中', status: '运行中' },
-  { name: 'Sprint 1 增量执行', time: '昨天 16:45 · 18m 32s', status: '已完成' },
-  { name: 'Sprint 0 全量执行', time: '3 天前 · 24m 10s', status: '已完成' }
-])
+const currentStages = computed(() => {
+  if (!currentExecution.value || !currentExecution.value.stages) return []
+  return currentExecution.value.stages
+})
+
+// ── 工具函数 ──
+
+function statusTagType(status) {
+  const map = {
+    completed: 'success',
+    running: 'primary',
+    paused: 'warning',
+    waiting: 'info',
+    failed: 'danger',
+  }
+  return map[status] || 'info'
+}
+
+function statusLabel(status) {
+  const map = {
+    completed: '已完成',
+    running: '运行中',
+    paused: '已暂停',
+    waiting: '等待中',
+    failed: '失败',
+  }
+  return map[status] || status
+}
+
+function stageStatusTagType(status) {
+  return statusTagType(status)
+}
+
+function stageStatusLabel(status) {
+  return statusLabel(status)
+}
+
+function stageDescription(stageNo) {
+  const map = {
+    1: 'AI 解析知识库中的需求文档，提取功能点、业务规则、接口定义，构建知识图谱关联。',
+    2: '基于需求分析结果，AI 自动生成测试用例，覆盖正向、异常、边界场景。',
+    3: '将测试用例转化为可执行的 Playwright / Selenium 自动化脚本。',
+    4: '执行自动化脚本，失败时 AI 自动分析原因并尝试修复脚本。',
+  }
+  return map[stageNo] || ''
+}
+
+function formatNumber(n) {
+  if (!n) return '0'
+  return n.toLocaleString()
+}
+
+function formatTime(dateStr) {
+  if (!dateStr) return '-'
+  const d = new Date(dateStr)
+  const now = new Date()
+  const diff = now - d
+  const mins = Math.floor(diff / 60000)
+  if (mins < 1) return '刚刚'
+  if (mins < 60) return `${mins} 分钟前`
+  const hours = Math.floor(mins / 60)
+  if (hours < 24) return `${hours} 小时前`
+  const days = Math.floor(hours / 24)
+  if (days < 7) return `${days} 天前`
+  return `${d.getMonth() + 1}/${d.getDate()}`
+}
+
+// ── 数据加载 ──
+
+async function loadProjects() {
+  try {
+    const res = await getProjects()
+    projects.value = res.data?.data || res.data || []
+    if (projects.value.length > 0 && !selectedProject.value) {
+      selectedProject.value = projects.value[0].id
+      await loadSprints()
+    }
+  } catch (e) {
+    console.error('加载项目失败', e)
+  }
+}
+
+async function loadSprints() {
+  if (!selectedProject.value) {
+    sprints.value = []
+    return
+  }
+  try {
+    const res = await getSprints({ project_id: selectedProject.value })
+    sprints.value = res.data?.data || res.data || []
+    if (sprints.value.length > 0 && !selectedSprint.value) {
+      selectedSprint.value = sprints.value[0].id
+    }
+  } catch (e) {
+    console.error('加载 Sprint 失败', e)
+  }
+}
+
+async function loadExecutionHistory() {
+  try {
+    const params = {}
+    if (selectedProject.value) params.project_id = selectedProject.value
+    const res = await getExecutions(params)
+    executionHistory.value = res.data?.data || res.data || []
+    // 如果有执行记录，默认加载最近一条
+    if (executionHistory.value.length > 0 && !currentExecution.value) {
+      currentExecution.value = executionHistory.value[0]
+      // 获取完整详情（含 stages）
+      await loadExecution(executionHistory.value[0])
+    }
+  } catch (e) {
+    console.error('加载执行历史失败', e)
+  }
+}
+
+async function loadGraphStats() {
+  try {
+    const res = await getGraphStats()
+    const s = res.data?.data || res.data || {}
+    graphStats.totalNodes = s.total_nodes ?? 0
+    graphStats.totalEdges = s.total_edges ?? 0
+  } catch (e) {
+    console.error('加载图谱统计失败', e)
+  }
+}
+
+async function loadExecution(h) {
+  try {
+    const res = await getExecution(h.id)
+    currentExecution.value = res.data?.data || res.data || {}
+  } catch (e) {
+    console.error('加载执行详情失败', e)
+  }
+}
+
+async function onProjectChange() {
+  selectedSprint.value = null
+  currentExecution.value = null
+  await Promise.all([loadSprints(), loadExecutionHistory()])
+}
+
+// ── 操作 ──
+
+async function handleStart() {
+  if (!selectedProject.value || !selectedSprint.value) {
+    ElMessage.warning('请先选择项目和 Sprint')
+    return
+  }
+  starting.value = true
+  try {
+    const res = await createExecution({
+      project_id: selectedProject.value,
+      sprint_id: selectedSprint.value,
+      mode: selectedMode.value,
+    })
+    currentExecution.value = res.data?.data || res.data || {}
+    ElMessage.success('流水线执行完成')
+    await loadExecutionHistory()
+  } catch (e) {
+    ElMessage.error('启动执行失败')
+    console.error(e)
+  } finally {
+    starting.value = false
+  }
+}
+
+async function handlePause() {
+  if (!currentExecution.value) return
+  try {
+    const res = await pauseExecution(currentExecution.value.id)
+    currentExecution.value = res.data?.data || res.data || {}
+    ElMessage.info('已暂停')
+  } catch (e) {
+    ElMessage.error('暂停失败')
+  }
+}
+
+async function handleResume() {
+  if (!currentExecution.value) return
+  try {
+    const res = await resumeExecution(currentExecution.value.id)
+    currentExecution.value = res.data?.data || res.data || {}
+    ElMessage.success('执行完成')
+    await loadExecutionHistory()
+  } catch (e) {
+    ElMessage.error('继续执行失败')
+  }
+}
 
 function goToGraphList() {
   router.push('/graphs')
 }
 
-onMounted(() => {
+// ── 初始化 ──
+
+onMounted(async () => {
   appStore.setCurrentPage('ai-workbench', 'AI 工作台')
+  await loadProjects()
+  await Promise.all([loadExecutionHistory(), loadGraphStats()])
 })
 </script>
 
@@ -321,6 +557,10 @@ onMounted(() => {
   padding: 20px 18px;
 }
 
+.pipeline-empty {
+  padding: 10px;
+}
+
 .pipeline-stage {
   display: flex;
   gap: 16px;
@@ -363,6 +603,11 @@ onMounted(() => {
 .stage-dot.waiting {
   background: var(--color-background-secondary);
   color: var(--color-text-tertiary);
+}
+
+.stage-dot.failed {
+  background: #fee2e2;
+  color: #dc2626;
 }
 
 .stage-dot.waiting span {
@@ -485,6 +730,17 @@ onMounted(() => {
   transition: width 0.3s;
 }
 
+.progress-fill.indeterminate {
+  width: 30%;
+  animation: indeterminate 1.5s ease-in-out infinite;
+}
+
+@keyframes indeterminate {
+  0% { margin-left: 0; width: 30%; }
+  50% { margin-left: 40%; width: 30%; }
+  100% { margin-left: 0; width: 30%; }
+}
+
 /* 旋转动画 */
 .spinner {
   width: 12px;
@@ -547,6 +803,13 @@ onMounted(() => {
   display: flex;
   align-items: center;
   justify-content: space-between;
+  cursor: pointer;
+}
+
+.history-item:hover {
+  background: var(--color-background-secondary);
+  margin: 0 -18px;
+  padding: 10px 18px;
 }
 
 .history-item:last-child {

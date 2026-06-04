@@ -10,6 +10,7 @@ from app.models.activity import Activity
 from app.models.feature_point import FeaturePoint
 from app.models.ai_config import AIProvider, ModelStrategy, AIGlobalConfig, AICallLog
 from app.models.graph import Graph, GraphNode, GraphEdge
+from app.models.pipeline import PipelineExecution, PipelineStage
 
 __all__ = [
     "Role",
@@ -29,4 +30,6 @@ __all__ = [
     "Graph",
     "GraphNode",
     "GraphEdge",
+    "PipelineExecution",
+    "PipelineStage",
 ]
