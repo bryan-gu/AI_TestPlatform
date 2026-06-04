@@ -42,7 +42,7 @@
       <el-form :model="editForm" label-width="80px">
         <el-form-item label="项目名称"><el-input v-model="editForm.name" /></el-form-item>
         <el-form-item label="项目描述"><el-input v-model="editForm.description" type="textarea" :rows="3" /></el-form-item>
-        <el-form-item label="负责人"><el-input v-model="editForm.owner" placeholder="请输入负责人（选填）" /></el-form-item>
+        <el-form-item label="负责人"><el-select v-model="editForm.owner_id" placeholder="请选择负责人" clearable style="width:100%"><el-option v-for="u in userOptions" :key="u.id" :label="u.name" :value="u.id" /></el-select></el-form-item>
         <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 0 16px">
           <el-form-item label="状态"><el-select v-model="editForm.status" style="width: 100%"><el-option label="待启动" value="pending" /><el-option label="进行中" value="active" /><el-option label="测试中" value="testing" /><el-option label="已完成" value="completed" /></el-select></el-form-item>
           <el-form-item label="进度"><el-input-number v-model="editForm.progress" :min="0" :max="100" style="width: 100%" /></el-form-item>
@@ -61,6 +61,7 @@ import { Edit, Delete } from '@element-plus/icons-vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { getProjects, createProject, updateProject, deleteProject } from '../../api/project'
 import { getDashboardStats } from '../../api/dashboard'
+import { getUsers } from '../../api/user'
 
 const router = useRouter()
 const appStore = useAppStore()
@@ -74,7 +75,15 @@ const createVisible = ref(false)
 const createForm = reactive({ name: '', description: '', status: 'pending', progress: 0 })
 const editVisible = ref(false)
 const editId = ref(null)
-const editForm = reactive({ name: '', description: '', status: '', progress: 0, owner: '' })
+const editForm = reactive({ name: '', description: '', status: '', progress: 0, owner_id: null })
+const userOptions = ref([])
+
+async function loadUserOptions() {
+  try {
+    const res = await getUsers()
+    userOptions.value = (res.data || []).map(u => ({ id: u.id, name: u.name }))
+  } catch (e) { console.error(e) }
+}
 
 function getStatusType(s) { return { testing: '', completed: 'success', active: 'warning', pending: 'info' }[s] || 'info' }
 function getStatusText(s) { return { testing: '测试中', completed: '已完成', active: '进行中', pending: '待启动' }[s] || s }
@@ -118,7 +127,8 @@ async function handleCreate() {
 
 function handleEdit(row) {
   editId.value = row.id
-  Object.assign(editForm, { name: row.name, description: row.description, status: row.status, progress: row.progress, owner: row.owner || '' })
+  Object.assign(editForm, { name: row.name, description: row.description, status: row.status, progress: row.progress, owner_id: row.owner_id || null })
+  loadUserOptions()
   editVisible.value = true
 }
 
