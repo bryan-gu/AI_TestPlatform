@@ -8,6 +8,10 @@ from app.core.deps import get_current_user
 from app.models.project import Project
 from app.models.testcase import TestCase
 from app.models.activity import Activity
+from app.models.sprint import Sprint
+from app.models.document import Document
+from app.models.pipeline import PipelineExecution
+from app.models.ai_config import AICallLog
 from app.schemas.common import ResponseModel
 from app.schemas.dashboard import DashboardStats, ActivityOut
 
@@ -23,6 +27,12 @@ def dashboard_stats(db: Session = Depends(get_db), _=Depends(get_current_user)):
     failed = db.query(TestCase).filter(TestCase.exec_status == "失败").count()
     pending = db.query(TestCase).filter(TestCase.exec_status == "待执行").count()
 
+    # Phase 7 增强统计
+    total_sprints = db.query(Sprint).count()
+    total_documents = db.query(Document).count()
+    pipeline_executions = db.query(PipelineExecution).count()
+    ai_call_count = db.query(AICallLog).count()
+
     stats = DashboardStats(
         activeProjects=active,
         totalCases=total_cases,
@@ -32,6 +42,10 @@ def dashboard_stats(db: Session = Depends(get_db), _=Depends(get_current_user)):
         pendingBugs=failed,
         severeBugs=0,
         normalBugs=failed,
+        totalSprints=total_sprints,
+        totalDocuments=total_documents,
+        pipelineExecutions=pipeline_executions,
+        aiCallCount=ai_call_count,
     )
     return ResponseModel(data=stats.model_dump())
 

@@ -10,6 +10,11 @@ class DashboardStats(BaseModel):
     pendingBugs: int = 0
     severeBugs: int = 0
     normalBugs: int = 0
+    # Phase 7 增强
+    totalSprints: int = 0
+    totalDocuments: int = 0
+    pipelineExecutions: int = 0
+    aiCallCount: int = 0
 
 
 class ActivityOut(BaseModel):

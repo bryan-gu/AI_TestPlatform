@@ -115,6 +115,7 @@ API 文档：http://localhost:8000/docs
 - [x] AI 配置模块（Provider/Strategy/Config/CallLog）+ 前端对接（Phase 4）
 - [x] 知识图谱模块（Graph/Node/Edge）+ 前端对接（Phase 5）
 - [x] AI 流水线/工作台（PipelineExecution/Stage）+ 前端对接（Phase 6）
+- [x] 全局搜索 + Dashboard 增强（Phase 7）
 
 ### 进行中（参见 全栈开发方案.md）
-- [ ] 全局搜索 + Dashboard 增强（Phase 7）
+- 无

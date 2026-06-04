@@ -13,6 +13,7 @@ from app.api.v1.feature_points import router as feature_points_router
 from app.api.v1.ai_config import router as ai_config_router
 from app.api.v1.graphs import router as graphs_router
 from app.api.v1.pipeline import router as pipeline_router
+from app.api.v1.search import router as search_router
 
 api_router = APIRouter(prefix="/api/v1")
 
@@ -29,3 +30,4 @@ api_router.include_router(feature_points_router)
 api_router.include_router(ai_config_router)
 api_router.include_router(graphs_router)
 api_router.include_router(pipeline_router)
+api_router.include_router(search_router)

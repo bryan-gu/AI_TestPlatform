@@ -1,6 +1,6 @@
 <template>
   <div class="dashboard">
-    <!-- 统计卡片 -->
+    <!-- 统计卡片 — 测试概览 -->
     <div class="stats-grid">
       <div class="stat-card">
         <div class="stat-label">进行中项目</div>
@@ -36,12 +36,50 @@
       </div>
     </div>
 
+    <!-- 统计卡片 — 知识库 & AI -->
+    <div class="stats-grid" style="margin-top:12px">
+      <div class="stat-card">
+        <div class="stat-label">知识库 Sprint</div>
+        <div class="stat-value">{{ stats.totalSprints }}</div>
+        <div class="stat-sub">
+          <span class="stat-dot dot-blue"></span>
+          文档 {{ stats.totalDocuments }} 份
+        </div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-label">AI 流水线执行</div>
+        <div class="stat-value">{{ stats.pipelineExecutions }}</div>
+        <div class="stat-sub">
+          <span class="stat-dot dot-green"></span>
+          AI 调用 {{ stats.aiCallCount }} 次
+        </div>
+      </div>
+      <div class="stat-card" style="cursor:pointer" @click="goTo('/testcases')">
+        <div class="stat-label">测试用例覆盖</div>
+        <div class="stat-value">{{ coverageDisplay }}</div>
+        <div class="stat-sub">
+          <span class="stat-dot dot-amber"></span>
+          查看用例列表
+        </div>
+      </div>
+      <div class="stat-card" style="cursor:pointer" @click="goTo('/ai-workbench')">
+        <div class="stat-label">AI 工作台</div>
+        <div class="stat-value">
+          <el-icon :size="20" style="color:var(--accent);vertical-align:middle"><Cpu /></el-icon>
+        </div>
+        <div class="stat-sub">
+          <span class="stat-dot dot-green"></span>
+          进入工作台
+        </div>
+      </div>
+    </div>
+
     <!-- 项目列表和动态 -->
     <div class="two-col">
       <div class="card">
         <div class="card-head">
           <div class="card-title">项目列表</div>
-          <div class="card-action" @click="goToProjects">全部查看</div>
+          <div class="card-action" @click="goTo('/projects')">全部查看</div>
         </div>
         <el-table :data="projects" style="width: 100%" v-loading="loading">
           <el-table-column prop="name" label="项目名称" />
@@ -100,14 +138,57 @@
         </div>
       </div>
     </div>
+
+    <!-- 最近流水线执行 -->
+    <div class="card" style="margin-top:16px" v-if="recentExecutions.length > 0">
+      <div class="card-head">
+        <div class="card-title">最近 AI 流水线执行</div>
+        <div class="card-action" @click="goTo('/ai-workbench')">查看全部</div>
+      </div>
+      <el-table :data="recentExecutions" style="width: 100%">
+        <el-table-column label="执行" min-width="200">
+          <template #default="{ row }">
+            <div style="display:flex;align-items:center;gap:6px">
+              <el-icon :size="16" style="color:var(--accent)"><Cpu /></el-icon>
+              <span>{{ row.project_name || '未指定' }}</span>
+              <el-tag size="small" effect="plain" round>{{ row.mode === 'incremental' ? '增量' : '全量' }}</el-tag>
+            </div>
+          </template>
+        </el-table-column>
+        <el-table-column label="Sprint" width="120">
+          <template #default="{ row }">
+            {{ row.sprint_name || '-' }}
+          </template>
+        </el-table-column>
+        <el-table-column label="状态" width="100">
+          <template #default="{ row }">
+            <el-tag :type="pipelineStatusType(row.status)" size="small" effect="plain" round>
+              {{ pipelineStatusLabel(row.status) }}
+            </el-tag>
+          </template>
+        </el-table-column>
+        <el-table-column label="耗时" width="100">
+          <template #default="{ row }">
+            {{ row.duration_display || '-' }}
+          </template>
+        </el-table-column>
+        <el-table-column label="执行时间" width="120">
+          <template #default="{ row }">
+            {{ formatTime(row.created_at) }}
+          </template>
+        </el-table-column>
+      </el-table>
+    </div>
   </div>
 </template>
 
 <script setup>
-import { ref, onMounted } from 'vue'
+import { ref, computed, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
+import { Cpu } from '@element-plus/icons-vue'
 import { getDashboardStats, getDashboardActivities } from '../../api/dashboard'
 import { getProjects } from '../../api/project'
+import { getExecutions } from '../../api/pipeline'
 import { useAppStore } from '../../stores/app'
 
 const router = useRouter()
@@ -123,11 +204,21 @@ const stats = ref({
   passRateChange: 0,
   pendingBugs: 0,
   severeBugs: 0,
-  normalBugs: 0
+  normalBugs: 0,
+  totalSprints: 0,
+  totalDocuments: 0,
+  pipelineExecutions: 0,
+  aiCallCount: 0,
 })
 
 const projects = ref([])
 const activities = ref([])
+const recentExecutions = ref([])
+
+const coverageDisplay = computed(() => {
+  if (stats.value.totalCases === 0) return '0%'
+  return `${stats.value.passRate}%`
+})
 
 function getStatusType(status) {
   const map = { testing: '', completed: 'success', active: 'warning', pending: 'info' }
@@ -139,13 +230,37 @@ function getStatusText(status) {
   return map[status] || status
 }
 
-function goToProjects() {
-  router.push('/projects')
+function pipelineStatusType(status) {
+  const map = { completed: 'success', running: '', paused: 'warning', waiting: 'info', failed: 'danger' }
+  return map[status] || 'info'
+}
+
+function pipelineStatusLabel(status) {
+  const map = { completed: '已完成', running: '运行中', paused: '已暂停', waiting: '等待中', failed: '失败' }
+  return map[status] || status
+}
+
+function formatTime(dateStr) {
+  if (!dateStr) return '-'
+  const d = new Date(dateStr)
+  const now = new Date()
+  const diff = now - d
+  const mins = Math.floor(diff / 60000)
+  if (mins < 1) return '刚刚'
+  if (mins < 60) return `${mins} 分钟前`
+  const hours = Math.floor(mins / 60)
+  if (hours < 24) return `${hours} 小时前`
+  const days = Math.floor(hours / 24)
+  if (days < 7) return `${days} 天前`
+  return `${d.getMonth() + 1}/${d.getDate()}`
+}
+
+function goTo(path) {
+  router.push(path)
 }
 
 onMounted(async () => {
   appStore.setCurrentPage('dashboard', '项目总览')
-  // 加载统计数据
   loading.value = true
   try {
     const [statsRes, projRes] = await Promise.allSettled([
@@ -153,10 +268,12 @@ onMounted(async () => {
       getProjects()
     ])
     if (statsRes.status === 'fulfilled') {
-      stats.value = statsRes.value.data
+      const s = statsRes.value.data?.data || statsRes.value.data || {}
+      stats.value = { ...stats.value, ...s }
     }
     if (projRes.status === 'fulfilled') {
-      projects.value = projRes.value.data.slice(0, 4) // 只显示前4个
+      const list = projRes.value.data?.data || projRes.value.data || []
+      projects.value = list.slice(0, 4)
     }
   } catch (e) {
     console.error('加载仪表盘数据失败:', e)
@@ -168,11 +285,20 @@ onMounted(async () => {
   loadingActivities.value = true
   try {
     const actRes = await getDashboardActivities()
-    activities.value = actRes.data || []
+    activities.value = actRes.data?.data || actRes.data || []
   } catch (e) {
     console.error('加载动态数据失败:', e)
   } finally {
     loadingActivities.value = false
+  }
+
+  // 加载最近流水线执行
+  try {
+    const execRes = await getExecutions({})
+    const list = execRes.data?.data || execRes.data || []
+    recentExecutions.value = list.slice(0, 5)
+  } catch (e) {
+    console.error('加载流水线执行失败:', e)
   }
 })
 </script>
