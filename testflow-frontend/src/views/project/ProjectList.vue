@@ -128,7 +128,7 @@ async function handleCreate() {
     ElMessage.success('创建成功')
     createVisible.value = false
     appStore.refreshSidebarBadges()
-  } catch (e) { ElMessage.error('创建失败') } finally { creating.value = false }
+  } catch (e) { ElMessage.error(e.response?.data?.detail || '创建失败') } finally { creating.value = false }
 }
 
 function handleEdit(row) {
@@ -148,7 +148,7 @@ async function handleSave() {
     await loadProjects()
     ElMessage.success('保存成功')
     editVisible.value = false
-  } catch (e) { ElMessage.error('保存失败') } finally { saving.value = false }
+  } catch (e) { ElMessage.error(e.response?.data?.detail || '保存失败') } finally { saving.value = false }
 }
 
 function handleDelete(index, row) {

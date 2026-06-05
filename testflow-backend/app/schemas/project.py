@@ -25,7 +25,7 @@ class ProjectUpdate(BaseModel):
     name: str | None = None
     description: str | None = None
     status: str | None = None
-    progress: str | None = None
+    progress: int | None = None
     owner_id: int | None = None
     case_prefix: str | None = None
 
