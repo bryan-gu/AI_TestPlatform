@@ -47,7 +47,10 @@ def get_project(project_id: int, db: Session = Depends(get_db), _=Depends(get_cu
 
 @router.post("", response_model=ResponseModel)
 def create_project(data: ProjectCreate, db: Session = Depends(get_db), _=Depends(get_current_user)):
-    project = crud_project.create_project(db, data)
+    try:
+        project = crud_project.create_project(db, data)
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
     return ResponseModel(data=_to_out(project, db))
 
 
@@ -56,7 +59,10 @@ def update_project(project_id: int, data: ProjectUpdate, db: Session = Depends(g
     project = crud_project.get_project(db, project_id)
     if not project:
         raise HTTPException(status_code=404, detail="项目不存在")
-    project = crud_project.update_project(db, project, data)
+    try:
+        project = crud_project.update_project(db, project, data)
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
     return ResponseModel(data=_to_out(project, db))
 
 

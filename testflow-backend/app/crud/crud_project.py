@@ -6,6 +6,15 @@ from app.models.user import User
 from app.schemas.project import ProjectCreate, ProjectUpdate
 
 
+def _check_prefix_unique(db: Session, prefix: str, exclude_id: int | None = None) -> None:
+    """校验 case_prefix 唯一性"""
+    q = db.query(Project).filter(Project.case_prefix == prefix)
+    if exclude_id:
+        q = q.filter(Project.id != exclude_id)
+    if q.first():
+        raise ValueError(f"用例前缀 '{prefix}' 已被其他项目使用")
+
+
 def get_projects(db: Session, keyword: str | None = None) -> list[Project]:
     query = db.query(Project)
     if keyword:
@@ -23,6 +32,7 @@ def get_project(db: Session, project_id: int) -> Project | None:
 
 
 def create_project(db: Session, data: ProjectCreate) -> Project:
+    _check_prefix_unique(db, data.case_prefix)
     project = Project(
         name=data.name,
         description=data.description,
@@ -49,6 +59,7 @@ def update_project(db: Session, project: Project, data: ProjectUpdate) -> Projec
     if data.owner_id is not None:
         project.owner_id = data.owner_id
     if data.case_prefix is not None:
+        _check_prefix_unique(db, data.case_prefix, exclude_id=project.id)
         project.case_prefix = data.case_prefix
     db.commit()
     db.refresh(project)

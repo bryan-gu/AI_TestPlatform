@@ -28,8 +28,8 @@
     <!-- 新建对话框 -->
     <el-dialog v-model="createVisible" title="新建项目" width="520px" destroy-on-close>
       <el-form :model="createForm" label-width="80px">
-        <el-form-item label="项目名称"><el-input v-model="createForm.name" placeholder="请输入项目名称" /></el-form-item>
-        <el-form-item label="用例前缀"><el-input v-model="createForm.case_prefix" placeholder="如 SPD、VAgent（英文/数字）" maxlength="20" /></el-form-item>
+        <el-form-item label="项目名称" required><el-input v-model="createForm.name" placeholder="请输入项目名称" /></el-form-item>
+        <el-form-item label="用例前缀" required><el-input v-model="createForm.case_prefix" placeholder="如 SPD、VAgent（英文/数字）" maxlength="20" /></el-form-item>
         <el-form-item label="项目描述"><el-input v-model="createForm.description" type="textarea" :rows="3" placeholder="请输入项目描述" /></el-form-item>
         <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 0 16px">
           <el-form-item label="状态"><el-select v-model="createForm.status" style="width: 100%"><el-option label="待启动" value="pending" /><el-option label="进行中" value="active" /><el-option label="测试中" value="testing" /></el-select></el-form-item>
@@ -42,8 +42,8 @@
     <!-- 编辑对话框 -->
     <el-dialog v-model="editVisible" title="编辑项目" width="520px" destroy-on-close>
       <el-form :model="editForm" label-width="80px">
-        <el-form-item label="项目名称"><el-input v-model="editForm.name" /></el-form-item>
-        <el-form-item label="用例前缀"><el-input v-model="editForm.case_prefix" placeholder="如 SPD、VAgent（英文/数字）" maxlength="20" /></el-form-item>
+        <el-form-item label="项目名称" required><el-input v-model="editForm.name" /></el-form-item>
+        <el-form-item label="用例前缀" required><el-input v-model="editForm.case_prefix" placeholder="如 SPD、VAgent（英文/数字）" maxlength="20" /></el-form-item>
         <el-form-item label="项目描述"><el-input v-model="editForm.description" type="textarea" :rows="3" /></el-form-item>
         <el-form-item label="负责人"><el-select v-model="editForm.owner_id" placeholder="输入姓名搜索" clearable filterable style="width:100%"><el-option v-for="u in userOptions" :key="u.id" :label="u.name" :value="u.id" /></el-select></el-form-item>
         <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 0 16px">
@@ -118,6 +118,9 @@ function openCreateDialog() {
 }
 
 async function handleCreate() {
+  if (!createForm.name.trim()) { ElMessage.warning('请填写项目名称'); return }
+  if (!createForm.case_prefix.trim()) { ElMessage.warning('请填写用例前缀'); return }
+  if (!/^[a-zA-Z0-9]+$/.test(createForm.case_prefix.trim())) { ElMessage.warning('用例前缀只能包含英文字母和数字'); return }
   creating.value = true
   try {
     await createProject({ ...createForm })
@@ -136,6 +139,9 @@ function handleEdit(row) {
 }
 
 async function handleSave() {
+  if (!editForm.name.trim()) { ElMessage.warning('请填写项目名称'); return }
+  if (!editForm.case_prefix.trim()) { ElMessage.warning('请填写用例前缀'); return }
+  if (!/^[a-zA-Z0-9]+$/.test(editForm.case_prefix.trim())) { ElMessage.warning('用例前缀只能包含英文字母和数字'); return }
   saving.value = true
   try {
     await updateProject(editId.value, { ...editForm })
