@@ -20,7 +20,8 @@
     <div class="card" style="margin-bottom: 16px">
       <div class="card-head"><div class="card-title">关联测试用例</div></div>
       <el-table :data="testCases" style="width: 100%">
-        <el-table-column prop="case_no" label="用例编号" width="120" />
+        <el-table-column prop="case_no" label="用例编号" width="160" />
+        <el-table-column prop="module" label="模块" width="80"><template #default="{ row }">{{ row.module || '-' }}</template></el-table-column>
         <el-table-column prop="title" label="用例标题" min-width="200" show-overflow-tooltip />
         <el-table-column label="优先级" width="80"><template #default="{ row }"><span :class="getPriorityClass(row.priority)">{{ row.priority }}</span></template></el-table-column>
         <el-table-column label="执行状态" width="100"><template #default="{ row }"><el-tag :type="getExecStatusType(row.exec_status)" size="small">{{ row.exec_status }}</el-tag></template></el-table-column>

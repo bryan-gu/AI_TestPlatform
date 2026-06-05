@@ -1,3 +1,4 @@
+import re
 from sqlalchemy.orm import Session
 from sqlalchemy import func, or_
 
@@ -7,14 +8,45 @@ from app.models.user import User
 from app.schemas.testcase import TestCaseCreate, TestCaseUpdate
 
 
-def _generate_case_no(db: Session) -> str:
-    """自动生成用例编号 TC-XXX"""
+def _generate_legacy_case_no(db: Session) -> str:
+    """旧格式 TC-XXX，用于无前缀项目"""
     last = db.query(TestCase).order_by(TestCase.id.desc()).first()
     if last and last.case_no.startswith("TC-"):
         num = int(last.case_no.split("-")[1]) + 1
     else:
         num = 1
     return f"TC-{num:03d}"
+
+
+def _generate_case_no(db: Session, project_id: int, module: str) -> str:
+    """
+    生成用例编号：{prefix}_TC_{module}_{seq:03d}
+    序号按 (project_id, module) 组合自增
+    """
+    project = db.query(Project).filter(Project.id == project_id).first()
+    if not project or not project.case_prefix:
+        return _generate_legacy_case_no(db)
+
+    prefix = project.case_prefix.upper()
+    module_code = module.upper()
+    pattern = f"{prefix}_TC_{module_code}_%"
+
+    # 查该项目+模块下最后一条
+    last_case = (
+        db.query(TestCase)
+        .filter(TestCase.project_id == project_id)
+        .filter(TestCase.case_no.like(pattern))
+        .order_by(TestCase.id.desc())
+        .first()
+    )
+
+    if last_case:
+        match = re.search(r'(\d{3})$', last_case.case_no)
+        seq = int(match.group(1)) + 1 if match else 1
+    else:
+        seq = 1
+
+    return f"{prefix}_TC_{module_code}_{seq:03d}"
 
 
 def get_testcases(db: Session, project: str | None = None, keyword: str | None = None) -> list[TestCase]:
@@ -38,14 +70,20 @@ def get_testcase(db: Session, case_id: int) -> TestCase | None:
 
 
 def create_testcase(db: Session, data: TestCaseCreate) -> TestCase:
+    project_id = data.project_id
+    module = data.module
+    case_no = _generate_case_no(db, project_id, module)
+
     case = TestCase(
-        case_no=_generate_case_no(db),
+        case_no=case_no,
         title=data.title,
         priority=data.priority,
         exec_status=data.exec_status,
         executor_id=data.executor_id,
-        project_id=data.project_id,
+        project_id=project_id,
+        module=module,
         preconditions=data.preconditions,
+        test_data=data.test_data,
         test_steps=data.test_steps,
         expected_result=data.expected_result,
     )
@@ -66,10 +104,14 @@ def update_testcase(db: Session, case: TestCase, data: TestCaseUpdate) -> TestCa
         case.executor_id = data.executor_id
     if data.preconditions is not None:
         case.preconditions = data.preconditions
+    if data.test_data is not None:
+        case.test_data = data.test_data
     if data.test_steps is not None:
         case.test_steps = data.test_steps
     if data.expected_result is not None:
         case.expected_result = data.expected_result
+    if data.actual_result is not None:
+        case.actual_result = data.actual_result
     db.commit()
     db.refresh(case)
     return case

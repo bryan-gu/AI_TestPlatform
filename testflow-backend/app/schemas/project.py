@@ -8,6 +8,7 @@ class ProjectCreate(BaseModel):
     status: str = "pending"
     progress: int = 0
     owner_id: int | None = None
+    case_prefix: str | None = None
 
 
 class ProjectUpdate(BaseModel):
@@ -16,6 +17,7 @@ class ProjectUpdate(BaseModel):
     status: str | None = None
     progress: int | None = None
     owner_id: int | None = None
+    case_prefix: str | None = None
 
 
 class ProjectOut(BaseModel):
@@ -26,6 +28,7 @@ class ProjectOut(BaseModel):
     progress: int = 0
     owner_id: int | None = None
     owner: str = ""  # 负责人姓名
+    case_prefix: str | None = None
     created_at: datetime | None = None
     updated_at: datetime | None = None
 

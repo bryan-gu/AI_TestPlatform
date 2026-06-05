@@ -29,6 +29,7 @@ def create_project(db: Session, data: ProjectCreate) -> Project:
         status=data.status,
         progress=data.progress,
         owner_id=data.owner_id,
+        case_prefix=data.case_prefix,
     )
     db.add(project)
     db.commit()
@@ -47,6 +48,8 @@ def update_project(db: Session, project: Project, data: ProjectUpdate) -> Projec
         project.progress = data.progress
     if data.owner_id is not None:
         project.owner_id = data.owner_id
+    if data.case_prefix is not None:
+        project.case_prefix = data.case_prefix
     db.commit()
     db.refresh(project)
     return project

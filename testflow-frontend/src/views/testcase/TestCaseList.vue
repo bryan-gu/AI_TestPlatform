@@ -28,6 +28,10 @@
                 <div class="expand-value">{{ row.preconditions || '无' }}</div>
               </div>
               <div class="expand-row">
+                <div class="expand-label">测试数据</div>
+                <div class="expand-value">{{ row.test_data || '无' }}</div>
+              </div>
+              <div class="expand-row">
                 <div class="expand-label">测试步骤</div>
                 <div class="expand-value"><pre class="steps-pre">{{ row.test_steps || '无' }}</pre></div>
               </div>
@@ -35,15 +39,21 @@
                 <div class="expand-label">预期结果</div>
                 <div class="expand-value">{{ row.expected_result || '无' }}</div>
               </div>
+              <div class="expand-row">
+                <div class="expand-label">实际结果</div>
+                <div class="expand-value">{{ row.actual_result || '无' }}</div>
+              </div>
             </div>
           </template>
         </el-table-column>
-        <el-table-column prop="case_no" label="用例编号" width="100" />
+        <el-table-column prop="case_no" label="用例编号" width="160" />
+        <el-table-column prop="module" label="模块" width="80">
+          <template #default="{ row }">{{ row.module || '-' }}</template>
+        </el-table-column>
         <el-table-column prop="title" label="用例标题" min-width="250" show-overflow-tooltip />
         <el-table-column label="优先级" width="80"><template #default="{ row }"><span :class="getPriorityClass(row.priority)">{{ row.priority }}</span></template></el-table-column>
         <el-table-column label="执行状态" width="100"><template #default="{ row }"><el-tag :type="getExecStatusType(row.exec_status)" size="small">{{ row.exec_status }}</el-tag></template></el-table-column>
         <el-table-column prop="executor" label="执行人" width="80"><template #default="{ row }">{{ row.executor || '-' }}</template></el-table-column>
-        <el-table-column label="更新时间" width="120"><template #default="{ row }">{{ formatDate(row.updated_at) }}</template></el-table-column>
         <el-table-column label="操作" width="140" fixed="right">
           <template #default="{ row, $index }"><div class="action-btns"><el-button type="primary" link size="small" @click="handleEdit(row)"><el-icon><Edit /></el-icon>编辑</el-button><el-button type="danger" link size="small" @click="handleDelete($index, row)"><el-icon><Delete /></el-icon>删除</el-button></div></template>
         </el-table-column>
@@ -58,7 +68,9 @@
           <el-form-item label="优先级"><el-select v-model="createForm.priority" style="width: 100%"><el-option label="高" value="高" /><el-option label="中" value="中" /><el-option label="低" value="低" /></el-select></el-form-item>
           <el-form-item label="所属项目"><el-select v-model="createForm.project_id" style="width: 100%"><el-option v-for="p in projectOptions" :key="p.id" :label="p.name" :value="p.id" /></el-select></el-form-item>
         </div>
+        <el-form-item label="模块代码" required><el-input v-model="createForm.module" placeholder="英文/拼音缩写，如 DL、CFGM" maxlength="50" /></el-form-item>
         <el-form-item label="前置条件"><el-input v-model="createForm.preconditions" type="textarea" :rows="2" placeholder="请输入前置条件" /></el-form-item>
+        <el-form-item label="测试数据"><el-input v-model="createForm.test_data" type="textarea" :rows="2" placeholder="测试所需数据，如：账号 admin，密码 123456" /></el-form-item>
         <el-form-item label="测试步骤"><el-input v-model="createForm.test_steps" type="textarea" :rows="3" placeholder="建议用编号列表格式，如：1. 打开登录页 2. 输入账号密码 3. 点击登录" /></el-form-item>
         <el-form-item label="预期结果"><el-input v-model="createForm.expected_result" type="textarea" :rows="2" placeholder="请输入预期结果" /></el-form-item>
       </el-form>
@@ -74,8 +86,10 @@
           <el-form-item label="执行状态"><el-select v-model="editForm.exec_status" style="width: 100%"><el-option label="通过" value="通过" /><el-option label="失败" value="失败" /><el-option label="执行中" value="执行中" /><el-option label="待执行" value="待执行" /></el-select></el-form-item>
         </div>
         <el-form-item label="前置条件"><el-input v-model="editForm.preconditions" type="textarea" :rows="2" /></el-form-item>
+        <el-form-item label="测试数据"><el-input v-model="editForm.test_data" type="textarea" :rows="2" /></el-form-item>
         <el-form-item label="测试步骤"><el-input v-model="editForm.test_steps" type="textarea" :rows="3" /></el-form-item>
         <el-form-item label="预期结果"><el-input v-model="editForm.expected_result" type="textarea" :rows="2" /></el-form-item>
+        <el-form-item label="实际结果"><el-input v-model="editForm.actual_result" type="textarea" :rows="2" placeholder="执行后填写实际结果" /></el-form-item>
       </el-form>
       <template #footer><el-button @click="editVisible = false">取消</el-button><el-button type="primary" @click="handleSave" :loading="saving">保存</el-button></template>
     </el-dialog>
@@ -101,10 +115,10 @@ const projectOptions = ref([])
 const testCases = ref([])
 
 const createVisible = ref(false)
-const createForm = reactive({ title: '', priority: '高', project_id: null, preconditions: '', test_steps: '', expected_result: '' })
+const createForm = reactive({ title: '', priority: '高', project_id: null, module: '', preconditions: '', test_data: '', test_steps: '', expected_result: '' })
 const editVisible = ref(false)
 const editId = ref(null)
-const editForm = reactive({ title: '', priority: '', exec_status: '', preconditions: '', test_steps: '', expected_result: '' })
+const editForm = reactive({ title: '', priority: '', exec_status: '', preconditions: '', test_data: '', test_steps: '', expected_result: '', actual_result: '' })
 
 function getPriorityClass(p) { return { 高: 'badge badge-red', 中: 'badge badge-amber', 低: 'badge badge-blue' }[p] || 'badge badge-gray' }
 function getExecStatusType(s) { return { 通过: 'success', 失败: 'danger', 执行中: 'warning', 待执行: 'info' }[s] || 'info' }
@@ -113,7 +127,6 @@ function formatDate(d) { return d ? d.split('T')[0] : '' }
 async function handleBatchExecute() {
   batchExecuting.value = true
   try {
-    // 获取当前筛选项目的 project_id
     let projectId = null
     if (selectedProject.value) {
       const proj = projectOptions.value.find(p => p.name === selectedProject.value)
@@ -123,7 +136,6 @@ async function handleBatchExecute() {
     const count = res.data?.executed_count || 0
     ElMessage.success(`已批量执行 ${count} 条用例`)
     await loadCases()
-    // 刷新统计
     try { stats.value = (await getTestCaseStats()).data } catch (e) { /* ignore */ }
   } catch (e) {
     ElMessage.error('批量执行失败')
@@ -142,7 +154,6 @@ async function loadCases() {
   } catch (e) { console.error(e) } finally { loading.value = false }
 }
 
-// 监听搜索关键词变化（防抖）
 watch(() => appStore.searchKeyword, () => {
   if (loadTimer) clearTimeout(loadTimer)
   loadTimer = setTimeout(() => {
@@ -151,14 +162,22 @@ watch(() => appStore.searchKeyword, () => {
 })
 
 function openCreateDialog() {
-  Object.assign(createForm, { title: '', priority: '高', project_id: null, preconditions: '', test_steps: '', expected_result: '' })
+  Object.assign(createForm, { title: '', priority: '高', project_id: null, module: '', preconditions: '', test_data: '', test_steps: '', expected_result: '' })
   createVisible.value = true
 }
 
 async function handleCreate() {
+  if (!createForm.module.trim()) {
+    ElMessage.warning('请填写模块代码')
+    return
+  }
+  if (!/^[a-zA-Z0-9]+$/.test(createForm.module.trim())) {
+    ElMessage.warning('模块代码只能包含英文字母和数字')
+    return
+  }
   creating.value = true
   try {
-    await createTestCase({ ...createForm })
+    await createTestCase({ ...createForm, module: createForm.module.trim().toUpperCase() })
     await loadCases()
     ElMessage.success('创建成功')
     createVisible.value = false
@@ -170,7 +189,9 @@ function handleEdit(row) {
   editId.value = row.id
   Object.assign(editForm, {
     title: row.title, priority: row.priority, exec_status: row.exec_status,
-    preconditions: row.preconditions || '', test_steps: row.test_steps || '', expected_result: row.expected_result || '',
+    preconditions: row.preconditions || '', test_data: row.test_data || '',
+    test_steps: row.test_steps || '', expected_result: row.expected_result || '',
+    actual_result: row.actual_result || '',
   })
   editVisible.value = true
 }

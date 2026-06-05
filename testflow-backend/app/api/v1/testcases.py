@@ -17,9 +17,12 @@ def _to_out(case, db: Session) -> dict:
         executor=crud_testcase.get_executor_name(db, case.executor_id),
         project=crud_testcase.get_project_name(db, case.project_id),
         project_id=case.project_id,
+        module=case.module,
         preconditions=case.preconditions or "",
+        test_data=case.test_data or "",
         test_steps=case.test_steps or "",
         expected_result=case.expected_result or "",
+        actual_result=case.actual_result or "",
         updated_at=case.updated_at,
     ).model_dump()
 

@@ -8,7 +8,9 @@ class TestCaseCreate(BaseModel):
     exec_status: str = "待执行"
     executor_id: int | None = None
     project_id: int | None = None
+    module: str  # 模块代码，必填
     preconditions: str = ""       # 前置条件
+    test_data: str = ""           # 测试数据
     test_steps: str = ""          # 测试步骤
     expected_result: str = ""     # 预期结果
 
@@ -19,8 +21,10 @@ class TestCaseUpdate(BaseModel):
     exec_status: str | None = None
     executor_id: int | None = None
     preconditions: str | None = None
+    test_data: str | None = None
     test_steps: str | None = None
     expected_result: str | None = None
+    actual_result: str | None = None
 
 
 class TestCaseOut(BaseModel):
@@ -32,9 +36,12 @@ class TestCaseOut(BaseModel):
     executor: str = ""  # 执行人姓名
     project: str = ""  # 项目名称
     project_id: int | None = None
+    module: str | None = None
     preconditions: str = ""
+    test_data: str = ""
     test_steps: str = ""
     expected_result: str = ""
+    actual_result: str = ""
     updated_at: datetime | None = None
 
     class Config:

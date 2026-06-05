@@ -21,6 +21,7 @@ def _to_out(project, db: Session) -> dict:
         progress=project.progress,
         owner_id=project.owner_id,
         owner=crud_project.get_owner_name(db, project.owner_id),
+        case_prefix=project.case_prefix,
         created_at=project.created_at,
         updated_at=project.updated_at,
     ).model_dump()
@@ -78,7 +79,10 @@ def get_project_testcases(project_id: int, db: Session = Depends(get_db), _=Depe
             exec_status=c.exec_status,
             executor=crud_testcase.get_executor_name(db, c.executor_id),
             project=crud_testcase.get_project_name(db, c.project_id),
-            project_id=c.project_id, updated_at=c.updated_at,
+            project_id=c.project_id, module=c.module,
+            test_data=c.test_data or "",
+            actual_result=c.actual_result or "",
+            updated_at=c.updated_at,
         ).model_dump())
     return ResponseModel(data=result)
 

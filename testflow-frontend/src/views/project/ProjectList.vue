@@ -15,6 +15,7 @@
           <template #default="{ row }"><div style="display: flex; align-items: center; gap: 8px"><el-progress :percentage="row.progress" :stroke-width="5" :show-text="false" style="flex: 1" /><span style="font-size: 12px; color: var(--color-text-secondary); white-space: nowrap">{{ row.progress }}%</span></div></template>
         </el-table-column>
         <el-table-column label="状态" width="100"><template #default="{ row }"><el-tag :type="getStatusType(row.status)" size="small">{{ getStatusText(row.status) }}</el-tag></template></el-table-column>
+        <el-table-column label="用例前缀" width="100"><template #default="{ row }">{{ row.case_prefix || '-' }}</template></el-table-column>
         <el-table-column prop="owner" label="负责人" width="100" />
         <el-table-column prop="description" label="描述" min-width="200" show-overflow-tooltip />
         <el-table-column label="创建时间" width="120"><template #default="{ row }">{{ formatDate(row.created_at) }}</template></el-table-column>
@@ -28,6 +29,7 @@
     <el-dialog v-model="createVisible" title="新建项目" width="520px" destroy-on-close>
       <el-form :model="createForm" label-width="80px">
         <el-form-item label="项目名称"><el-input v-model="createForm.name" placeholder="请输入项目名称" /></el-form-item>
+        <el-form-item label="用例前缀"><el-input v-model="createForm.case_prefix" placeholder="如 SPD、VAgent（英文/数字）" maxlength="20" /></el-form-item>
         <el-form-item label="项目描述"><el-input v-model="createForm.description" type="textarea" :rows="3" placeholder="请输入项目描述" /></el-form-item>
         <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 0 16px">
           <el-form-item label="状态"><el-select v-model="createForm.status" style="width: 100%"><el-option label="待启动" value="pending" /><el-option label="进行中" value="active" /><el-option label="测试中" value="testing" /></el-select></el-form-item>
@@ -41,6 +43,7 @@
     <el-dialog v-model="editVisible" title="编辑项目" width="520px" destroy-on-close>
       <el-form :model="editForm" label-width="80px">
         <el-form-item label="项目名称"><el-input v-model="editForm.name" /></el-form-item>
+        <el-form-item label="用例前缀"><el-input v-model="editForm.case_prefix" placeholder="如 SPD、VAgent（英文/数字）" maxlength="20" /></el-form-item>
         <el-form-item label="项目描述"><el-input v-model="editForm.description" type="textarea" :rows="3" /></el-form-item>
         <el-form-item label="负责人"><el-select v-model="editForm.owner_id" placeholder="输入姓名搜索" clearable filterable style="width:100%"><el-option v-for="u in userOptions" :key="u.id" :label="u.name" :value="u.id" /></el-select></el-form-item>
         <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 0 16px">
@@ -72,10 +75,10 @@ const stats = ref({ activeProjects: 0, totalCases: 0, newCases: 0, passRate: 0, 
 const projects = ref([])
 
 const createVisible = ref(false)
-const createForm = reactive({ name: '', description: '', status: 'pending', progress: 0 })
+const createForm = reactive({ name: '', description: '', status: 'pending', progress: 0, case_prefix: '' })
 const editVisible = ref(false)
 const editId = ref(null)
-const editForm = reactive({ name: '', description: '', status: '', progress: 0, owner_id: null })
+const editForm = reactive({ name: '', description: '', status: '', progress: 0, owner_id: null, case_prefix: '' })
 const userOptions = ref([])
 
 async function loadUserOptions() {
@@ -110,7 +113,7 @@ watch(() => appStore.searchKeyword, () => {
 })
 
 function openCreateDialog() {
-  Object.assign(createForm, { name: '', description: '', status: 'pending', progress: 0 })
+  Object.assign(createForm, { name: '', description: '', status: 'pending', progress: 0, case_prefix: '' })
   createVisible.value = true
 }
 
@@ -127,7 +130,7 @@ async function handleCreate() {
 
 function handleEdit(row) {
   editId.value = row.id
-  Object.assign(editForm, { name: row.name, description: row.description, status: row.status, progress: row.progress, owner_id: row.owner_id || null })
+  Object.assign(editForm, { name: row.name, description: row.description, status: row.status, progress: row.progress, owner_id: row.owner_id || null, case_prefix: row.case_prefix || '' })
   loadUserOptions()
   editVisible.value = true
 }
