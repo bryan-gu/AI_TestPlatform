@@ -63,7 +63,7 @@
           </div>
         </div>
         <div class="content-body" :style="{ fontSize: zoomLevel + 'px' }">
-          <div v-if="doc.content_preview" v-html="doc.content_preview"></div>
+          <div v-if="doc.content_preview" v-html="renderedContent" class="markdown-body"></div>
           <div v-else class="empty-preview">
             <el-icon style="font-size:48px;color:var(--color-text-tertiary)"><Document /></el-icon>
             <div style="margin-top:12px;color:var(--color-text-tertiary)">暂无文档预览内容</div>
@@ -141,8 +141,9 @@
 </template>
 
 <script setup>
-import { ref, onMounted, shallowRef } from 'vue'
+import { ref, computed, onMounted, shallowRef } from 'vue'
 import { useRouter, useRoute } from 'vue-router'
+import { marked } from 'marked'
 import {
   Folder, Document, User, Calendar, Coin, Download, Share,
   View, ZoomIn, ZoomOut, FullScreen, Clock, Link, Promotion,
@@ -204,6 +205,11 @@ function getAiStatusType(status) {
 
 function goToKnowledge() { router.push('/knowledge') }
 function goToSprint() { router.back() }
+
+const renderedContent = computed(() => {
+  if (!doc.value.content_preview) return ''
+  return marked(doc.value.content_preview)
+})
 
 function zoomIn() { zoomLevel.value = Math.min(zoomLevel.value + 2, 24) }
 function zoomOut() { zoomLevel.value = Math.max(zoomLevel.value - 2, 10) }
@@ -417,4 +423,24 @@ onMounted(async () => {
   color: var(--color-text-secondary);
   line-height: 1.7;
 }
+
+/* Markdown 渲染样式 */
+.markdown-body h1 { font-size: 1.6em; font-weight: 700; margin: 0.8em 0 0.4em; border-bottom: 1px solid var(--color-border-tertiary); padding-bottom: 0.3em; }
+.markdown-body h2 { font-size: 1.35em; font-weight: 700; margin: 0.8em 0 0.4em; border-bottom: 1px solid var(--color-border-tertiary); padding-bottom: 0.3em; }
+.markdown-body h3 { font-size: 1.15em; font-weight: 600; margin: 0.6em 0 0.3em; }
+.markdown-body h4 { font-size: 1em; font-weight: 600; margin: 0.5em 0 0.2em; }
+.markdown-body p { margin: 0.5em 0; }
+.markdown-body ul, .markdown-body ol { padding-left: 1.5em; margin: 0.5em 0; }
+.markdown-body li { margin-bottom: 0.3em; }
+.markdown-body blockquote { border-left: 3px solid var(--accent); padding: 0.3em 1em; margin: 0.5em 0; color: var(--color-text-secondary); background: var(--color-bg-secondary); border-radius: 0 4px 4px 0; }
+.markdown-body code { background: var(--color-bg-secondary); padding: 2px 6px; border-radius: 3px; font-size: 0.9em; font-family: var(--font-mono, monospace); }
+.markdown-body pre { background: #1e1e2e; color: #cdd6f4; padding: 16px; border-radius: 8px; overflow-x: auto; margin: 0.8em 0; }
+.markdown-body pre code { background: none; padding: 0; color: inherit; }
+.markdown-body table { border-collapse: collapse; width: 100%; margin: 0.8em 0; }
+.markdown-body th, .markdown-body td { border: 1px solid var(--color-border-tertiary); padding: 8px 12px; text-align: left; }
+.markdown-body th { background: var(--color-bg-secondary); font-weight: 600; }
+.markdown-body hr { border: none; border-top: 1px solid var(--color-border-tertiary); margin: 1.5em 0; }
+.markdown-body img { max-width: 100%; border-radius: 4px; }
+.markdown-body a { color: var(--accent); text-decoration: none; }
+.markdown-body a:hover { text-decoration: underline; }
 </style>
