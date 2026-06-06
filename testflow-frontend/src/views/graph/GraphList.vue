@@ -146,7 +146,8 @@ const stats = reactive({
 const GRAPH_COLORS = ['var(--accent)', '#378ADD', '#8B5CF6', '#EF9F27', '#10B981', '#F43F5E']
 
 function getProjectStatusText(s) {
-  return { pending: '待启动', active: '进行中', testing: '测试中', completed: '已完成' }[s] || s || '进行中'
+  // 后端已返回中文状态，直接使用
+  return s || '进行中'
 }
 
 function formatTime(dateStr) {
@@ -166,7 +167,7 @@ function formatTime(dateStr) {
 
 function onProjectChange(pid) {
   const p = projects.value.find(p => p.id === pid)
-  currentProjectStatus.value = getProjectStatusText(p?.status)
+  currentProjectStatus.value = p?.status || '进行中'
   filterProjectId.value = pid
   loadGraphs()
 }
@@ -177,7 +178,7 @@ async function loadProjects() {
     projects.value = res.data?.data || res.data || []
     if (projects.value.length > 0 && !selectedProject.value) {
       selectedProject.value = projects.value[0].id
-      currentProjectStatus.value = getProjectStatusText(projects.value[0].status)
+      currentProjectStatus.value = projects.value[0].status || '进行中'
     }
   } catch (e) {
     console.error('加载项目失败', e)

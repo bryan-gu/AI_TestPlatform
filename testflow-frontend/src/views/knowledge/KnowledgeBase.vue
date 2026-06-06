@@ -177,7 +177,8 @@ function formatDate(dateStr) {
 }
 
 function getProjectStatusText(s) {
-  return { pending: '待启动', active: '进行中', testing: '测试中', completed: '已完成' }[s] || s || '进行中'
+  // 后端已返回中文状态，直接使用
+  return s || '进行中'
 }
   if (isNaN(d.getTime())) return dateStr
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
@@ -280,7 +281,7 @@ function handleDelete(row) {
 
 function handleProjectChange(id) {
   const proj = projectOptions.value.find(p => p.id === id)
-  if (proj) currentProjectStatus.value = getProjectStatusText(proj.status)
+  if (proj) currentProjectStatus.value = proj.status || '进行中'
   loadData()
 }
 
@@ -307,7 +308,7 @@ onMounted(async () => {
         id: p.id, name: p.name, status: p.status || '进行中',
       }))
       selectedProject.value = projectOptions.value[0].id
-      currentProjectStatus.value = getProjectStatusText(projectOptions.value[0].status)
+      currentProjectStatus.value = projectOptions.value[0].status || '进行中'
       await loadData()
     }
   } catch (e) { console.error(e) }

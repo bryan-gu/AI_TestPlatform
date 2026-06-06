@@ -48,12 +48,14 @@ def create_project(db: Session, data: ProjectCreate) -> Project:
 
 
 def update_project(db: Session, project: Project, data: ProjectUpdate) -> Project:
+    # 中文状态 → 英文存储
+    _STATUS_REVERSE = {"待启动": "pending", "进行中": "active", "测试中": "testing", "已完成": "completed"}
     if data.name is not None:
         project.name = data.name
     if data.description is not None:
         project.description = data.description
     if data.status is not None:
-        project.status = data.status
+        project.status = _STATUS_REVERSE.get(data.status, data.status)
     if data.progress is not None:
         project.progress = data.progress
     if data.owner_id is not None:

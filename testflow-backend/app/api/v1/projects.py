@@ -11,13 +11,16 @@ from app.crud import crud_project, crud_testcase, crud_report
 
 router = APIRouter(prefix="/projects", tags=["项目管理"])
 
+# 项目状态英文 → 中文
+_STATUS_MAP = {"pending": "待启动", "active": "进行中", "testing": "测试中", "completed": "已完成"}
+
 
 def _to_out(project, db: Session) -> dict:
     return ProjectOut(
         id=project.id,
         name=project.name,
         description=project.description or "",
-        status=project.status,
+        status=_STATUS_MAP.get(project.status, project.status or "进行中"),
         progress=project.progress,
         owner_id=project.owner_id,
         owner=crud_project.get_owner_name(db, project.owner_id),
