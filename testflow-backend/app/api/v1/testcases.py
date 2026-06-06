@@ -12,6 +12,7 @@ from app.core.deps import get_current_user
 from app.schemas.common import ResponseModel
 from app.schemas.testcase import TestCaseCreate, TestCaseUpdate, TestCaseOut
 from app.crud import crud_testcase
+from app.models.module import Module
 
 router = APIRouter(prefix="/testcases", tags=["测试用例"])
 
@@ -56,7 +57,9 @@ def _to_out(case, db: Session) -> dict:
         executor=crud_testcase.get_executor_name(db, case.executor_id),
         project=crud_testcase.get_project_name(db, case.project_id),
         project_id=case.project_id,
+        module_id=case.module_id,
         module=case.module,
+        module_name=crud_testcase.get_module_name(db, case.module_id),
         preconditions=case.preconditions or "",
         test_data=case.test_data or "",
         test_steps=case.test_steps or "",
@@ -98,7 +101,7 @@ def export_testcases(
     db: Session = Depends(get_db),
     _=Depends(get_current_user)
 ):
-    """导出测试用例为 xlsx，按模块分 Sheet"""
+    """导出测试用例为 xlsx，按模块分 Sheet，模块列显示中文名"""
     # 获取用例
     if project_id:
         cases = db.query(crud_testcase.TestCase).filter(
@@ -110,11 +113,20 @@ def export_testcases(
     if not cases:
         raise HTTPException(status_code=404, detail="没有可导出的测试用例")
 
-    # 按模块分组
+    # 预加载 module_id → Module 映射
+    module_map = {}
+    for c in cases:
+        if c.module_id and c.module_id not in module_map:
+            mod = db.query(Module).filter(Module.id == c.module_id).first()
+            if mod:
+                module_map[c.module_id] = mod
+
+    # 按模块中文名分组
     grouped = defaultdict(list)
     for c in cases:
-        module_name = c.module or '未分类'
-        grouped[module_name].append(c)
+        mod = module_map.get(c.module_id) if c.module_id else None
+        display_name = mod.name if mod else (c.module or '未分类')
+        grouped[display_name].append(c)
 
     wb = openpyxl.Workbook()
     # 删除默认 Sheet
@@ -127,8 +139,11 @@ def export_testcases(
         _apply_header_style(ws)
 
         for row_idx, case in enumerate(module_cases, start=2):
+            # 模块列：优先显示中文名
+            mod = module_map.get(case.module_id) if case.module_id else None
+            display_module = mod.name if mod else (case.module or '')
             values = [
-                case.case_no or '', case.module or '', case.title or '',
+                case.case_no or '', display_module, case.title or '',
                 case.preconditions or '', case.test_data or '',
                 case.test_steps or '', case.expected_result or '',
                 case.actual_result or ''

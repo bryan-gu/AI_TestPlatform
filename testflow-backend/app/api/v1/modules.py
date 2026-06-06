@@ -15,6 +15,7 @@ def _module_to_out(module, db: Session) -> dict:
     return ModuleOut(
         id=module.id,
         name=module.name,
+        code=module.code or "",
         project_id=module.project_id,
         color=module.color or "",
         created_at=module.created_at,

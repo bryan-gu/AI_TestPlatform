@@ -56,8 +56,12 @@
           </template>
         </el-table-column>
         <el-table-column prop="case_no" label="用例编号" width="160" />
-        <el-table-column prop="module" label="模块" width="80">
-          <template #default="{ row }">{{ row.module || '-' }}</template>
+        <el-table-column label="模块" width="120">
+          <template #default="{ row }">
+            <span v-if="row.module_name">{{ row.module_name }}</span>
+            <span v-else-if="row.module">{{ row.module }}</span>
+            <span v-else>-</span>
+          </template>
         </el-table-column>
         <el-table-column prop="title" label="用例标题" min-width="250" show-overflow-tooltip />
         <el-table-column label="优先级" width="80"><template #default="{ row }"><span :class="getPriorityClass(row.priority)">{{ row.priority }}</span></template></el-table-column>
@@ -75,9 +79,13 @@
         <el-form-item label="用例标题"><el-input v-model="createForm.title" placeholder="请输入用例标题" /></el-form-item>
         <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 0 16px">
           <el-form-item label="优先级"><el-select v-model="createForm.priority" style="width: 100%"><el-option label="高" value="高" /><el-option label="中" value="中" /><el-option label="低" value="低" /></el-select></el-form-item>
-          <el-form-item label="所属项目"><el-select v-model="createForm.project_id" style="width: 100%"><el-option v-for="p in projectOptions" :key="p.id" :label="p.name" :value="p.id" /></el-select></el-form-item>
+          <el-form-item label="所属项目"><el-select v-model="createForm.project_id" style="width: 100%" @change="onCreateProjectChange"><el-option v-for="p in projectOptions" :key="p.id" :label="p.name" :value="p.id" /></el-select></el-form-item>
         </div>
-        <el-form-item label="模块代码" required><el-input v-model="createForm.module" placeholder="英文/拼音缩写，如 DL、CFGM" maxlength="50" /></el-form-item>
+        <el-form-item label="所属模块" required>
+          <el-select v-model="createForm.module_id" style="width: 100%" placeholder="选择模块" clearable filterable @change="onModuleSelect">
+            <el-option v-for="m in createModuleOptions" :key="m.id" :label="`${m.name} (${m.code})`" :value="m.id" />
+          </el-select>
+        </el-form-item>
         <el-form-item label="前置条件"><el-input v-model="createForm.preconditions" type="textarea" :rows="2" placeholder="请输入前置条件" /></el-form-item>
         <el-form-item label="测试数据"><el-input v-model="createForm.test_data" type="textarea" :rows="2" placeholder="测试所需数据，如：账号 admin，密码 123456" /></el-form-item>
         <el-form-item label="测试步骤"><el-input v-model="createForm.test_steps" type="textarea" :rows="3" placeholder="建议用编号列表格式，如：1. 打开登录页 2. 输入账号密码 3. 点击登录" /></el-form-item>
@@ -94,6 +102,11 @@
           <el-form-item label="优先级"><el-select v-model="editForm.priority" style="width: 100%"><el-option label="高" value="高" /><el-option label="中" value="中" /><el-option label="低" value="低" /></el-select></el-form-item>
           <el-form-item label="执行状态"><el-select v-model="editForm.exec_status" style="width: 100%"><el-option label="通过" value="通过" /><el-option label="失败" value="失败" /><el-option label="执行中" value="执行中" /><el-option label="待执行" value="待执行" /></el-select></el-form-item>
         </div>
+        <el-form-item label="所属模块">
+          <el-select v-model="editForm.module_id" style="width: 100%" placeholder="选择模块" clearable filterable>
+            <el-option v-for="m in editModuleOptions" :key="m.id" :label="`${m.name} (${m.code})`" :value="m.id" />
+          </el-select>
+        </el-form-item>
         <el-form-item label="前置条件"><el-input v-model="editForm.preconditions" type="textarea" :rows="2" /></el-form-item>
         <el-form-item label="测试数据"><el-input v-model="editForm.test_data" type="textarea" :rows="2" /></el-form-item>
         <el-form-item label="测试步骤"><el-input v-model="editForm.test_steps" type="textarea" :rows="3" /></el-form-item>
@@ -140,6 +153,7 @@ import { Edit, Delete, VideoPlay, Download, Upload } from '@element-plus/icons-v
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { getTestCases, getTestCaseStats, createTestCase, updateTestCase, deleteTestCase, batchExecuteTestCases, exportTestCases, downloadTemplate, importTestCases } from '../../api/testcase'
 import { getProjects } from '../../api/project'
+import { getModules } from '../../api/sprint'
 
 const appStore = useAppStore()
 const loading = ref(false)
@@ -157,12 +171,14 @@ const stats = ref({ total: 0, projectCount: 0, passed: 0, passRate: 0, failed: 0
 const selectedProject = ref('')
 const projectOptions = ref([])
 const testCases = ref([])
+const createModuleOptions = ref([])
+const editModuleOptions = ref([])
 
 const createVisible = ref(false)
-const createForm = reactive({ title: '', priority: '高', project_id: null, module: '', preconditions: '', test_data: '', test_steps: '', expected_result: '' })
+const createForm = reactive({ title: '', priority: '高', project_id: null, module_id: null, module: '', preconditions: '', test_data: '', test_steps: '', expected_result: '' })
 const editVisible = ref(false)
 const editId = ref(null)
-const editForm = reactive({ title: '', priority: '', exec_status: '', preconditions: '', test_data: '', test_steps: '', expected_result: '', actual_result: '' })
+const editForm = reactive({ title: '', priority: '', exec_status: '', module_id: null, preconditions: '', test_data: '', test_steps: '', expected_result: '', actual_result: '' })
 
 function getPriorityClass(p) { return { 高: 'badge badge-red', 中: 'badge badge-amber', 低: 'badge badge-blue' }[p] || 'badge badge-gray' }
 function getExecStatusType(s) { return { 通过: 'success', 失败: 'danger', 执行中: 'warning', 待执行: 'info' }[s] || 'info' }
@@ -185,6 +201,35 @@ async function handleBatchExecute() {
     ElMessage.error('批量执行失败')
   } finally {
     batchExecuting.value = false
+  }
+}
+
+// ── 模块选择 ──
+async function loadModulesForProject(projectId, targetRef) {
+  if (!projectId) {
+    targetRef.value = []
+    return
+  }
+  try {
+    const res = await getModules({ project_id: projectId })
+    targetRef.value = res.data || []
+  } catch (e) {
+    targetRef.value = []
+  }
+}
+
+function onCreateProjectChange(projectId) {
+  createForm.module_id = null
+  createForm.module = ''
+  loadModulesForProject(projectId, createModuleOptions)
+}
+
+function onModuleSelect(moduleId) {
+  if (moduleId) {
+    const mod = createModuleOptions.value.find(m => m.id === moduleId)
+    createForm.module = mod ? mod.code : ''
+  } else {
+    createForm.module = ''
   }
 }
 
@@ -294,22 +339,19 @@ watch(() => appStore.searchKeyword, () => {
 })
 
 function openCreateDialog() {
-  Object.assign(createForm, { title: '', priority: '高', project_id: null, module: '', preconditions: '', test_data: '', test_steps: '', expected_result: '' })
+  Object.assign(createForm, { title: '', priority: '高', project_id: null, module_id: null, module: '', preconditions: '', test_data: '', test_steps: '', expected_result: '' })
+  createModuleOptions.value = []
   createVisible.value = true
 }
 
 async function handleCreate() {
-  if (!createForm.module.trim()) {
-    ElMessage.warning('请填写模块代码')
-    return
-  }
-  if (!/^[a-zA-Z0-9]+$/.test(createForm.module.trim())) {
-    ElMessage.warning('模块代码只能包含英文字母和数字')
+  if (!createForm.module_id) {
+    ElMessage.warning('请选择模块')
     return
   }
   creating.value = true
   try {
-    await createTestCase({ ...createForm, module: createForm.module.trim().toUpperCase() })
+    await createTestCase({ ...createForm })
     await loadCases()
     ElMessage.success('创建成功')
     createVisible.value = false
@@ -319,8 +361,15 @@ async function handleCreate() {
 
 function handleEdit(row) {
   editId.value = row.id
+  // 加载该项目的模块列表
+  if (row.project_id) {
+    loadModulesForProject(row.project_id, editModuleOptions)
+  } else {
+    editModuleOptions.value = []
+  }
   Object.assign(editForm, {
     title: row.title, priority: row.priority, exec_status: row.exec_status,
+    module_id: row.module_id || null,
     preconditions: row.preconditions || '', test_data: row.test_data || '',
     test_steps: row.test_steps || '', expected_result: row.expected_result || '',
     actual_result: row.actual_result || '',

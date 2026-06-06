@@ -3,6 +3,7 @@ from sqlalchemy.orm import Session
 from sqlalchemy import func, or_
 
 from app.models.testcase import TestCase
+from app.models.module import Module
 from app.models.project import Project
 from app.models.user import User
 from app.schemas.testcase import TestCaseCreate, TestCaseUpdate
@@ -18,17 +19,26 @@ def _generate_legacy_case_no(db: Session) -> str:
     return f"TC-{num:03d}"
 
 
-def _generate_case_no(db: Session, project_id: int, module: str) -> str:
+def _resolve_module_code(db: Session, module_id: int | None, module_str: str, project_id: int) -> str:
+    """从 module_id 解析英文代码，无则用 module_str"""
+    if module_id:
+        mod = db.query(Module).filter(Module.id == module_id).first()
+        if mod and mod.code:
+            return mod.code.upper()
+    return module_str.upper()
+
+
+def _generate_case_no(db: Session, project_id: int, module_str: str, module_id: int | None = None) -> str:
     """
-    生成用例编号：{prefix}_TC_{module}_{seq:03d}
-    序号按 (project_id, module) 组合自增
+    生成用例编号：{prefix}_TC_{module_code}_{seq:03d}
+    优先从 module_id 解析代码，否则用 module_str
     """
     project = db.query(Project).filter(Project.id == project_id).first()
     if not project or not project.case_prefix:
         return _generate_legacy_case_no(db)
 
     prefix = project.case_prefix.upper()
-    module_code = module.upper()
+    module_code = _resolve_module_code(db, module_id, module_str, project_id)
     pattern = f"{prefix}_TC_{module_code}_%"
 
     # 查该项目+模块下最后一条
@@ -71,8 +81,16 @@ def get_testcase(db: Session, case_id: int) -> TestCase | None:
 
 def create_testcase(db: Session, data: TestCaseCreate) -> TestCase:
     project_id = data.project_id
-    module = data.module
-    case_no = _generate_case_no(db, project_id, module)
+    module_id = data.module_id
+    module_str = data.module or ""
+
+    # 如果有 module_id，从 Module 记录解析 code
+    if module_id:
+        mod = db.query(Module).filter(Module.id == module_id).first()
+        if mod:
+            module_str = mod.code or mod.name
+
+    case_no = _generate_case_no(db, project_id, module_str, module_id)
 
     case = TestCase(
         case_no=case_no,
@@ -81,7 +99,8 @@ def create_testcase(db: Session, data: TestCaseCreate) -> TestCase:
         exec_status=data.exec_status,
         executor_id=data.executor_id,
         project_id=project_id,
-        module=module,
+        module_id=module_id,
+        module=module_str,
         preconditions=data.preconditions,
         test_data=data.test_data,
         test_steps=data.test_steps,
@@ -102,6 +121,13 @@ def update_testcase(db: Session, case: TestCase, data: TestCaseUpdate) -> TestCa
         case.exec_status = data.exec_status
     if data.executor_id is not None:
         case.executor_id = data.executor_id
+    if data.module_id is not None:
+        case.module_id = data.module_id
+        # 自动同步 module 字符串
+        if data.module_id:
+            mod = db.query(Module).filter(Module.id == data.module_id).first()
+            if mod:
+                case.module = mod.code or mod.name
     if data.preconditions is not None:
         case.preconditions = data.preconditions
     if data.test_data is not None:
@@ -161,24 +187,56 @@ def _extract_module_from_case_no(case_no: str) -> str | None:
 
 
 def import_testcases(db: Session, project_id: int, rows: list[dict]) -> dict:
-    """批量导入测试用例，rows = [{case_no, module, title, ...}]
-    优先从 case_no 提取英文模块代码，降级使用 module 列的值
+    """批量导入测试用例
+    优先从 case_no 提取英文模块代码，从 module 列获取中文名
+    匹配/创建 Module 并设置 module_id
     如果 case_no 在目标项目中已存在则更新，否则新建"""
+    from app.crud import crud_module
+
     success = 0
     updated = 0
     errors = []
     for i, row in enumerate(rows, start=2):  # Excel 行号从 2 开始（1 是表头）
         title = (row.get('title') or '').strip()
-        # 优先从测试用例ID提取英文模块代码，降级使用模块列
-        module = _extract_module_from_case_no(row.get('case_no', ''))
-        if not module:
-            module = (row.get('module') or '').strip()
+        # 提取英文代码和中文名
+        english_code = _extract_module_from_case_no(row.get('case_no', ''))
+        chinese_name = (row.get('module') or '').strip()
+        # 优先用英文代码，降级用中文名
+        module_input = english_code or chinese_name
         if not title:
             errors.append({"row": i, "reason": "标题不能为空"})
             continue
-        if not module:
+        if not module_input:
             errors.append({"row": i, "reason": "模块不能为空"})
             continue
+
+        # 尝试匹配已有 Module
+        module_id, module_str = crud_module.resolve_module(db, project_id, module_input)
+
+        # 如果未匹配且有中文名和英文代码，尝试用另一个维度匹配
+        if module_id is None and english_code and chinese_name:
+            mod = db.query(Module).filter(
+                Module.project_id == project_id,
+                Module.name == chinese_name
+            ).first()
+            if mod:
+                module_id = mod.id
+                module_str = mod.code or module_str
+
+        # 仍未匹配：自动创建 Module（同时设置中文名和英文代码）
+        if module_id is None and project_id:
+            new_name = chinese_name if chinese_name else module_input
+            new_code = english_code.upper() if english_code else module_str
+            new_mod = Module(
+                name=new_name,
+                code=new_code,
+                project_id=project_id,
+                color="",
+            )
+            db.add(new_mod)
+            db.flush()  # 获取 id
+            module_id = new_mod.id
+            module_str = new_code
 
         # 检查 case_no 是否已存在于目标项目
         imported_case_no = (row.get('case_no') or '').strip()
@@ -192,6 +250,8 @@ def import_testcases(db: Session, project_id: int, rows: list[dict]) -> dict:
         if existing:
             # 更新已有用例
             existing.title = title
+            existing.module_id = module_id
+            existing.module = module_str
             existing.preconditions = row.get('preconditions', '') or ''
             existing.test_data = row.get('test_data', '') or ''
             existing.test_steps = row.get('test_steps', '') or ''
@@ -201,11 +261,12 @@ def import_testcases(db: Session, project_id: int, rows: list[dict]) -> dict:
             updated += 1
         else:
             # 新建用例
-            case_no = _generate_case_no(db, project_id, module)
+            case_no = _generate_case_no(db, project_id, module_str, module_id)
             case = TestCase(
                 case_no=case_no,
                 project_id=project_id,
-                module=module,
+                module_id=module_id,
+                module=module_str,
                 title=title,
                 preconditions=row.get('preconditions', ''),
                 test_data=row.get('test_data', ''),
@@ -217,6 +278,14 @@ def import_testcases(db: Session, project_id: int, rows: list[dict]) -> dict:
             success += 1
     db.commit()
     return {"success_count": success, "updated_count": updated, "fail_count": len(errors), "errors": errors}
+
+
+def get_module_name(db: Session, module_id: int | None) -> str:
+    """获取模块中文名称"""
+    if not module_id:
+        return ""
+    mod = db.query(Module).filter(Module.id == module_id).first()
+    return mod.name if mod else ""
 
 
 def get_executor_name(db: Session, executor_id: int | None) -> str:

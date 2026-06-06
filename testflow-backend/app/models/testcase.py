@@ -14,7 +14,8 @@ class TestCase(Base):
     exec_status = Column(String(20), nullable=False, default="待执行")  # 通过/失败/执行中/待执行
     executor_id = Column(Integer, ForeignKey("users.id"), nullable=True)
     project_id = Column(Integer, ForeignKey("projects.id"), nullable=True)
-    module = Column(String(50), nullable=True)  # 模块代码，如 DL、CFGM
+    module = Column(String(50), nullable=True)  # 模块代码缓存，如 DL、SJZH
+    module_id = Column(Integer, ForeignKey("modules.id", ondelete="SET NULL"), nullable=True)  # FK → modules 表
     preconditions = Column(Text, default="")  # 前置条件
     test_data = Column(Text, default="")  # 测试数据
     test_steps = Column(Text, default="")  # 测试步骤

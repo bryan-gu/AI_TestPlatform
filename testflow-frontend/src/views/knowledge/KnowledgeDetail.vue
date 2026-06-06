@@ -223,18 +223,20 @@
     </el-dialog>
 
     <!-- 模块标签管理对话框 -->
-    <el-dialog v-model="moduleManagerVisible" title="模块标签管理" width="520px" destroy-on-close>
+    <el-dialog v-model="moduleManagerVisible" title="模块标签管理" width="560px" destroy-on-close>
       <div style="margin-bottom:12px;display:flex;gap:8px">
-        <el-input v-model="newModuleName" placeholder="新模块名称" style="flex:1" size="small" />
+        <el-input v-model="newModuleName" placeholder="模块名称（中文）" style="flex:1" size="small" />
+        <el-input v-model="newModuleCode" placeholder="英文缩写" style="width:120px" size="small" />
         <el-color-picker v-model="newModuleColor" size="small" />
         <el-button type="primary" size="small" @click="handleAddModule" :loading="saving">添加</el-button>
       </div>
       <el-table :data="modules" style="width:100%" size="small">
-        <el-table-column label="模块名称" min-width="140">
+        <el-table-column label="模块名称" min-width="160">
           <template #default="{ row }">
             <div style="display:flex;align-items:center;gap:6px">
               <span :style="{ width: '10px', height: '10px', borderRadius: '50%', background: row.color || 'var(--accent)' }"></span>
               {{ row.name }}
+              <span v-if="row.code" style="color:var(--color-text-tertiary);font-size:11px">({{ row.code }})</span>
             </div>
           </template>
         </el-table-column>
@@ -251,7 +253,8 @@
 
       <!-- 编辑模块 -->
       <div v-if="editingModule" style="margin-top:12px;display:flex;gap:8px;align-items:center">
-        <el-input v-model="editingModule.name" size="small" style="flex:1" />
+        <el-input v-model="editingModule.name" size="small" style="flex:1" placeholder="模块名称" />
+        <el-input v-model="editingModule.code" size="small" style="width:120px" placeholder="英文缩写" />
         <el-color-picker v-model="editingModule.color" size="small" />
         <el-button type="primary" size="small" @click="handleSaveModule">保存</el-button>
         <el-button size="small" @click="editingModule = null">取消</el-button>
@@ -303,6 +306,7 @@ const documents = ref([])
 const modules = ref([])
 const moduleManagerVisible = ref(false)
 const newModuleName = ref('')
+const newModuleCode = ref('')
 const newModuleColor = ref('#378ADD')
 const editingModule = ref(null)
 
@@ -547,11 +551,13 @@ async function handleAddModule() {
   try {
     await createModule({
       name: newModuleName.value,
+      code: newModuleCode.value.trim().toUpperCase(),
       project_id: null, // TODO: 传入实际 project_id
       color: newModuleColor.value,
     })
     ElMessage.success('添加成功')
     newModuleName.value = ''
+    newModuleCode.value = ''
     newModuleColor.value = '#378ADD'
     await loadModules()
   } catch (e) {
@@ -571,6 +577,7 @@ async function handleSaveModule() {
   try {
     await updateModule(editingModule.value.id, {
       name: editingModule.value.name,
+      code: editingModule.value.code ? editingModule.value.code.trim().toUpperCase() : '',
       color: editingModule.value.color,
     })
     ElMessage.success('保存成功')
