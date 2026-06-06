@@ -121,6 +121,8 @@ DEFAULT_CONFIGS = {
     "test_username": "",
     "test_password": "",
     "project_prefix": "",
+    # 文档解析配置
+    "mineru_api_token": "",
 }
 
 # 参数 key → 中文标签
@@ -134,6 +136,7 @@ CONFIG_LABELS = {
     "test_username": "测试账号",
     "test_password": "测试密码",
     "project_prefix": "用例ID前缀",
+    "mineru_api_token": "MinerU API Token",
 }
 
 # 参数分组（前端按组展示）
@@ -147,6 +150,7 @@ CONFIG_GROUPS = {
     "test_username": "target",
     "test_password": "target",
     "project_prefix": "target",
+    "mineru_api_token": "target",
 }
 
 

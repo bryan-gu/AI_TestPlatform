@@ -345,7 +345,7 @@ function getTypeTagType(t) {
 }
 
 function getAiStatusType(status) {
-  return { '已分析': 'success', '分析中': 'warning' }[status] || 'info'
+  return { '已分析': 'success', '分析中': 'warning', '解析失败': 'danger' }[status] || 'info'
 }
 
 function getFileIconColor(type) {

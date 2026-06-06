@@ -111,7 +111,7 @@
         <div class="param-list">
           <div v-for="param in targetParams" :key="param.key" class="param-item">
             <span class="param-label">{{ param.label || param.key }}</span>
-            <span v-if="param.key === 'test_password'" class="param-value">{{ param.value ? '••••••' : '未配置' }}</span>
+            <span v-if="isSecretKey(param.key)" class="param-value">{{ param.value ? '••••••' : '未配置' }}</span>
             <span v-else class="param-value">{{ param.value || '未配置' }}</span>
           </div>
         </div>
@@ -227,8 +227,8 @@
         <el-form-item v-for="item in globalParamsEditForm" :key="item.key" :label="item.label">
           <el-input
             v-model="item.value"
-            :type="item.key === 'test_password' ? 'password' : 'text'"
-            :show-password="item.key === 'test_password'"
+            :type="isSecretKey(item.key) ? 'password' : 'text'"
+            :show-password="isSecretKey(item.key)"
             :placeholder="getParamPlaceholder(item.key)"
           />
         </el-form-item>
@@ -553,8 +553,13 @@ function getParamPlaceholder(key) {
     test_username: '测试账号',
     test_password: '测试密码',
     project_prefix: '例如：SPD（用于生成用例编号 SPD_TC_XX_001）',
+    mineru_api_token: 'MinerU 精准解析 API Token',
   }
   return map[key] || ''
+}
+
+function isSecretKey(key) {
+  return ['test_password', 'mineru_api_token'].includes(key)
 }
 
 async function handleSaveGlobalParams() {

@@ -1,6 +1,6 @@
 import os
 import uuid
-from fastapi import APIRouter, Depends, HTTPException, Query, UploadFile, File
+from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Query, UploadFile, File
 from sqlalchemy.orm import Session
 
 from app.core.database import get_db
@@ -129,6 +129,7 @@ def list_documents(sprint_id: int, db: Session = Depends(get_db), _=Depends(get_
 @router.post("/{sprint_id}/documents", response_model=ResponseModel)
 async def upload_document(
     sprint_id: int,
+    background_tasks: BackgroundTasks,
     file: UploadFile = File(...),
     db: Session = Depends(get_db),
     user: User = Depends(get_current_user),
@@ -167,6 +168,11 @@ async def upload_document(
     doc.file_size = len(content)
     db.commit()
     db.refresh(doc)
+
+    # 触发后台 MinerU 文档解析
+    from app.services.document_parser import DocumentParser
+    parser = DocumentParser()
+    background_tasks.add_task(parser.parse_document, None, doc.id)
 
     return ResponseModel(data=_doc_to_out(doc, db))
 
