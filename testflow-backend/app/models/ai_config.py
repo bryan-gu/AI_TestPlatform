@@ -56,4 +56,6 @@ class AICallLog(Base):
     output_tokens = Column(Integer, default=0, comment="输出 Token 数")
     duration_ms = Column(Integer, default=0, comment="耗时（毫秒）")
     status = Column(String(20), default="成功", comment="状态: 成功/失败/超时")
+    error_message = Column(Text, nullable=True, comment="错误信息")
+    request_summary = Column(String(500), nullable=True, comment="请求摘要")
     created_at = Column(DateTime, server_default=func.now())

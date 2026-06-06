@@ -49,6 +49,7 @@ def _config_to_out(c) -> dict:
         key=c.key,
         value=c.value,
         label=crud_ai_config.get_config_label(c.key),
+        group=crud_ai_config.get_config_group(c.key),
     ).model_dump()
 
 
@@ -62,6 +63,7 @@ def _log_to_out(log, db: Session) -> dict:
         output_tokens=log.output_tokens or 0,
         duration_ms=log.duration_ms or 0,
         status=log.status or "成功",
+        error_message=log.error_message,
         created_at=log.created_at,
         provider_name=crud_ai_config.get_provider_name(db, log.provider_id),
     ).model_dump()
@@ -121,17 +123,32 @@ def test_provider_connection(
     db: Session = Depends(get_db),
     _=Depends(get_current_user),
 ):
-    """测试服务商连接（当前返回模拟结果）"""
+    """测试服务商连接 — 真实调用 LLM API"""
     provider = crud_ai_config.get_provider(db, provider_id)
     if not provider:
         raise HTTPException(status_code=404, detail="服务商不存在")
-    # TODO: 实际调用 AI API 测试连接
-    # 更新最近调用时间
-    from datetime import datetime
-    provider.last_call_at = datetime.utcnow()
-    provider.status = "正常"
-    db.commit()
-    return ResponseModel(data={"success": True, "message": f"{provider.name} 连接测试成功"})
+
+    from app.services.llm_adapter import LLMAdapter
+    from app.services.llm_providers import LLMCallError
+
+    adapter = LLMAdapter(db)
+    try:
+        result = adapter.call_with_provider(provider, '请回复"连接成功"两个字。')
+        return ResponseModel(data={
+            "success": True,
+            "message": f"{provider.name} 连接测试成功",
+            "model": result.get("model", provider.model),
+        })
+    except LLMCallError as e:
+        return ResponseModel(data={
+            "success": False,
+            "message": f"连接失败: {str(e)}",
+        })
+    except Exception as e:
+        return ResponseModel(data={
+            "success": False,
+            "message": f"连接失败: {str(e)}",
+        })
 
 
 # ============ Strategies ============

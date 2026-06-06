@@ -191,6 +191,72 @@
       </div>
     </div>
 
+    <!-- 产物展示：功能点 + 测试用例 -->
+    <template v-if="showArtifacts">
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-bottom:16px">
+        <!-- 功能点 -->
+        <div class="card">
+          <div class="card-head">
+            <div class="card-title">AI 提取的功能点</div>
+            <el-tag size="small" effect="plain" round>{{ artifactFeaturePoints.length }} 个功能点</el-tag>
+          </div>
+          <div class="artifact-content" v-if="artifactFeaturePoints.length > 0">
+            <div v-for="fp in artifactFeaturePoints" :key="fp.id" class="artifact-item">
+              <div class="artifact-name">{{ fp.name }}</div>
+              <div class="artifact-meta">
+                <el-tag size="small" type="info" effect="plain">{{ fp.module_name }}</el-tag>
+              </div>
+            </div>
+          </div>
+          <div v-else style="padding:16px;text-align:center;color:var(--color-text-tertiary);font-size:12px">
+            暂无功能点数据
+          </div>
+        </div>
+
+        <!-- 测试用例 -->
+        <div class="card">
+          <div class="card-head">
+            <div class="card-title">AI 生成的测试用例</div>
+            <div style="display:flex;align-items:center;gap:8px">
+              <el-tag size="small" effect="plain" round>{{ artifactTestCases.length }} 条用例</el-tag>
+              <el-button
+                v-if="showTestCases"
+                type="primary"
+                size="small"
+                :loading="downloadingExcel"
+                @click="handleDownloadExcel"
+              >
+                <el-icon><Download /></el-icon>下载 Excel
+              </el-button>
+            </div>
+          </div>
+          <div class="artifact-content" v-if="artifactTestCases.length > 0">
+            <div v-for="tc in artifactTestCases.slice(0, 20)" :key="tc.id" class="artifact-item">
+              <div class="artifact-name">
+                <code class="case-no">{{ tc.case_no }}</code>
+                {{ tc.title }}
+              </div>
+              <div class="artifact-meta">
+                <el-tag size="small" type="info" effect="plain">{{ tc.module }}</el-tag>
+                <el-tag :type="tc.priority === '高' ? 'danger' : tc.priority === '低' ? 'info' : 'warning'" size="small" effect="plain">
+                  {{ tc.priority }}
+                </el-tag>
+              </div>
+            </div>
+            <div v-if="artifactTestCases.length > 20" style="text-align:center;padding:8px;font-size:11px;color:var(--color-text-tertiary)">
+              显示前 20 条，共 {{ artifactTestCases.length }} 条用例
+            </div>
+          </div>
+          <div v-else-if="!showTestCases" style="padding:16px;text-align:center;color:var(--color-text-tertiary);font-size:12px">
+            等待 Stage 2 完成后展示
+          </div>
+          <div v-else style="padding:16px;text-align:center;color:var(--color-text-tertiary);font-size:12px">
+            暂无用例数据
+          </div>
+        </div>
+      </div>
+    </template>
+
     <!-- 知识图谱预处理 + 执行历史 -->
     <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px">
       <!-- 知识图谱预处理 -->
@@ -252,15 +318,15 @@
 </template>
 
 <script setup>
-import { ref, reactive, computed, onMounted } from 'vue'
+import { ref, reactive, computed, onMounted, onUnmounted } from 'vue'
 import { useRouter } from 'vue-router'
-import { RefreshRight, Operation, Check, Close, VideoPlay, VideoPause, Cpu } from '@element-plus/icons-vue'
+import { RefreshRight, Operation, Check, Close, VideoPlay, VideoPause, Cpu, Download } from '@element-plus/icons-vue'
 import { ElMessage } from 'element-plus'
 import { useAppStore } from '../../stores/app'
 import { getProjects } from '../../api/project'
 import { getSprints } from '../../api/sprint'
 import { getGraphStats } from '../../api/graph'
-import { getExecutions, createExecution, pauseExecution, resumeExecution, getExecution } from '../../api/pipeline'
+import { getExecutions, createExecution, pauseExecution, resumeExecution, getExecution, getExecutionFeaturePoints, getExecutionTestCases, downloadExecutionExcel } from '../../api/pipeline'
 
 const router = useRouter()
 const appStore = useAppStore()
@@ -278,6 +344,57 @@ const executionHistory = ref([])
 const currentExecution = ref(null)
 
 const graphStats = reactive({ totalNodes: 0, totalEdges: 0 })
+
+// ── 产物数据 ──
+const artifactFeaturePoints = ref([])
+const artifactTestCases = ref([])
+const downloadingExcel = ref(false)
+
+// 判断是否显示产物区域
+const showArtifacts = computed(() => {
+  if (!currentExecution.value) return false
+  const stages = currentExecution.value.stages || []
+  const stage1 = stages.find(s => s.stage_no === 1)
+  return stage1 && stage1.status === 'completed'
+})
+
+const showTestCases = computed(() => {
+  if (!currentExecution.value) return false
+  const stages = currentExecution.value.stages || []
+  const stage2 = stages.find(s => s.stage_no === 2)
+  return stage2 && stage2.status === 'completed'
+})
+
+// ── 轮询 ──
+let pollingTimer = null
+
+function startPolling(executionId) {
+  stopPolling()
+  pollingTimer = setInterval(async () => {
+    try {
+      const res = await getExecution(executionId)
+      const data = res.data?.data || res.data || {}
+      currentExecution.value = data
+      // 终态时停止轮询
+      if (['completed', 'failed'].includes(data.status)) {
+        stopPolling()
+        await loadExecutionHistory()
+        // 加载产物数据
+        await loadArtifacts(executionId)
+      }
+    } catch (e) {
+      console.error('轮询执行状态失败', e)
+      stopPolling()
+    }
+  }, 3000)
+}
+
+function stopPolling() {
+  if (pollingTimer) {
+    clearInterval(pollingTimer)
+    pollingTimer = null
+  }
+}
 
 const currentStages = computed(() => {
   if (!currentExecution.value || !currentExecution.value.stages) return []
@@ -409,8 +526,47 @@ async function loadExecution(h) {
   try {
     const res = await getExecution(h.id)
     currentExecution.value = res.data?.data || res.data || {}
+    // 加载产物数据
+    await loadArtifacts(h.id)
   } catch (e) {
     console.error('加载执行详情失败', e)
+  }
+}
+
+async function loadArtifacts(executionId) {
+  if (!executionId) return
+  try {
+    const [fpRes, tcRes] = await Promise.all([
+      getExecutionFeaturePoints(executionId).catch(() => ({ data: { data: [] } })),
+      getExecutionTestCases(executionId).catch(() => ({ data: { data: [] } })),
+    ])
+    artifactFeaturePoints.value = fpRes.data?.data || []
+    artifactTestCases.value = tcRes.data?.data || []
+  } catch (e) {
+    console.error('加载产物数据失败', e)
+  }
+}
+
+async function handleDownloadExcel() {
+  if (!currentExecution.value) return
+  downloadingExcel.value = true
+  try {
+    const res = await downloadExecutionExcel(currentExecution.value.id)
+    // Blob 下载
+    const blob = res.data instanceof Blob ? res.data : new Blob([res.data])
+    const url = window.URL.createObjectURL(blob)
+    const link = document.createElement('a')
+    link.href = url
+    link.download = `测试用例-${currentExecution.value.sprint_name || 'export'}.xlsx`
+    document.body.appendChild(link)
+    link.click()
+    document.body.removeChild(link)
+    window.URL.revokeObjectURL(url)
+    ElMessage.success('Excel 下载成功')
+  } catch (e) {
+    ElMessage.error('下载失败，可能尚未生成 Excel')
+  } finally {
+    downloadingExcel.value = false
   }
 }
 
@@ -434,9 +590,14 @@ async function handleStart() {
       sprint_id: selectedSprint.value,
       mode: selectedMode.value,
     })
-    currentExecution.value = res.data?.data || res.data || {}
-    ElMessage.success('流水线执行完成')
+    const execution = res.data?.data || res.data || {}
+    currentExecution.value = execution
+    ElMessage.success('流水线已启动')
     await loadExecutionHistory()
+    // 启动轮询跟踪执行进度
+    if (execution.id && ['running', 'waiting'].includes(execution.status)) {
+      startPolling(execution.id)
+    }
   } catch (e) {
     ElMessage.error('启动执行失败')
     console.error(e)
@@ -450,6 +611,7 @@ async function handlePause() {
   try {
     const res = await pauseExecution(currentExecution.value.id)
     currentExecution.value = res.data?.data || res.data || {}
+    stopPolling()
     ElMessage.info('已暂停')
   } catch (e) {
     ElMessage.error('暂停失败')
@@ -460,9 +622,13 @@ async function handleResume() {
   if (!currentExecution.value) return
   try {
     const res = await resumeExecution(currentExecution.value.id)
-    currentExecution.value = res.data?.data || res.data || {}
-    ElMessage.success('执行完成')
-    await loadExecutionHistory()
+    const execution = res.data?.data || res.data || {}
+    currentExecution.value = execution
+    ElMessage.success('流水线已恢复执行')
+    // 启动轮询跟踪执行进度
+    if (execution.id && ['running', 'waiting'].includes(execution.status)) {
+      startPolling(execution.id)
+    }
   } catch (e) {
     ElMessage.error('继续执行失败')
   }
@@ -478,6 +644,10 @@ onMounted(async () => {
   appStore.setCurrentPage('ai-workbench', 'AI 工作台')
   await loadProjects()
   await Promise.all([loadExecutionHistory(), loadGraphStats()])
+})
+
+onUnmounted(() => {
+  stopPolling()
 })
 </script>
 
@@ -825,5 +995,51 @@ onMounted(async () => {
   font-size: 11px;
   color: var(--color-text-tertiary);
   margin-top: 2px;
+}
+
+/* 产物展示 */
+.artifact-content {
+  padding: 4px 18px;
+  max-height: 320px;
+  overflow-y: auto;
+}
+
+.artifact-item {
+  padding: 10px 0;
+  border-bottom: 0.5px solid var(--color-border-tertiary);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.artifact-item:last-child {
+  border-bottom: none;
+}
+
+.artifact-name {
+  font-size: 12px;
+  color: var(--color-text-primary);
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.artifact-meta {
+  display: flex;
+  gap: 4px;
+  flex-shrink: 0;
+}
+
+.case-no {
+  font-family: var(--font-mono, monospace);
+  font-size: 11px;
+  background: var(--color-background-secondary);
+  padding: 1px 6px;
+  border-radius: 3px;
+  color: var(--accent);
+  margin-right: 6px;
 }
 </style>

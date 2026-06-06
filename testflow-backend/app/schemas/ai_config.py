@@ -82,6 +82,7 @@ class AIGlobalConfigOut(BaseModel):
     key: str
     value: str
     label: str = ""  # computed: 中文标签
+    group: str = "system"  # computed: system / target
 
     class Config:
         from_attributes = True
@@ -98,6 +99,7 @@ class AICallLogOut(BaseModel):
     output_tokens: int = 0
     duration_ms: int = 0
     status: str = "成功"
+    error_message: str | None = None
     created_at: datetime | None = None
     provider_name: str = ""  # computed
 

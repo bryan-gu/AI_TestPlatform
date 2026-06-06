@@ -29,3 +29,21 @@ export function getExecutionStatus(id) {
 export function deleteExecution(id) {
   return request({ url: `/pipeline/executions/${id}`, method: 'delete' })
 }
+
+// ============ 产物查询 ============
+
+export function getExecutionFeaturePoints(id) {
+  return request({ url: `/pipeline/executions/${id}/feature-points`, method: 'get' })
+}
+
+export function getExecutionTestCases(id) {
+  return request({ url: `/pipeline/executions/${id}/test-cases`, method: 'get' })
+}
+
+export function downloadExecutionExcel(id) {
+  return request({
+    url: `/pipeline/executions/${id}/download/excel`,
+    method: 'get',
+    responseType: 'blob',
+  })
+}

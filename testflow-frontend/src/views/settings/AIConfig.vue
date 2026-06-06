@@ -67,8 +67,8 @@
       </el-table>
     </div>
 
-    <!-- 模型分配策略 + 全局参数 -->
-    <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px">
+    <!-- 模型分配策略 + 全局参数 + 被测系统配置 -->
+    <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:16px">
       <!-- 模型分配策略 -->
       <div class="card">
         <div class="card-head">
@@ -89,15 +89,30 @@
       <div class="card">
         <div class="card-head">
           <div class="card-title">全局参数</div>
-          <div class="card-action" @click="openGlobalParamsEdit">编辑</div>
+          <div class="card-action" @click="openGlobalParamsEdit('system')">编辑</div>
         </div>
         <div class="param-list">
-          <div v-for="param in globalParams" :key="param.key" class="param-item">
+          <div v-for="param in systemParams" :key="param.key" class="param-item">
             <span class="param-label">{{ param.label || param.key }}</span>
             <span v-if="param.key === 'log_level'" class="param-badge">
               <el-tag type="primary" size="small" effect="plain">{{ param.value }}</el-tag>
             </span>
             <span v-else class="param-value">{{ param.value }}</span>
+          </div>
+        </div>
+      </div>
+
+      <!-- 被测系统配置 -->
+      <div class="card">
+        <div class="card-head">
+          <div class="card-title">被测系统配置</div>
+          <div class="card-action" @click="openGlobalParamsEdit('target')">编辑</div>
+        </div>
+        <div class="param-list">
+          <div v-for="param in targetParams" :key="param.key" class="param-item">
+            <span class="param-label">{{ param.label || param.key }}</span>
+            <span v-if="param.key === 'test_password'" class="param-value">{{ param.value ? '••••••' : '未配置' }}</span>
+            <span v-else class="param-value">{{ param.value || '未配置' }}</span>
           </div>
         </div>
       </div>
@@ -193,10 +208,15 @@
     </el-dialog>
 
     <!-- 编辑全局参数对话框 -->
-    <el-dialog v-model="globalParamsEditVisible" title="编辑全局参数" width="500px" destroy-on-close>
-      <el-form label-width="100px">
+    <el-dialog v-model="globalParamsEditVisible" :title="globalParamsEditTitle" width="500px" destroy-on-close>
+      <el-form label-width="120px">
         <el-form-item v-for="item in globalParamsEditForm" :key="item.key" :label="item.label">
-          <el-input v-model="item.value" />
+          <el-input
+            v-model="item.value"
+            :type="item.key === 'test_password' ? 'password' : 'text'"
+            :show-password="item.key === 'test_password'"
+            :placeholder="getParamPlaceholder(item.key)"
+          />
         </el-form-item>
       </el-form>
       <template #footer>
@@ -208,7 +228,7 @@
 </template>
 
 <script setup>
-import { ref, reactive, onMounted } from 'vue'
+import { ref, reactive, computed, onMounted } from 'vue'
 import { Edit, Delete, Connection } from '@element-plus/icons-vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { useAppStore } from '../../stores/app'
@@ -256,6 +276,12 @@ const strategyEditForm = ref([])
 const globalParams = ref([])
 const globalParamsEditVisible = ref(false)
 const globalParamsEditForm = ref([])
+const globalParamsEditGroup = ref('system')
+
+// 按分组过滤参数
+const systemParams = computed(() => globalParams.value.filter(p => (p.group || 'system') === 'system'))
+const targetParams = computed(() => globalParams.value.filter(p => p.group === 'target'))
+const globalParamsEditTitle = computed(() => globalParamsEditGroup.value === 'target' ? '编辑被测系统配置' : '编辑全局参数')
 
 // 调用日志
 const callLogs = ref([])
@@ -429,10 +455,22 @@ async function handleTestProvider(row) {
   row.testing = true
   try {
     const res = await testProvider(row.id)
-    ElMessage.success(res.data?.message || `${row.name} 连接测试成功`)
+    const result = res.data || {}
+    if (result.success) {
+      ElMessage.success({
+        message: `${row.name} 连接测试成功（模型: ${result.model || row.model}）`,
+        duration: 3000,
+      })
+    } else {
+      ElMessage.error({
+        message: result.message || '连接测试失败',
+        duration: 5000,
+      })
+    }
     await loadProviders()
+    await loadCallLogs()
   } catch (e) {
-    ElMessage.error('连接测试失败')
+    ElMessage.error('连接测试失败: ' + (e.message || '未知错误'))
   } finally { row.testing = false }
 }
 
@@ -476,13 +514,25 @@ async function handleSaveStrategies() {
 
 // ============ 全局参数操作 ============
 
-function openGlobalParamsEdit() {
-  globalParamsEditForm.value = globalParams.value.map(p => ({
+function openGlobalParamsEdit(group = 'system') {
+  globalParamsEditGroup.value = group
+  const source = group === 'target' ? targetParams.value : systemParams.value
+  globalParamsEditForm.value = source.map(p => ({
     key: p.key,
     value: p.value,
     label: p.label || p.key,
   }))
   globalParamsEditVisible.value = true
+}
+
+function getParamPlaceholder(key) {
+  const map = {
+    target_url: '例如：https://demo.example.com',
+    test_username: '测试账号',
+    test_password: '测试密码',
+    project_prefix: '例如：SPD（用于生成用例编号 SPD_TC_XX_001）',
+  }
+  return map[key] || ''
 }
 
 async function handleSaveGlobalParams() {

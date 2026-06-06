@@ -116,15 +116,37 @@ DEFAULT_CONFIGS = {
     "retries": "3",
     "concurrency": "5",
     "log_level": "INFO",
+    # 被测系统配置（Phase B/C 使用，Phase A 先预留）
+    "target_url": "",
+    "test_username": "",
+    "test_password": "",
+    "project_prefix": "",
 }
 
 # 参数 key → 中文标签
 CONFIG_LABELS = {
     "max_tokens": "最大 Token 数",
-    "timeout": "超时时间",
+    "timeout": "超时时间（秒）",
     "retries": "重试次数",
     "concurrency": "请求并发数",
     "log_level": "日志级别",
+    "target_url": "被测系统地址",
+    "test_username": "测试账号",
+    "test_password": "测试密码",
+    "project_prefix": "用例ID前缀",
+}
+
+# 参数分组（前端按组展示）
+CONFIG_GROUPS = {
+    "max_tokens": "system",
+    "timeout": "system",
+    "retries": "system",
+    "concurrency": "system",
+    "log_level": "system",
+    "target_url": "target",
+    "test_username": "target",
+    "test_password": "target",
+    "project_prefix": "target",
 }
 
 
@@ -168,6 +190,10 @@ def seed_strategies(db: Session) -> None:
 
 def get_config_label(key: str) -> str:
     return CONFIG_LABELS.get(key, key)
+
+
+def get_config_group(key: str) -> str:
+    return CONFIG_GROUPS.get(key, "system")
 
 
 # ============ AICallLog ============
