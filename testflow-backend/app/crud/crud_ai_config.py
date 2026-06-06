@@ -136,7 +136,7 @@ CONFIG_LABELS = {
     "test_username": "测试账号",
     "test_password": "测试密码",
     "project_prefix": "用例ID前缀",
-    "mineru_api_token": "MinerU API Token",
+    "mineru_api_token": "MinerU Token",
 }
 
 # 参数分组（前端按组展示）

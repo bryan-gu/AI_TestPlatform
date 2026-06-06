@@ -553,7 +553,7 @@ function getParamPlaceholder(key) {
     test_username: '测试账号',
     test_password: '测试密码',
     project_prefix: '例如：SPD（用于生成用例编号 SPD_TC_XX_001）',
-    mineru_api_token: 'MinerU 精准解析 API Token',
+    mineru_api_token: 'MinerU 文档解析 API Token',
   }
   return map[key] || ''
 }
