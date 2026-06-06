@@ -180,9 +180,6 @@ function getProjectStatusText(s) {
   // 后端已返回中文状态，直接使用
   return s || '进行中'
 }
-  if (isNaN(d.getTime())) return dateStr
-  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
-}
 
 function getSprintStatusType(status) {
   const map = { '基线': 'info', '已完成': 'success', '进行中': '', '最新汇总': 'warning', '待启动': 'info' }
