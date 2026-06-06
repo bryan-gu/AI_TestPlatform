@@ -104,7 +104,7 @@
     <!-- 新建 Sprint 对话框 -->
     <el-dialog v-model="createVisible" title="新建 Sprint" width="520px" destroy-on-close>
       <el-form :model="createForm" label-width="80px">
-        <el-form-item label="Sprint 名称">
+        <el-form-item label="名称">
           <el-input v-model="createForm.name" placeholder="例如：Sprint 3" />
         </el-form-item>
         <el-form-item label="描述">
@@ -120,7 +120,7 @@
     <!-- 编辑 Sprint 对话框 -->
     <el-dialog v-model="editVisible" title="编辑 Sprint" width="520px" destroy-on-close>
       <el-form :model="editForm" label-width="80px">
-        <el-form-item label="Sprint 名称">
+        <el-form-item label="名称">
           <el-input v-model="editForm.name" />
         </el-form-item>
         <el-form-item label="描述">
