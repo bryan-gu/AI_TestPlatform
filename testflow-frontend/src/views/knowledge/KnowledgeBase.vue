@@ -176,6 +176,13 @@ function formatDate(dateStr) {
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
 }
 
+function getProjectStatusText(s) {
+  return { pending: '待启动', active: '进行中', testing: '测试中', completed: '已完成' }[s] || s || '进行中'
+}
+  if (isNaN(d.getTime())) return dateStr
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
+}
+
 function getSprintStatusType(status) {
   const map = { '基线': 'info', '已完成': 'success', '进行中': '', '最新汇总': 'warning', '待启动': 'info' }
   return map[status] || 'info'
@@ -273,7 +280,7 @@ function handleDelete(row) {
 
 function handleProjectChange(id) {
   const proj = projectOptions.value.find(p => p.id === id)
-  if (proj) currentProjectStatus.value = proj.status || ''
+  if (proj) currentProjectStatus.value = getProjectStatusText(proj.status)
   loadData()
 }
 
@@ -300,7 +307,7 @@ onMounted(async () => {
         id: p.id, name: p.name, status: p.status || '进行中',
       }))
       selectedProject.value = projectOptions.value[0].id
-      currentProjectStatus.value = projectOptions.value[0].status
+      currentProjectStatus.value = getProjectStatusText(projectOptions.value[0].status)
       await loadData()
     }
   } catch (e) { console.error(e) }

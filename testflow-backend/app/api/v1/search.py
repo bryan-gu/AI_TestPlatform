@@ -12,6 +12,28 @@ from app.schemas.search import SearchResultItem, SearchResponse
 
 router = APIRouter(prefix="/search", tags=["全局搜索"])
 
+# 项目状态英文 → 中文映射
+_PROJECT_STATUS_MAP = {
+    "pending": "待启动",
+    "active": "进行中",
+    "testing": "测试中",
+    "completed": "已完成",
+}
+
+# 用例执行状态英文 → 中文映射
+_CASE_STATUS_MAP = {
+    "pending": "待执行",
+    "passed": "通过",
+    "failed": "失败",
+    "blocked": "阻塞",
+    "skipped": "跳过",
+    "待执行": "待执行",
+    "通过": "通过",
+    "失败": "失败",
+    "阻塞": "阻塞",
+    "跳过": "跳过",
+}
+
 
 @router.get("")
 def global_search(
@@ -35,7 +57,7 @@ def global_search(
                 id=p.id,
                 title=p.name,
                 type="project",
-                description=p.status or "",
+                description=_PROJECT_STATUS_MAP.get(p.status, p.status or ""),
                 route=f"/projects",
             ))
         total += len(results)
@@ -50,7 +72,7 @@ def global_search(
                 id=tc.id,
                 title=f"{tc.case_no} {tc.title}",
                 type="testcase",
-                description=tc.exec_status or "",
+                description=_CASE_STATUS_MAP.get(tc.exec_status, tc.exec_status or ""),
                 route="/testcases",
             ))
         total += len(results)
