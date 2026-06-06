@@ -192,12 +192,26 @@
     </el-dialog>
 
     <!-- 编辑策略对话框 -->
-    <el-dialog v-model="strategyEditVisible" title="编辑模型分配策略" width="600px" destroy-on-close>
+    <el-dialog v-model="strategyEditVisible" title="编辑模型分配策略" width="650px" destroy-on-close>
       <el-table :data="strategyEditForm" style="width:100%">
         <el-table-column prop="task_type" label="任务类型" min-width="120" />
-        <el-table-column label="分配模型" width="180">
+        <el-table-column label="分配模型" min-width="250">
           <template #default="{ row }">
-            <el-input v-model="row.model_name" size="small" placeholder="模型名称" />
+            <el-select
+              v-model="row.provider_id"
+              size="small"
+              filterable
+              placeholder="选择已配置的模型"
+              style="width:100%"
+              @change="(val) => onStrategyProviderChange(row, val)"
+            >
+              <el-option
+                v-for="p in providers"
+                :key="p.id"
+                :label="`${p.name}（${p.model}）`"
+                :value="p.id"
+              />
+            </el-select>
           </template>
         </el-table-column>
       </el-table>
@@ -498,6 +512,14 @@ function openStrategyEdit() {
     provider_id: s.provider_id,
   }))
   strategyEditVisible.value = true
+}
+
+function onStrategyProviderChange(row, providerId) {
+  const p = providers.value.find(item => item.id === providerId)
+  if (p) {
+    row.provider_id = p.id
+    row.model_name = p.model
+  }
 }
 
 async function handleSaveStrategies() {
