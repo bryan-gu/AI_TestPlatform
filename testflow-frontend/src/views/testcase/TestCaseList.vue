@@ -17,6 +17,15 @@
           <el-button type="primary" size="small" @click="handleBatchExecute" :loading="batchExecuting">
             <el-icon><VideoPlay /></el-icon>批量执行
           </el-button>
+          <el-button size="small" @click="handleDownloadTemplate" :loading="downloading">
+            <el-icon><Download /></el-icon>下载模板
+          </el-button>
+          <el-button size="small" @click="openImportDialog">
+            <el-icon><Upload /></el-icon>导入
+          </el-button>
+          <el-button type="success" size="small" @click="handleExport" :loading="exporting">
+            <el-icon><Download /></el-icon>导出
+          </el-button>
         </div>
       </div>
       <el-table :data="testCases" style="width: 100%" v-loading="loading" row-key="id">
@@ -93,15 +102,43 @@
       </el-form>
       <template #footer><el-button @click="editVisible = false">取消</el-button><el-button type="primary" @click="handleSave" :loading="saving">保存</el-button></template>
     </el-dialog>
+
+    <!-- 导入对话框 -->
+    <el-dialog v-model="importVisible" title="导入测试用例" width="480px" destroy-on-close>
+      <el-form label-width="80px">
+        <el-form-item label="目标项目" required>
+          <el-select v-model="importProjectId" placeholder="请选择项目" style="width: 100%">
+            <el-option v-for="p in projectOptions" :key="p.id" :label="p.name" :value="p.id" />
+          </el-select>
+        </el-form-item>
+        <el-form-item label="选择文件" required>
+          <el-upload
+            ref="importUploadRef"
+            :auto-upload="false"
+            :limit="1"
+            accept=".xlsx,.xls"
+            :on-change="handleFileChange"
+            :on-remove="handleFileRemove"
+          >
+            <el-button size="small">选择文件</el-button>
+            <template #tip><div class="el-upload__tip">仅支持 .xlsx 文件，请先下载模板填写数据</div></template>
+          </el-upload>
+        </el-form-item>
+      </el-form>
+      <template #footer>
+        <el-button @click="importVisible = false">取消</el-button>
+        <el-button type="primary" @click="handleImport" :loading="importing">确认导入</el-button>
+      </template>
+    </el-dialog>
   </div>
 </template>
 
 <script setup>
 import { ref, reactive, onMounted, watch } from 'vue'
 import { useAppStore } from '../../stores/app'
-import { Edit, Delete, VideoPlay } from '@element-plus/icons-vue'
+import { Edit, Delete, VideoPlay, Download, Upload } from '@element-plus/icons-vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
-import { getTestCases, getTestCaseStats, createTestCase, updateTestCase, deleteTestCase, batchExecuteTestCases } from '../../api/testcase'
+import { getTestCases, getTestCaseStats, createTestCase, updateTestCase, deleteTestCase, batchExecuteTestCases, exportTestCases, downloadTemplate, importTestCases } from '../../api/testcase'
 import { getProjects } from '../../api/project'
 
 const appStore = useAppStore()
@@ -109,6 +146,13 @@ const loading = ref(false)
 const saving = ref(false)
 const creating = ref(false)
 const batchExecuting = ref(false)
+const exporting = ref(false)
+const downloading = ref(false)
+const importing = ref(false)
+const importVisible = ref(false)
+const importProjectId = ref(null)
+const importFile = ref(null)
+const importUploadRef = ref(null)
 const stats = ref({ total: 0, projectCount: 0, passed: 0, passRate: 0, failed: 0, pending: 0 })
 const selectedProject = ref('')
 const projectOptions = ref([])
@@ -141,6 +185,92 @@ async function handleBatchExecute() {
     ElMessage.error('批量执行失败')
   } finally {
     batchExecuting.value = false
+  }
+}
+
+// ── 导入导出 ──
+function _triggerBlobDownload(blob, filename) {
+  const url = window.URL.createObjectURL(blob)
+  const a = document.createElement('a')
+  a.href = url
+  a.download = filename
+  document.body.appendChild(a)
+  a.click()
+  document.body.removeChild(a)
+  window.URL.revokeObjectURL(url)
+}
+
+async function handleExport() {
+  exporting.value = true
+  try {
+    let projectId = null
+    if (selectedProject.value) {
+      const proj = projectOptions.value.find(p => p.name === selectedProject.value)
+      if (proj) projectId = proj.id
+    }
+    const res = await exportTestCases(projectId)
+    _triggerBlobDownload(res, 'testcases.xlsx')
+    ElMessage.success('导出成功')
+  } catch (e) { /* 拦截器已展示错误 */ } finally {
+    exporting.value = false
+  }
+}
+
+async function handleDownloadTemplate() {
+  downloading.value = true
+  try {
+    const res = await downloadTemplate()
+    _triggerBlobDownload(res, 'testcase_template.xlsx')
+    ElMessage.success('模板下载成功')
+  } catch (e) { /* 拦截器已展示错误 */ } finally {
+    downloading.value = false
+  }
+}
+
+function openImportDialog() {
+  importProjectId.value = null
+  importFile.value = null
+  // 如果当前已选择项目，自动填入
+  if (selectedProject.value) {
+    const proj = projectOptions.value.find(p => p.name === selectedProject.value)
+    if (proj) importProjectId.value = proj.id
+  }
+  importVisible.value = true
+}
+
+function handleFileChange(file) {
+  importFile.value = file.raw
+}
+
+function handleFileRemove() {
+  importFile.value = null
+}
+
+async function handleImport() {
+  if (!importProjectId.value) {
+    ElMessage.warning('请选择目标项目')
+    return
+  }
+  if (!importFile.value) {
+    ElMessage.warning('请选择要导入的文件')
+    return
+  }
+  importing.value = true
+  try {
+    const res = await importTestCases(importProjectId.value, importFile.value)
+    const data = res.data
+    if (data.fail_count > 0) {
+      const errorList = data.errors.map(e => `第 ${e.row} 行: ${e.reason}`).join('\n')
+      ElMessageBox.alert(`成功导入 ${data.success_count} 条，失败 ${data.fail_count} 条：\n\n${errorList}`, '导入结果', { type: 'warning' })
+    } else {
+      ElMessage.success(`成功导入 ${data.success_count} 条用例`)
+    }
+    importVisible.value = false
+    await loadCases()
+    try { stats.value = (await getTestCaseStats()).data } catch (e) { /* ignore */ }
+    appStore.refreshSidebarBadges()
+  } catch (e) { /* 拦截器已展示错误 */ } finally {
+    importing.value = false
   }
 }
 

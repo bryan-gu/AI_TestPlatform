@@ -150,6 +150,37 @@ def get_testcase_stats(db: Session) -> dict:
     }
 
 
+def import_testcases(db: Session, project_id: int, rows: list[dict]) -> dict:
+    """批量导入测试用例，rows = [{module, title, preconditions, test_data, test_steps, expected_result, actual_result}]"""
+    success = 0
+    errors = []
+    for i, row in enumerate(rows, start=2):  # Excel 行号从 2 开始（1 是表头）
+        title = (row.get('title') or '').strip()
+        module = (row.get('module') or '').strip()
+        if not title:
+            errors.append({"row": i, "reason": "标题不能为空"})
+            continue
+        if not module:
+            errors.append({"row": i, "reason": "模块不能为空"})
+            continue
+        case_no = _generate_case_no(db, project_id, module)
+        case = TestCase(
+            case_no=case_no,
+            project_id=project_id,
+            module=module,
+            title=title,
+            preconditions=row.get('preconditions', ''),
+            test_data=row.get('test_data', ''),
+            test_steps=row.get('test_steps', ''),
+            expected_result=row.get('expected_result', ''),
+            actual_result=row.get('actual_result', ''),
+        )
+        db.add(case)
+        success += 1
+    db.commit()
+    return {"success_count": success, "fail_count": len(errors), "errors": errors}
+
+
 def get_executor_name(db: Session, executor_id: int | None) -> str:
     if not executor_id:
         return ""
