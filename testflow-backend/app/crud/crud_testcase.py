@@ -150,13 +150,27 @@ def get_testcase_stats(db: Session) -> dict:
     }
 
 
+def _extract_module_from_case_no(case_no: str) -> str | None:
+    """从用例编号中提取模块代码，如 NJ_TC_Integration_001 → Integration"""
+    if not case_no:
+        return None
+    match = re.match(r'^.+_TC_(.+)_(\d{3})$', case_no.strip())
+    if match:
+        return match.group(1)
+    return None
+
+
 def import_testcases(db: Session, project_id: int, rows: list[dict]) -> dict:
-    """批量导入测试用例，rows = [{module, title, preconditions, test_data, test_steps, expected_result, actual_result}]"""
+    """批量导入测试用例，rows = [{case_no, module, title, ...}]
+    优先从 case_no 提取英文模块代码，降级使用 module 列的值"""
     success = 0
     errors = []
     for i, row in enumerate(rows, start=2):  # Excel 行号从 2 开始（1 是表头）
         title = (row.get('title') or '').strip()
-        module = (row.get('module') or '').strip()
+        # 优先从测试用例ID提取英文模块代码，降级使用模块列
+        module = _extract_module_from_case_no(row.get('case_no', ''))
+        if not module:
+            module = (row.get('module') or '').strip()
         if not title:
             errors.append({"row": i, "reason": "标题不能为空"})
             continue
