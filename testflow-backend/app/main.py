@@ -1,12 +1,48 @@
 import os
+import re
 from contextlib import asynccontextmanager
+from datetime import datetime, timedelta, timezone
 
-from fastapi import FastAPI
+from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import JSONResponse
 
 from app.core.config import settings
 from app.core.database import SessionLocal
 from app.api.v1.router import api_router
+
+# 北京时间 UTC+8
+_BEIJING_TZ = timezone(timedelta(hours=8))
+# 匹配 ISO datetime 字符串（如 2026-06-06T16:47:06 或 2026-06-06 16:47:06）
+_DT_PATTERN = re.compile(r'^\d{4}-\d{2}-\d{2}[T ]\d{2}:\d{2}:\d{2}')
+
+
+def _convert_datetimes(obj):
+    """递归将响应中所有 UTC datetime / ISO 字符串转为北京时间"""
+    if isinstance(obj, datetime):
+        if obj.tzinfo is None:
+            obj = obj.replace(tzinfo=timezone.utc)
+        return obj.astimezone(_BEIJING_TZ).strftime("%Y-%m-%d %H:%M:%S")
+    if isinstance(obj, str) and _DT_PATTERN.match(obj):
+        try:
+            dt = datetime.fromisoformat(obj.replace('Z', '+00:00'))
+            if dt.tzinfo is None:
+                dt = dt.replace(tzinfo=timezone.utc)
+            return dt.astimezone(_BEIJING_TZ).strftime("%Y-%m-%d %H:%M:%S")
+        except (ValueError, TypeError):
+            return obj
+    if isinstance(obj, dict):
+        return {k: _convert_datetimes(v) for k, v in obj.items()}
+    if isinstance(obj, (list, tuple)):
+        return [_convert_datetimes(item) for item in obj]
+    return obj
+
+
+class BeijingJSONResponse(JSONResponse):
+    """自定义 JSON 响应：自动将所有时间字段转为北京时间"""
+    def render(self, content) -> bytes:
+        content = _convert_datetimes(content)
+        return super().render(content)
 
 
 def _seed_database():
@@ -82,6 +118,7 @@ app = FastAPI(
     title=settings.APP_NAME,
     version=settings.APP_VERSION,
     lifespan=lifespan,
+    default_response_class=BeijingJSONResponse,
 )
 
 # CORS配置
