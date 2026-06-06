@@ -21,10 +21,10 @@
             <el-icon><Download /></el-icon>下载模板
           </el-button>
           <el-button size="small" @click="openImportDialog">
-            <el-icon><Upload /></el-icon>导入
+            <el-icon><Download /></el-icon>导入
           </el-button>
           <el-button type="success" size="small" @click="handleExport" :loading="exporting">
-            <el-icon><Download /></el-icon>导出
+            <el-icon><Upload /></el-icon>导出
           </el-button>
         </div>
       </div>
