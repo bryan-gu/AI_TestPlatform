@@ -20,6 +20,7 @@ class Document(Base):
     keywords = Column(JSON, default=list)
     module_ids = Column(JSON, default=list)  # AI 识别的模块 ID 列表，如 [1, 3, 5]
     ai_status = Column(String(20), default="待分析")  # 已分析/分析中/待分析
+    parse_status = Column(String(20), default="待解析")  # 待解析/解析中/已解析/解析失败
     created_at = Column(DateTime, server_default=func.now())
 
     uploader = relationship("User", backref="uploaded_documents")

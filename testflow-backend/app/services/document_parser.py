@@ -41,14 +41,14 @@ class DocumentParser:
                 logger.warning(f"文档 ID={document_id} 不存在，跳过解析")
                 return
 
-            # 更新状态为"分析中"
-            document.ai_status = "分析中"
+            # 更新解析状态为"解析中"
+            document.parse_status = "解析中"
             db.commit()
 
             # 从全局配置读取 Token
             token = self._get_token(db)
             if not token:
-                document.ai_status = "解析失败"
+                document.parse_status = "解析失败"
                 document.content_preview = "未配置 MinerU API Token，请在 AI 配置中设置"
                 db.commit()
                 logger.error("未配置 MinerU API Token")
@@ -59,10 +59,10 @@ class DocumentParser:
 
             if markdown_content:
                 document.content_preview = markdown_content
-                document.ai_status = "已分析"
+                document.parse_status = "已解析"
                 logger.info(f"文档 ID={document_id} 解析成功，内容长度={len(markdown_content)}")
             else:
-                document.ai_status = "解析失败"
+                document.parse_status = "解析失败"
                 document.content_preview = "MinerU 解析失败，请检查文件格式或重试"
                 logger.warning(f"文档 ID={document_id} MinerU 解析返回空内容")
 
@@ -72,7 +72,7 @@ class DocumentParser:
             try:
                 document = db.query(Document).filter(Document.id == document_id).first()
                 if document:
-                    document.ai_status = "解析失败"
+                    document.parse_status = "解析失败"
                     document.content_preview = f"解析异常: {str(e)[:200]}"
                     db.commit()
             except Exception:

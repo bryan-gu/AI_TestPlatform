@@ -65,6 +65,11 @@
             </div>
           </template>
         </el-table-column>
+        <el-table-column label="解析状态" width="90">
+          <template #default="{ row }">
+            <el-tag :type="getParseStatusType(row.parse_status)" size="small" effect="plain" round>{{ row.parse_status || '待解析' }}</el-tag>
+          </template>
+        </el-table-column>
         <el-table-column label="AI 状态" width="90">
           <template #default="{ row }">
             <el-tag :type="getAiStatusType(row.ai_status)" size="small" effect="plain" round>{{ row.ai_status || '待分析' }}</el-tag>
@@ -79,6 +84,9 @@
             <div class="action-btns" @click.stop>
               <el-button type="primary" link size="small" @click="handleEditDoc(row)">
                 <el-icon><Edit /></el-icon>编辑
+              </el-button>
+              <el-button v-if="row.parse_status === '解析失败'" type="warning" link size="small" @click="handleReparseDoc(row)">
+                <el-icon><Refresh /></el-icon>重新解析
               </el-button>
               <el-button type="danger" link size="small" @click="handleDeleteDoc($index, row)">
                 <el-icon><Delete /></el-icon>删除
@@ -267,11 +275,11 @@
 import { ref, reactive, onMounted } from 'vue'
 import { useRouter, useRoute } from 'vue-router'
 import { useAppStore } from '../../stores/app'
-import { Folder, Promotion, Document, Edit, Delete, Upload, MagicStick } from '@element-plus/icons-vue'
+import { Folder, Promotion, Document, Edit, Delete, Upload, MagicStick, Refresh } from '@element-plus/icons-vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import {
   getSprint, getSprintDocuments, uploadSprintDocument,
-  updateSprintDocument, deleteSprintDocument,
+  updateSprintDocument, deleteSprintDocument, reparseSprintDocument,
   getModules, createModule, updateModule, deleteModule,
 } from '../../api/sprint'
 import {
@@ -345,7 +353,11 @@ function getTypeTagType(t) {
 }
 
 function getAiStatusType(status) {
-  return { '已分析': 'success', '分析中': 'warning', '解析失败': 'danger' }[status] || 'info'
+  return { '已分析': 'success', '分析中': 'warning' }[status] || 'info'
+}
+
+function getParseStatusType(status) {
+  return { '已解析': 'success', '解析中': 'warning', '解析失败': 'danger' }[status] || 'info'
 }
 
 function getFileIconColor(type) {
@@ -429,6 +441,16 @@ async function handleSaveDoc() {
     ElMessage.error('保存失败')
   } finally {
     saving.value = false
+  }
+}
+
+async function handleReparseDoc(row) {
+  try {
+    await reparseSprintDocument(sprintId, row.id)
+    ElMessage.success('已触发重新解析，请稍候刷新查看')
+    await loadData()
+  } catch (e) {
+    ElMessage.error('重新解析失败')
   }
 }
 

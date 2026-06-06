@@ -54,6 +54,7 @@ def _doc_to_out(doc, db: Session) -> dict:
         keywords=doc.keywords or [],
         module_ids=doc.module_ids or [],
         ai_status=doc.ai_status or "待分析",
+        parse_status=doc.parse_status or "待解析",
         created_at=doc.created_at,
         uploader_name=crud_document.get_uploader_name(db, doc.uploader_id),
         module_names=crud_document.get_module_names(db, doc.module_ids),
@@ -196,3 +197,27 @@ def delete_document(sprint_id: int, doc_id: int, db: Session = Depends(get_db), 
         os.remove(doc.file_path)
     crud_document.delete_document(db, doc)
     return ResponseModel(message="删除成功")
+
+
+@router.post("/{sprint_id}/documents/{doc_id}/reparse", response_model=ResponseModel)
+def reparse_document(
+    sprint_id: int,
+    doc_id: int,
+    background_tasks: BackgroundTasks,
+    db: Session = Depends(get_db),
+    _=Depends(get_current_user),
+):
+    """重新触发 MinerU 文档解析"""
+    doc = crud_document.get_document(db, doc_id)
+    if not doc or doc.sprint_id != sprint_id:
+        raise HTTPException(status_code=404, detail="文档不存在")
+
+    # 重置解析状态
+    doc.parse_status = "待解析"
+    db.commit()
+
+    from app.services.document_parser import DocumentParser
+    parser = DocumentParser()
+    background_tasks.add_task(parser.parse_document, None, doc.id)
+
+    return ResponseModel(message="已触发重新解析")

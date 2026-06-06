@@ -34,6 +34,7 @@ class DocumentOut(BaseModel):
     keywords: list[Any] = []
     module_ids: list[int] = []
     ai_status: str = "待分析"
+    parse_status: str = "待解析"
     created_at: datetime | None = None
     # computed
     uploader_name: str = ""

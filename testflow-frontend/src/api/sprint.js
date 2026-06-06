@@ -47,6 +47,10 @@ export function deleteSprintDocument(sprintId, docId) {
   return request({ url: `/sprints/${sprintId}/documents/${docId}`, method: 'delete' })
 }
 
+export function reparseSprintDocument(sprintId, docId) {
+  return request({ url: `/sprints/${sprintId}/documents/${docId}/reparse`, method: 'post' })
+}
+
 // ========== Module 标签 CRUD ==========
 export function getModules(params) {
   return request({ url: '/modules', method: 'get', params })
