@@ -146,7 +146,10 @@ class PipelineExecutor:
         # 3. 解析 JSON 结果
         parsed = self._extract_and_parse_json(content)
         if not parsed or "modules" not in parsed:
-            raise ValueError("LLM 返回结果无法解析为有效的模块结构")
+            preview = content[:500] if content else "(空)"
+            raise ValueError(
+                f"LLM 返回结果无法解析为有效的模块结构。原始返回前500字符: {preview}"
+            )
 
         modules_data = parsed["modules"]
         project_id = execution.project_id
@@ -297,9 +300,24 @@ class PipelineExecutor:
         if not cases_data or not isinstance(cases_data, list):
             # 尝试从包装对象中提取
             if isinstance(cases_data, dict):
-                cases_data = cases_data.get("test_cases", cases_data.get("cases", []))
+                # 尝试多种可能的 key
+                for key in ("test_cases", "cases", "testCases", "data", "results", "items"):
+                    if key in cases_data and isinstance(cases_data[key], list):
+                        cases_data = cases_data[key]
+                        break
+                else:
+                    # dict 中没有已知 key，尝试取第一个 list 类型的 value
+                    for v in cases_data.values():
+                        if isinstance(v, list):
+                            cases_data = v
+                            break
             if not isinstance(cases_data, list):
-                raise ValueError("LLM 返回结果无法解析为测试用例数组")
+                # 记录原始返回内容便于排查
+                preview = content[:500] if content else "(空)"
+                logger.error(f"Stage 2 JSON 解析失败, LLM 原始返回: {preview}")
+                raise ValueError(
+                    f"LLM 返回结果无法解析为测试用例数组。原始返回前500字符: {preview}"
+                )
 
         # 6. 写入 TestCase 表 + 文件
         case_count = 0
@@ -467,8 +485,13 @@ class PipelineExecutor:
         if match:
             return match.group(1).strip()
 
-        # 尝试匹配 { ... } 或 [ ... ]
-        match = re.search(r'(\{.*\}|\[.*\])', text, re.DOTALL)
+        # 尝试匹配 [...] （数组优先，Stage 2 期望数组）
+        match = re.search(r'(\[[\s\S]*\])', text, re.DOTALL)
+        if match:
+            return match.group(1).strip()
+
+        # 尝试匹配 { ... }
+        match = re.search(r'(\{[\s\S]*\})', text, re.DOTALL)
         if match:
             return match.group(1).strip()
 
