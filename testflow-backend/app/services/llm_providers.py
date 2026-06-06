@@ -10,10 +10,17 @@ import httpx
 class OpenAIProvider:
     """OpenAI 兼容服务商（含 DeepSeek、自定义端点）"""
 
+    def _build_url(self, endpoint: str) -> str:
+        """构建 chat completions URL，兼容已包含 /v1 的端点"""
+        base = endpoint.rstrip('/')
+        if base.endswith('/v1'):
+            return f"{base}/chat/completions"
+        return f"{base}/v1/chat/completions"
+
     def call(self, provider, model_name: str, prompt: str,
              max_tokens: int = 4096, timeout: int = 120) -> dict:
         endpoint = provider.endpoint_url or "https://api.openai.com"
-        url = f"{endpoint.rstrip('/')}/v1/chat/completions"
+        url = self._build_url(endpoint)
 
         resp = httpx.post(
             url,
