@@ -92,6 +92,10 @@ async function loadUsers() {
   } catch (e) { console.error(e) } finally { loading.value = false }
 }
 
+async function loadStats() {
+  try { stats.value = (await getUserStats()).data } catch (e) { /* ignore */ }
+}
+
 // 监听搜索关键词变化（防抖）
 watch(() => appStore.searchKeyword, () => {
   if (loadTimer) clearTimeout(loadTimer)
@@ -110,6 +114,7 @@ async function handleCreate() {
   try {
     await createUser({ ...createForm })
     await loadUsers()
+    await loadStats()
     ElMessage.success('邀请成功')
     createVisible.value = false
     appStore.refreshSidebarBadges()
@@ -127,6 +132,7 @@ async function handleSave() {
   try {
     await updateUser(editId.value, { name: editForm.name, role_id: editForm.role_id, project: editForm.project, status: editForm.status })
     await loadUsers()
+    await loadStats()
     ElMessage.success('保存成功')
     editVisible.value = false
   } catch (e) { ElMessage.error('保存失败') } finally { saving.value = false }
@@ -134,7 +140,7 @@ async function handleSave() {
 
 function handleDelete(index, row) {
   ElMessageBox.confirm(`确定要删除用户"${row.name}"吗？`, '确认删除', { confirmButtonText: '确认删除', cancelButtonText: '取消', type: 'warning' })
-    .then(async () => { await deleteUser(row.id); await loadUsers(); ElMessage.success('删除成功'); appStore.refreshSidebarBadges() }).catch(() => {})
+    .then(async () => { await deleteUser(row.id); await loadUsers(); await loadStats(); ElMessage.success('删除成功'); appStore.refreshSidebarBadges() }).catch(() => {})
 }
 
 onMounted(async () => {

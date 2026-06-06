@@ -104,6 +104,10 @@ async function loadProjects() {
   } catch (e) { console.error(e) } finally { loading.value = false }
 }
 
+async function loadStats() {
+  try { stats.value = (await getDashboardStats()).data } catch (e) { /* ignore */ }
+}
+
 // 监听搜索关键词变化（防抖）
 watch(() => appStore.searchKeyword, () => {
   if (loadTimer) clearTimeout(loadTimer)
@@ -125,6 +129,7 @@ async function handleCreate() {
   try {
     await createProject({ ...createForm })
     await loadProjects()
+    await loadStats()
     ElMessage.success('创建成功')
     createVisible.value = false
     appStore.refreshSidebarBadges()
@@ -146,6 +151,7 @@ async function handleSave() {
   try {
     await updateProject(editId.value, { ...editForm })
     await loadProjects()
+    await loadStats()
     ElMessage.success('保存成功')
     editVisible.value = false
   } catch (e) { /* 拦截器已展示错误 */ } finally { saving.value = false }
@@ -153,7 +159,7 @@ async function handleSave() {
 
 function handleDelete(index, row) {
   ElMessageBox.confirm(`确定要删除项目"${row.name}"吗？`, '确认删除', { confirmButtonText: '确认删除', cancelButtonText: '取消', type: 'warning' })
-    .then(async () => { await deleteProject(row.id); await loadProjects(); ElMessage.success('删除成功'); appStore.refreshSidebarBadges() }).catch(() => {})
+    .then(async () => { await deleteProject(row.id); await loadProjects(); await loadStats(); ElMessage.success('删除成功'); appStore.refreshSidebarBadges() }).catch(() => {})
 }
 
 onMounted(async () => {

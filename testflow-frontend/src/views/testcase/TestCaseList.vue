@@ -331,6 +331,10 @@ async function loadCases() {
   } catch (e) { console.error(e) } finally { loading.value = false }
 }
 
+async function loadStats() {
+  try { stats.value = (await getTestCaseStats()).data } catch (e) { /* ignore */ }
+}
+
 watch(() => appStore.searchKeyword, () => {
   if (loadTimer) clearTimeout(loadTimer)
   loadTimer = setTimeout(() => {
@@ -353,6 +357,7 @@ async function handleCreate() {
   try {
     await createTestCase({ ...createForm })
     await loadCases()
+    await loadStats()
     ElMessage.success('创建成功')
     createVisible.value = false
     appStore.refreshSidebarBadges()
@@ -379,12 +384,12 @@ function handleEdit(row) {
 
 async function handleSave() {
   saving.value = true
-  try { await updateTestCase(editId.value, { ...editForm }); await loadCases(); ElMessage.success('保存成功'); editVisible.value = false } catch (e) { ElMessage.error('保存失败') } finally { saving.value = false }
+  try { await updateTestCase(editId.value, { ...editForm }); await loadCases(); await loadStats(); ElMessage.success('保存成功'); editVisible.value = false } catch (e) { ElMessage.error('保存失败') } finally { saving.value = false }
 }
 
 function handleDelete(index, row) {
   ElMessageBox.confirm(`确定要删除用例"${row.case_no}"吗？`, '确认删除', { confirmButtonText: '确认删除', cancelButtonText: '取消', type: 'warning' })
-    .then(async () => { await deleteTestCase(row.id); await loadCases(); ElMessage.success('删除成功'); appStore.refreshSidebarBadges() }).catch(() => {})
+    .then(async () => { await deleteTestCase(row.id); await loadCases(); await loadStats(); ElMessage.success('删除成功'); appStore.refreshSidebarBadges() }).catch(() => {})
 }
 
 onMounted(async () => {

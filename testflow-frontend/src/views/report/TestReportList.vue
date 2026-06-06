@@ -107,6 +107,10 @@ async function loadReports() {
   } catch (e) { console.error(e) } finally { loading.value = false }
 }
 
+async function loadStats() {
+  try { stats.value = (await getReportStats()).data } catch (e) { /* ignore */ }
+}
+
 // 监听搜索关键词变化（防抖）
 watch(() => appStore.searchKeyword, () => {
   if (loadTimer) clearTimeout(loadTimer)
@@ -122,7 +126,7 @@ function openCreateDialog() {
 
 async function handleCreate() {
   creating.value = true
-  try { await createReport({ ...createForm }); await loadReports(); ElMessage.success('报告生成中...'); createVisible.value = false; appStore.refreshSidebarBadges() } catch (e) { ElMessage.error('生成失败') } finally { creating.value = false }
+  try { await createReport({ ...createForm }); await loadReports(); await loadStats(); ElMessage.success('报告生成中...'); createVisible.value = false; appStore.refreshSidebarBadges() } catch (e) { ElMessage.error('生成失败') } finally { creating.value = false }
 }
 
 function handleEdit(row) {
@@ -133,12 +137,12 @@ function handleEdit(row) {
 
 async function handleSave() {
   saving.value = true
-  try { await updateReport(editId.value, { ...editForm }); await loadReports(); ElMessage.success('保存成功'); editVisible.value = false } catch (e) { ElMessage.error('保存失败') } finally { saving.value = false }
+  try { await updateReport(editId.value, { ...editForm }); await loadReports(); await loadStats(); ElMessage.success('保存成功'); editVisible.value = false } catch (e) { ElMessage.error('保存失败') } finally { saving.value = false }
 }
 
 function handleDelete(index, row) {
   ElMessageBox.confirm(`确定要删除报告"${row.name}"吗？`, '确认删除', { confirmButtonText: '确认删除', cancelButtonText: '取消', type: 'warning' })
-    .then(async () => { await deleteReport(row.id); await loadReports(); ElMessage.success('删除成功'); appStore.refreshSidebarBadges() }).catch(() => {})
+    .then(async () => { await deleteReport(row.id); await loadReports(); await loadStats(); ElMessage.success('删除成功'); appStore.refreshSidebarBadges() }).catch(() => {})
 }
 
 onMounted(async () => {

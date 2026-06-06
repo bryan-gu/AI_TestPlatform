@@ -79,6 +79,10 @@ async function loadRoles() {
   } catch (e) { console.error(e) } finally { loading.value = false }
 }
 
+async function loadStats() {
+  try { stats.value = (await getRoleStats()).data } catch (e) { /* ignore */ }
+}
+
 // 监听搜索关键词变化（防抖）
 watch(() => appStore.searchKeyword, () => {
   if (loadTimer) clearTimeout(loadTimer)
@@ -98,6 +102,7 @@ async function handleCreate() {
     const permissions = createForm.permissionsText.split(',').map(s => s.trim()).filter(Boolean)
     await createRole({ name: createForm.name, permissions })
     await loadRoles()
+    await loadStats()
     ElMessage.success('创建成功')
     createVisible.value = false
     appStore.refreshSidebarBadges()
@@ -116,6 +121,7 @@ async function handleSave() {
     const permissions = editForm.permissionsText.split(',').map(s => s.trim()).filter(Boolean)
     await updateRole(editId.value, { name: editForm.name, permissions })
     await loadRoles()
+    await loadStats()
     ElMessage.success('保存成功')
     editVisible.value = false
   } catch (e) { ElMessage.error('保存失败') } finally { saving.value = false }
@@ -123,7 +129,7 @@ async function handleSave() {
 
 function handleDelete(index, row) {
   ElMessageBox.confirm(`确定要删除角色"${row.name}"吗？`, '确认删除', { confirmButtonText: '确认删除', cancelButtonText: '取消', type: 'warning' })
-    .then(async () => { await deleteRole(row.id); await loadRoles(); ElMessage.success('删除成功'); appStore.refreshSidebarBadges() }).catch(() => {})
+    .then(async () => { await deleteRole(row.id); await loadRoles(); await loadStats(); ElMessage.success('删除成功'); appStore.refreshSidebarBadges() }).catch(() => {})
 }
 
 onMounted(async () => {
