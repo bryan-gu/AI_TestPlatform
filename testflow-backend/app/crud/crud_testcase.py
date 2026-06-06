@@ -162,8 +162,10 @@ def _extract_module_from_case_no(case_no: str) -> str | None:
 
 def import_testcases(db: Session, project_id: int, rows: list[dict]) -> dict:
     """批量导入测试用例，rows = [{case_no, module, title, ...}]
-    优先从 case_no 提取英文模块代码，降级使用 module 列的值"""
+    优先从 case_no 提取英文模块代码，降级使用 module 列的值
+    如果 case_no 在目标项目中已存在则更新，否则新建"""
     success = 0
+    updated = 0
     errors = []
     for i, row in enumerate(rows, start=2):  # Excel 行号从 2 开始（1 是表头）
         title = (row.get('title') or '').strip()
@@ -177,22 +179,44 @@ def import_testcases(db: Session, project_id: int, rows: list[dict]) -> dict:
         if not module:
             errors.append({"row": i, "reason": "模块不能为空"})
             continue
-        case_no = _generate_case_no(db, project_id, module)
-        case = TestCase(
-            case_no=case_no,
-            project_id=project_id,
-            module=module,
-            title=title,
-            preconditions=row.get('preconditions', ''),
-            test_data=row.get('test_data', ''),
-            test_steps=row.get('test_steps', ''),
-            expected_result=row.get('expected_result', ''),
-            actual_result=row.get('actual_result', ''),
-        )
-        db.add(case)
-        success += 1
+
+        # 检查 case_no 是否已存在于目标项目
+        imported_case_no = (row.get('case_no') or '').strip()
+        existing = None
+        if imported_case_no:
+            existing = db.query(TestCase).filter(
+                TestCase.project_id == project_id,
+                TestCase.case_no == imported_case_no
+            ).first()
+
+        if existing:
+            # 更新已有用例
+            existing.title = title
+            existing.preconditions = row.get('preconditions', '') or ''
+            existing.test_data = row.get('test_data', '') or ''
+            existing.test_steps = row.get('test_steps', '') or ''
+            existing.expected_result = row.get('expected_result', '') or ''
+            if row.get('actual_result'):
+                existing.actual_result = row['actual_result']
+            updated += 1
+        else:
+            # 新建用例
+            case_no = _generate_case_no(db, project_id, module)
+            case = TestCase(
+                case_no=case_no,
+                project_id=project_id,
+                module=module,
+                title=title,
+                preconditions=row.get('preconditions', ''),
+                test_data=row.get('test_data', ''),
+                test_steps=row.get('test_steps', ''),
+                expected_result=row.get('expected_result', ''),
+                actual_result=row.get('actual_result', ''),
+            )
+            db.add(case)
+            success += 1
     db.commit()
-    return {"success_count": success, "fail_count": len(errors), "errors": errors}
+    return {"success_count": success, "updated_count": updated, "fail_count": len(errors), "errors": errors}
 
 
 def get_executor_name(db: Session, executor_id: int | None) -> str:

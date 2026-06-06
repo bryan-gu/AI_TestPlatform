@@ -221,10 +221,12 @@ async def import_testcases(
         raise HTTPException(status_code=400, detail="文件中没有有效数据")
 
     result = crud_testcase.import_testcases(db, project_id, rows)
-    return ResponseModel(
-        data=result,
-        message=f"导入完成：成功 {result['success_count']} 条，失败 {result['fail_count']} 条"
-    )
+    parts = [f"新增 {result['success_count']} 条"]
+    if result.get('updated_count', 0) > 0:
+        parts.append(f"更新 {result['updated_count']} 条")
+    if result['fail_count'] > 0:
+        parts.append(f"失败 {result['fail_count']} 条")
+    return ResponseModel(data=result, message=f"导入完成：{'，'.join(parts)}")
 
 
 @router.post("", response_model=ResponseModel)

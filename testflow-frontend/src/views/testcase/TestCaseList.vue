@@ -261,9 +261,11 @@ async function handleImport() {
     const data = res.data
     if (data.fail_count > 0) {
       const errorList = data.errors.map(e => `第 ${e.row} 行: ${e.reason}`).join('\n')
-      ElMessageBox.alert(`成功导入 ${data.success_count} 条，失败 ${data.fail_count} 条：\n\n${errorList}`, '导入结果', { type: 'warning' })
+      const updatedInfo = data.updated_count > 0 ? `，更新 ${data.updated_count} 条` : ''
+      ElMessageBox.alert(`新增 ${data.success_count} 条${updatedInfo}，失败 ${data.fail_count} 条：\n\n${errorList}`, '导入结果', { type: 'warning' })
     } else {
-      ElMessage.success(`成功导入 ${data.success_count} 条用例`)
+      const updatedInfo = data.updated_count > 0 ? `，更新 ${data.updated_count} 条` : ''
+      ElMessage.success(`新增 ${data.success_count} 条${updatedInfo}`)
     }
     importVisible.value = false
     await loadCases()
