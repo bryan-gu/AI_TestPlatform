@@ -118,6 +118,8 @@ def get_coverage_count(db: Session, feature_point_id: int) -> int:
         FeaturePointTestCase.feature_point_id == feature_point_id
     ).count()
 
+
+def get_source_doc_name(db: Session, doc_id: int | None) -> str:
     if not doc_id:
         return ""
     doc = db.query(Document).filter(Document.id == doc_id).first()
