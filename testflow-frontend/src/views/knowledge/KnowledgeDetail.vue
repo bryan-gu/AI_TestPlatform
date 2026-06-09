@@ -266,7 +266,7 @@
 </template>
 
 <script setup>
-import { ref, reactive, onMounted } from 'vue'
+import { ref, reactive, onMounted, onBeforeUnmount } from 'vue'
 import { useRouter, useRoute } from 'vue-router'
 import { useAppStore } from '../../stores/app'
 import { Folder, Promotion, Document, Edit, Delete, Upload, MagicStick, Refresh } from '@element-plus/icons-vue'
@@ -288,6 +288,36 @@ const saving = ref(false)
 const uploading = ref(false)
 const fpLoading = ref(false)
 const fpSaving = ref(false)
+
+// 解析状态轮询
+let parsePollingTimer = null
+
+function hasParsingDocs() {
+  return documents.value.some(d => d.parse_status === '解析中')
+}
+
+function startParsePolling() {
+  if (parsePollingTimer) return
+  parsePollingTimer = setInterval(async () => {
+    if (!hasParsingDocs()) {
+      stopParsePolling()
+      return
+    }
+    try {
+      const docsRes = await getSprintDocuments(sprintId)
+      documents.value = docsRes.data || []
+    } catch (e) {
+      console.error(e)
+    }
+  }, 5000)
+}
+
+function stopParsePolling() {
+  if (parsePollingTimer) {
+    clearInterval(parsePollingTimer)
+    parsePollingTimer = null
+  }
+}
 
 const sprintId = route.params.id
 
@@ -411,6 +441,7 @@ async function handleUpload() {
     ElMessage.success('上传成功')
     uploadVisible.value = false
     await loadData()
+    startParsePolling()
   } catch (e) {
     ElMessage.error('上传失败')
   } finally {
@@ -441,8 +472,9 @@ async function handleSaveDoc() {
 async function handleReparseDoc(row) {
   try {
     await reparseSprintDocument(sprintId, row.id)
-    ElMessage.success('已触发重新解析，请稍候刷新查看')
+    ElMessage.success('已触发重新解析')
     await loadData()
+    startParsePolling()
   } catch (e) {
     ElMessage.error('重新解析失败')
   }
@@ -620,10 +652,15 @@ function handleDeleteModule(index, row) {
   }).catch(() => {})
 }
 
-onMounted(() => {
+onMounted(async () => {
   appStore.setCurrentPage('knowledge', '文档列表', '上传文档', openUploadDialog)
-  loadData()
+  await loadData()
+  if (hasParsingDocs()) startParsePolling()
   loadFeaturePoints()
+})
+
+onBeforeUnmount(() => {
+  stopParsePolling()
 })
 </script>
 
