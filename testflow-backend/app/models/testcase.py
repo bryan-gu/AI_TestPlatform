@@ -1,4 +1,4 @@
-from sqlalchemy import Column, Integer, String, Text, DateTime, ForeignKey, func
+from sqlalchemy import Column, Integer, String, Text, DateTime, ForeignKey, JSON, func
 from sqlalchemy.orm import relationship
 
 from app.core.database import Base
@@ -14,8 +14,17 @@ class TestCase(Base):
     exec_status = Column(String(20), nullable=False, default="待执行")  # 通过/失败/执行中/待执行
     executor_id = Column(Integer, ForeignKey("users.id"), nullable=True)
     project_id = Column(Integer, ForeignKey("projects.id"), nullable=True)
+    sprint_id = Column(Integer, ForeignKey("sprints.id"), nullable=True)
     module = Column(String(50), nullable=True)  # 模块代码缓存，如 DL、SJZH
     module_id = Column(Integer, ForeignKey("modules.id", ondelete="SET NULL"), nullable=True)  # FK → modules 表
+    case_type = Column(String(30), default="ui")
+    automation_status = Column(String(30), default="not_generated")
+    automation_path = Column(String(500), default="")
+    selector_path = Column(String(500), default="")
+    source = Column(String(30), default="manual")
+    version = Column(String(40), default="v1.0")
+    fingerprint = Column(String(64), default="")
+    raw_data = Column(JSON, default=dict)
     preconditions = Column(Text, default="")  # 前置条件
     test_data = Column(Text, default="")  # 测试数据
     test_steps = Column(Text, default="")  # 测试步骤
@@ -26,3 +35,4 @@ class TestCase(Base):
 
     executor = relationship("User", backref="executed_cases")
     project = relationship("Project", backref="testcases")
+    sprint = relationship("Sprint", backref="testcases")

@@ -15,6 +15,7 @@ from app.api.v1.graphs import router as graphs_router
 from app.api.v1.pipeline import router as pipeline_router
 from app.api.v1.search import router as search_router
 from app.api.v1.knowledge import router as knowledge_router
+from app.api.v1.coverage import router as coverage_router
 
 api_router = APIRouter(prefix="/api/v1")
 
@@ -33,3 +34,4 @@ api_router.include_router(graphs_router)
 api_router.include_router(pipeline_router)
 api_router.include_router(search_router)
 api_router.include_router(knowledge_router)
+api_router.include_router(coverage_router)

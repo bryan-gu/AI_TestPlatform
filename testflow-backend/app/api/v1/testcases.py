@@ -57,9 +57,20 @@ def _to_out(case, db: Session) -> dict:
         executor=crud_testcase.get_executor_name(db, case.executor_id),
         project=crud_testcase.get_project_name(db, case.project_id),
         project_id=case.project_id,
+        sprint_id=case.sprint_id,
+        sprint_name=crud_testcase.get_sprint_name(db, case.sprint_id),
         module_id=case.module_id,
         module=case.module,
         module_name=crud_testcase.get_module_name(db, case.module_id),
+        case_type=case.case_type or "ui",
+        automation_status=case.automation_status or "not_generated",
+        automation_path=case.automation_path or "",
+        selector_path=case.selector_path or "",
+        source=case.source or "manual",
+        version=case.version or "v1.0",
+        fingerprint=case.fingerprint or "",
+        raw_data=case.raw_data or {},
+        coverage_count=crud_testcase.get_coverage_count(db, case.id),
         preconditions=case.preconditions or "",
         test_data=case.test_data or "",
         test_steps=case.test_steps or "",
@@ -73,10 +84,20 @@ def _to_out(case, db: Session) -> dict:
 def list_testcases(
     project: str | None = None,
     keyword: str | None = Query(None, description="搜索关键词"),
+    sprint_id: int | None = Query(None, description="Sprint ID"),
+    module_id: int | None = Query(None, description="模块 ID"),
+    case_type: str | None = Query(None, description="用例类型"),
     db: Session = Depends(get_db),
     _=Depends(get_current_user)
 ):
-    cases = crud_testcase.get_testcases(db, project=project, keyword=keyword)
+    cases = crud_testcase.get_testcases(
+        db,
+        project=project,
+        keyword=keyword,
+        sprint_id=sprint_id,
+        module_id=module_id,
+        case_type=case_type,
+    )
     return ResponseModel(data=[_to_out(c, db) for c in cases])
 
 
@@ -98,17 +119,18 @@ def batch_execute(
 @router.get("/export")
 def export_testcases(
     project_id: int | None = Query(None, description="项目ID，不传则导出全部"),
+    sprint_id: int | None = Query(None, description="Sprint ID"),
     db: Session = Depends(get_db),
     _=Depends(get_current_user)
 ):
     """导出测试用例为 xlsx，按模块分 Sheet，模块列显示中文名"""
     # 获取用例
+    query = db.query(crud_testcase.TestCase)
     if project_id:
-        cases = db.query(crud_testcase.TestCase).filter(
-            crud_testcase.TestCase.project_id == project_id
-        ).all()
-    else:
-        cases = db.query(crud_testcase.TestCase).all()
+        query = query.filter(crud_testcase.TestCase.project_id == project_id)
+    if sprint_id:
+        query = query.filter(crud_testcase.TestCase.sprint_id == sprint_id)
+    cases = query.all()
 
     if not cases:
         raise HTTPException(status_code=404, detail="没有可导出的测试用例")
@@ -186,6 +208,7 @@ def download_template(_=Depends(get_current_user)):
 async def import_testcases(
     file: UploadFile = File(...),
     project_id: int = Form(...),
+    sprint_id: int | None = Form(None),
     db: Session = Depends(get_db),
     _=Depends(get_current_user)
 ):
@@ -231,6 +254,8 @@ async def import_testcases(
                 if col_idx < len(row):
                     row_data[field_name] = str(row[col_idx] or '')
             rows.append(row_data)
+            if sprint_id:
+                row_data['sprint_id'] = sprint_id
 
     if not rows:
         raise HTTPException(status_code=400, detail="文件中没有有效数据")

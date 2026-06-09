@@ -142,7 +142,16 @@
         <div class="card-action" @click="openCreateFpDialog">添加功能点</div>
       </div>
       <el-table :data="featurePoints" style="width:100%" v-loading="fpLoading" empty-text="暂无功能点，点击「添加功能点」手动添加">
-        <el-table-column prop="name" label="功能点名称" min-width="200" show-overflow-tooltip />
+        <el-table-column prop="name" label="功能点名称" min-width="180" show-overflow-tooltip />
+        <el-table-column prop="description" label="描述" min-width="220" show-overflow-tooltip>
+          <template #default="{ row }">{{ row.description || '-' }}</template>
+        </el-table-column>
+        <el-table-column label="优先级" width="80">
+          <template #default="{ row }"><span :class="getPriorityClass(row.priority)">{{ row.priority || '中' }}</span></template>
+        </el-table-column>
+        <el-table-column label="来源" width="90">
+          <template #default="{ row }">{{ getSourceTypeText(row.source_type) }}</template>
+        </el-table-column>
         <el-table-column label="来源文档" width="160">
           <template #default="{ row }">
             <span v-if="row.source_doc_name" style="color:var(--accent);cursor:pointer" @click="goToPreview({id: row.source_doc_id})">{{ row.source_doc_name }}</span>
@@ -155,8 +164,8 @@
             <span v-else style="color:var(--color-text-tertiary)">-</span>
           </template>
         </el-table-column>
-        <el-table-column prop="linked_cases" label="关联用例" width="140">
-          <template #default="{ row }">{{ row.linked_cases || '-' }}</template>
+        <el-table-column label="覆盖用例" width="90">
+          <template #default="{ row }">{{ row.coverage_count || 0 }}</template>
         </el-table-column>
         <el-table-column label="创建时间" width="110">
           <template #default="{ row }">{{ formatDate(row.created_at) }}</template>
@@ -180,6 +189,10 @@
     <el-dialog v-model="createFpVisible" title="添加功能点" width="520px" destroy-on-close>
       <el-form :model="createFpForm" label-width="80px">
         <el-form-item label="名称"><el-input v-model="createFpForm.name" placeholder="请输入功能点名称" /></el-form-item>
+        <el-form-item label="描述"><el-input v-model="createFpForm.description" type="textarea" :rows="2" placeholder="请输入功能描述" /></el-form-item>
+        <el-form-item label="操作入口"><el-input v-model="createFpForm.entry_path" placeholder="如 系统管理 → 用户管理" /></el-form-item>
+        <el-form-item label="交互元素"><el-input v-model="createFpForm.interaction_elements" type="textarea" :rows="2" placeholder="表单字段、按钮、表格列等" /></el-form-item>
+        <el-form-item label="业务规则"><el-input v-model="createFpForm.business_rules" type="textarea" :rows="2" placeholder="必填、长度、权限、状态流转等" /></el-form-item>
         <el-form-item label="来源文档">
           <el-select v-model="createFpForm.source_doc_id" style="width:100%" placeholder="选择文档（可选）" clearable>
             <el-option v-for="d in documents" :key="d.id" :label="d.name" :value="d.id" />
@@ -191,7 +204,13 @@
               <el-option v-for="m in modules" :key="m.id" :label="m.name" :value="m.id" />
             </el-select>
           </el-form-item>
-          <el-form-item label="关联用例"><el-input v-model="createFpForm.linked_cases" placeholder="如 TC-001~TC-005" /></el-form-item>
+          <el-form-item label="优先级">
+            <el-select v-model="createFpForm.priority" style="width:100%">
+              <el-option label="高" value="高" />
+              <el-option label="中" value="中" />
+              <el-option label="低" value="低" />
+            </el-select>
+          </el-form-item>
         </div>
       </el-form>
       <template #footer>
@@ -204,6 +223,10 @@
     <el-dialog v-model="editFpVisible" title="编辑功能点" width="520px" destroy-on-close>
       <el-form :model="editFpForm" label-width="80px">
         <el-form-item label="名称"><el-input v-model="editFpForm.name" /></el-form-item>
+        <el-form-item label="描述"><el-input v-model="editFpForm.description" type="textarea" :rows="2" /></el-form-item>
+        <el-form-item label="操作入口"><el-input v-model="editFpForm.entry_path" /></el-form-item>
+        <el-form-item label="交互元素"><el-input v-model="editFpForm.interaction_elements" type="textarea" :rows="2" /></el-form-item>
+        <el-form-item label="业务规则"><el-input v-model="editFpForm.business_rules" type="textarea" :rows="2" /></el-form-item>
         <el-form-item label="来源文档">
           <el-select v-model="editFpForm.source_doc_id" style="width:100%" placeholder="选择文档（可选）" clearable>
             <el-option v-for="d in documents" :key="d.id" :label="d.name" :value="d.id" />
@@ -215,7 +238,13 @@
               <el-option v-for="m in modules" :key="m.id" :label="m.name" :value="m.id" />
             </el-select>
           </el-form-item>
-          <el-form-item label="关联用例"><el-input v-model="editFpForm.linked_cases" placeholder="如 TC-001~TC-005" /></el-form-item>
+          <el-form-item label="优先级">
+            <el-select v-model="editFpForm.priority" style="width:100%">
+              <el-option label="高" value="高" />
+              <el-option label="中" value="中" />
+              <el-option label="低" value="低" />
+            </el-select>
+          </el-form-item>
         </div>
       </el-form>
       <template #footer>
@@ -357,8 +386,30 @@ const featurePoints = ref([])
 const createFpVisible = ref(false)
 const editFpVisible = ref(false)
 const editFpId = ref(null)
-const createFpForm = reactive({ name: '', source_doc_id: null, module_id: null, linked_cases: '' })
-const editFpForm = reactive({ name: '', source_doc_id: null, module_id: null, linked_cases: '' })
+const createFpForm = reactive({
+  name: '',
+  description: '',
+  entry_path: '',
+  interaction_elements: '',
+  business_rules: '',
+  priority: '中',
+  source_doc_id: null,
+  module_id: null,
+  linked_cases: '',
+  source_type: 'manual',
+})
+const editFpForm = reactive({
+  name: '',
+  description: '',
+  entry_path: '',
+  interaction_elements: '',
+  business_rules: '',
+  priority: '中',
+  source_doc_id: null,
+  module_id: null,
+  linked_cases: '',
+  source_type: 'manual',
+})
 
 function formatDate(dateStr) {
   if (!dateStr) return '--'
@@ -382,6 +433,14 @@ function getAiStatusType(status) {
 
 function getParseStatusType(status) {
   return { '已解析': 'success', '解析中': 'warning', '解析失败': 'danger' }[status] || 'info'
+}
+
+function getPriorityClass(p) {
+  return { 高: 'badge badge-red', 中: 'badge badge-amber', 低: 'badge badge-blue' }[p] || 'badge badge-gray'
+}
+
+function getSourceTypeText(type) {
+  return { requirement: '需求', ui_explore: 'UI探索', api_doc: '接口', manual: '手工', ai_generated: 'AI生成' }[type] || '手工'
 }
 
 function getFileIconColor(type) {
@@ -509,7 +568,18 @@ async function loadFeaturePoints() {
 }
 
 function openCreateFpDialog() {
-  Object.assign(createFpForm, { name: '', source_doc_id: null, module_id: null, linked_cases: '' })
+  Object.assign(createFpForm, {
+    name: '',
+    description: '',
+    entry_path: '',
+    interaction_elements: '',
+    business_rules: '',
+    priority: '中',
+    source_doc_id: null,
+    module_id: null,
+    linked_cases: '',
+    source_type: 'manual',
+  })
   createFpVisible.value = true
 }
 
@@ -538,9 +608,15 @@ function handleEditFp(row) {
   editFpId.value = row.id
   Object.assign(editFpForm, {
     name: row.name,
+    description: row.description || '',
+    entry_path: row.entry_path || '',
+    interaction_elements: row.interaction_elements || '',
+    business_rules: row.business_rules || '',
+    priority: row.priority || '中',
     source_doc_id: row.source_doc_id,
     module_id: row.module_id,
     linked_cases: row.linked_cases || '',
+    source_type: row.source_type || 'manual',
   })
   editFpVisible.value = true
 }

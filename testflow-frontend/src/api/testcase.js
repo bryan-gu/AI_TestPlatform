@@ -1,7 +1,7 @@
 import request from '../utils/request'
 
-export function getTestCases(project, keyword) {
-  const params = {}
+export function getTestCases(project, keyword, filters = {}) {
+  const params = { ...filters }
   if (project) params.project = project
   if (keyword) params.keyword = keyword
   return request({ url: '/testcases', method: 'get', params })
@@ -29,11 +29,14 @@ export function batchExecuteTestCases(projectId) {
   return request({ url: '/testcases/batch-execute', method: 'post', params })
 }
 
-export function exportTestCases(projectId) {
+export function exportTestCases(projectId, sprintId) {
+  const params = {}
+  if (projectId) params.project_id = projectId
+  if (sprintId) params.sprint_id = sprintId
   return request({
     url: '/testcases/export',
     method: 'get',
-    params: projectId ? { project_id: projectId } : {},
+    params,
     responseType: 'blob',
     timeout: 60000
   }).catch(async err => {
@@ -67,10 +70,11 @@ export function downloadTemplate() {
   })
 }
 
-export function importTestCases(projectId, file) {
+export function importTestCases(projectId, file, sprintId) {
   const fd = new FormData()
   fd.append('file', file)
   fd.append('project_id', projectId)
+  if (sprintId) fd.append('sprint_id', sprintId)
   return request({
     url: '/testcases/import',
     method: 'post',

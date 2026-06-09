@@ -26,6 +26,9 @@ def get_feature_points(
         query = query.filter(
             or_(
                 FeaturePoint.name.ilike(f"%{keyword}%"),
+                FeaturePoint.description.ilike(f"%{keyword}%"),
+                FeaturePoint.entry_path.ilike(f"%{keyword}%"),
+                FeaturePoint.business_rules.ilike(f"%{keyword}%"),
                 FeaturePoint.linked_cases.ilike(f"%{keyword}%"),
             )
         )
@@ -39,10 +42,20 @@ def get_feature_point(db: Session, fp_id: int) -> FeaturePoint | None:
 def create_feature_point(db: Session, data: FeaturePointCreate) -> FeaturePoint:
     fp = FeaturePoint(
         name=data.name,
+        description=data.description,
+        entry_path=data.entry_path,
+        interaction_elements=data.interaction_elements,
+        business_rules=data.business_rules,
+        priority=data.priority,
         source_doc_id=data.source_doc_id,
         sprint_id=data.sprint_id,
         module_id=data.module_id,
         linked_cases=data.linked_cases,
+        source_type=data.source_type,
+        status=data.status,
+        version=data.version,
+        fingerprint=data.fingerprint,
+        raw_data=data.raw_data,
     )
     db.add(fp)
     db.commit()
@@ -53,6 +66,16 @@ def create_feature_point(db: Session, data: FeaturePointCreate) -> FeaturePoint:
 def update_feature_point(db: Session, fp: FeaturePoint, data: FeaturePointUpdate) -> FeaturePoint:
     if data.name is not None:
         fp.name = data.name
+    if data.description is not None:
+        fp.description = data.description
+    if data.entry_path is not None:
+        fp.entry_path = data.entry_path
+    if data.interaction_elements is not None:
+        fp.interaction_elements = data.interaction_elements
+    if data.business_rules is not None:
+        fp.business_rules = data.business_rules
+    if data.priority is not None:
+        fp.priority = data.priority
     if data.source_doc_id is not None:
         fp.source_doc_id = data.source_doc_id
     if data.sprint_id is not None:
@@ -61,6 +84,16 @@ def update_feature_point(db: Session, fp: FeaturePoint, data: FeaturePointUpdate
         fp.module_id = data.module_id
     if data.linked_cases is not None:
         fp.linked_cases = data.linked_cases
+    if data.source_type is not None:
+        fp.source_type = data.source_type
+    if data.status is not None:
+        fp.status = data.status
+    if data.version is not None:
+        fp.version = data.version
+    if data.fingerprint is not None:
+        fp.fingerprint = data.fingerprint
+    if data.raw_data is not None:
+        fp.raw_data = data.raw_data
     db.commit()
     db.refresh(fp)
     return fp
@@ -79,7 +112,12 @@ def get_feature_point_count(db: Session, sprint_id: int | None = None) -> int:
     return query.count()
 
 
-def get_source_doc_name(db: Session, doc_id: int | None) -> str:
+def get_coverage_count(db: Session, feature_point_id: int) -> int:
+    from app.models.coverage import FeaturePointTestCase
+    return db.query(FeaturePointTestCase).filter(
+        FeaturePointTestCase.feature_point_id == feature_point_id
+    ).count()
+
     if not doc_id:
         return ""
     doc = db.query(Document).filter(Document.id == doc_id).first()

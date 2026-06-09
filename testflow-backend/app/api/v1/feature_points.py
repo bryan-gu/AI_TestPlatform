@@ -15,15 +15,27 @@ def _to_out(fp, db: Session) -> dict:
     return FeaturePointOut(
         id=fp.id,
         name=fp.name,
+        description=fp.description or "",
+        entry_path=fp.entry_path or "",
+        interaction_elements=fp.interaction_elements or "",
+        business_rules=fp.business_rules or "",
+        priority=fp.priority or "中",
         source_doc_id=fp.source_doc_id,
         sprint_id=fp.sprint_id,
         module_id=fp.module_id,
         linked_cases=fp.linked_cases or "",
         graph_node_id=fp.graph_node_id,
+        source_type=fp.source_type or "manual",
+        status=fp.status or "active",
+        version=fp.version or "v1.0",
+        fingerprint=fp.fingerprint or "",
+        raw_data=fp.raw_data or {},
         created_at=fp.created_at,
+        updated_at=fp.updated_at,
         source_doc_name=crud_feature_point.get_source_doc_name(db, fp.source_doc_id),
         sprint_name=crud_feature_point.get_sprint_name(db, fp.sprint_id),
         module_name=crud_feature_point.get_module_name(db, fp.module_id),
+        coverage_count=crud_feature_point.get_coverage_count(db, fp.id),
     ).model_dump()
 
 

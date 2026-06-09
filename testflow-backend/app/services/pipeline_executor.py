@@ -14,6 +14,7 @@
 
 import json
 import re
+import hashlib
 import logging
 from datetime import datetime
 
@@ -24,6 +25,7 @@ from app.models.pipeline import PipelineExecution, PipelineStage
 from app.models.document import Document
 from app.models.module import Module
 from app.models.feature_point import FeaturePoint
+from app.models.coverage import FeaturePointTestCase
 from app.models.testcase import TestCase
 from app.models.project import Project
 from app.services.llm_adapter import LLMAdapter
@@ -190,9 +192,21 @@ class PipelineExecutor:
                 # 写入 FeaturePoint 表
                 fp = FeaturePoint(
                     name=feat_name,
+                    description=feat_data.get("description") or "",
+                    entry_path=feat_data.get("entry") or "",
+                    interaction_elements=feat_data.get("elements") or "",
+                    business_rules=feat_data.get("rules") or "",
+                    priority=feat_data.get("priority") or "中",
                     sprint_id=execution.sprint_id,
                     module_id=module.id,
                     source_doc_id=source_doc_id,
+                    source_type="requirement",
+                    status="active",
+                    version="v1.0",
+                    fingerprint=self._build_feature_fingerprint(
+                        project_id, module.name, feat_name, feat_data.get("rules", "")
+                    ),
+                    raw_data=feat_data,
                 )
                 db.add(fp)
                 feature_count += 1
@@ -292,6 +306,11 @@ class PipelineExecutor:
             fps_for_prompt.append({
                 "name": fp.name,
                 "module_name": mod.name if mod else "默认模块",
+                "description": fp.description or "文档未提及",
+                "entry": fp.entry_path or "文档未提及",
+                "elements": fp.interaction_elements or "文档未提及",
+                "rules": fp.business_rules or "文档未提及",
+                "priority": fp.priority or "中",
             })
 
         prompt = build_stage2_prompt(
@@ -332,6 +351,7 @@ class PipelineExecutor:
         # 6. 写入 TestCase 表 + 文件
         case_count = 0
         cases_by_module = {}  # 用于 Excel 生成
+        created_cases = []
         artifact_mgr = ArtifactManager(db, sprint_id) if sprint_id else None
 
         for case_data in cases_data:
@@ -353,14 +373,24 @@ class PipelineExecutor:
                 priority=self._map_priority(case_data.get("priority", "")),
                 exec_status="待执行",
                 project_id=project_id,
+                sprint_id=sprint_id,
                 module_id=module_id,
                 module=case_module_name,
+                case_type="ui",
+                automation_status="not_generated",
+                automation_path="",
+                selector_path="",
+                source="ai_generated",
+                version="v1.0",
+                fingerprint=self._build_testcase_fingerprint(project_id, case_id_str, case_title),
+                raw_data=case_data,
                 preconditions=case_data.get("precondition", ""),
                 test_data=case_data.get("test_data", ""),
                 test_steps=case_data.get("steps", ""),
                 expected_result=case_data.get("expected", ""),
             )
             db.add(tc)
+            created_cases.append((tc, module_id))
             case_count += 1
 
             # 按模块分组（用于 Excel）
@@ -369,6 +399,8 @@ class PipelineExecutor:
             cases_by_module[case_module_name].append(case_data)
 
         db.commit()
+
+        coverage_count = self._create_initial_coverages(db, feature_points, created_cases)
 
         # 保存 cases.json 文件（每个模块一个）
         if artifact_mgr:
@@ -395,6 +427,7 @@ class PipelineExecutor:
         stage.result_summary = {
             "生成用例": case_count,
             "覆盖模块": len(cases_by_module),
+            "覆盖关系": coverage_count,
             "各模块用例数": module_case_counts,
         }
         db.commit()
@@ -442,6 +475,61 @@ class PipelineExecutor:
             parts.append("")
 
         return "\n".join(parts)
+
+    def _build_feature_fingerprint(
+        self,
+        project_id: int | None,
+        module_name: str,
+        feature_name: str,
+        rules: str,
+    ) -> str:
+        raw = f"{project_id or ''}|{module_name}|{feature_name}|{rules}".lower().strip()
+        normalized = re.sub(r"\s+", "", raw)
+        return hashlib.sha256(normalized.encode("utf-8")).hexdigest()
+
+    def _build_testcase_fingerprint(
+        self,
+        project_id: int | None,
+        case_no: str,
+        title: str,
+    ) -> str:
+        raw = f"{project_id or ''}|{case_no}|{title}".lower().strip()
+        normalized = re.sub(r"\s+", "", raw)
+        return hashlib.sha256(normalized.encode("utf-8")).hexdigest()
+
+    def _create_initial_coverages(self, db, feature_points: list[FeaturePoint], created_cases: list[tuple]) -> int:
+        coverage_count = 0
+        for case, module_id in created_cases:
+            matched = False
+            searchable = " ".join([
+                case.title or "",
+                case.expected_result or "",
+                case.test_steps or "",
+            ])
+            for fp in feature_points:
+                if fp.module_id != module_id:
+                    continue
+                confidence = 60
+                evidence = "同模块保守关联"
+                if fp.name and fp.name in searchable:
+                    confidence = 90
+                    evidence = "用例标题、步骤或预期中匹配功能点名称"
+                coverage = FeaturePointTestCase(
+                    feature_point_id=fp.id,
+                    testcase_id=case.id,
+                    coverage_type="functional",
+                    confidence=confidence,
+                    evidence=evidence,
+                )
+                db.add(coverage)
+                coverage_count += 1
+                matched = True
+                if confidence >= 90:
+                    break
+            if not matched and module_id:
+                logger.info("未找到可关联的功能点，用例 %s 暂不创建覆盖关系", case.case_no)
+        db.commit()
+        return coverage_count
 
     def _get_or_create_module(self, db, project_id: int | None,
                                name: str, code: str) -> Module:

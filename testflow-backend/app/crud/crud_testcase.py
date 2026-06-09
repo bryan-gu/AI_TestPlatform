@@ -59,7 +59,14 @@ def _generate_case_no(db: Session, project_id: int, module_str: str, module_id: 
     return f"{prefix}_TC_{module_code}_{seq:03d}"
 
 
-def get_testcases(db: Session, project: str | None = None, keyword: str | None = None) -> list[TestCase]:
+def get_testcases(
+    db: Session,
+    project: str | None = None,
+    keyword: str | None = None,
+    sprint_id: int | None = None,
+    module_id: int | None = None,
+    case_type: str | None = None,
+) -> list[TestCase]:
     query = db.query(TestCase)
     if project:
         proj = db.query(Project).filter(Project.name == project).first()
@@ -72,6 +79,12 @@ def get_testcases(db: Session, project: str | None = None, keyword: str | None =
                 TestCase.title.ilike(f"%{keyword}%")
             )
         )
+    if sprint_id:
+        query = query.filter(TestCase.sprint_id == sprint_id)
+    if module_id:
+        query = query.filter(TestCase.module_id == module_id)
+    if case_type:
+        query = query.filter(TestCase.case_type == case_type)
     return query.all()
 
 
@@ -99,8 +112,17 @@ def create_testcase(db: Session, data: TestCaseCreate) -> TestCase:
         exec_status=data.exec_status,
         executor_id=data.executor_id,
         project_id=project_id,
+        sprint_id=data.sprint_id,
         module_id=module_id,
         module=module_str,
+        case_type=data.case_type,
+        automation_status=data.automation_status,
+        automation_path=data.automation_path,
+        selector_path=data.selector_path,
+        source=data.source,
+        version=data.version,
+        fingerprint=data.fingerprint,
+        raw_data=data.raw_data,
         preconditions=data.preconditions,
         test_data=data.test_data,
         test_steps=data.test_steps,
@@ -121,6 +143,8 @@ def update_testcase(db: Session, case: TestCase, data: TestCaseUpdate) -> TestCa
         case.exec_status = data.exec_status
     if data.executor_id is not None:
         case.executor_id = data.executor_id
+    if data.sprint_id is not None:
+        case.sprint_id = data.sprint_id
     if data.module_id is not None:
         case.module_id = data.module_id
         # 自动同步 module 字符串
@@ -138,6 +162,22 @@ def update_testcase(db: Session, case: TestCase, data: TestCaseUpdate) -> TestCa
         case.expected_result = data.expected_result
     if data.actual_result is not None:
         case.actual_result = data.actual_result
+    if data.case_type is not None:
+        case.case_type = data.case_type
+    if data.automation_status is not None:
+        case.automation_status = data.automation_status
+    if data.automation_path is not None:
+        case.automation_path = data.automation_path
+    if data.selector_path is not None:
+        case.selector_path = data.selector_path
+    if data.source is not None:
+        case.source = data.source
+    if data.version is not None:
+        case.version = data.version
+    if data.fingerprint is not None:
+        case.fingerprint = data.fingerprint
+    if data.raw_data is not None:
+        case.raw_data = data.raw_data
     db.commit()
     db.refresh(case)
     return case
@@ -258,6 +298,8 @@ def import_testcases(db: Session, project_id: int, rows: list[dict]) -> dict:
             existing.expected_result = row.get('expected_result', '') or ''
             if row.get('actual_result'):
                 existing.actual_result = row['actual_result']
+            if row.get('sprint_id'):
+                existing.sprint_id = row['sprint_id']
             updated += 1
         else:
             # 新建用例
@@ -265,9 +307,18 @@ def import_testcases(db: Session, project_id: int, rows: list[dict]) -> dict:
             case = TestCase(
                 case_no=case_no,
                 project_id=project_id,
+                sprint_id=row.get('sprint_id'),
                 module_id=module_id,
                 module=module_str,
                 title=title,
+                case_type=row.get('case_type', 'ui'),
+                source=row.get('source', 'manual'),
+                automation_status=row.get('automation_status', 'not_generated'),
+                automation_path=row.get('automation_path', ''),
+                selector_path=row.get('selector_path', ''),
+                version=row.get('version', 'v1.0'),
+                fingerprint=row.get('fingerprint', ''),
+                raw_data=row.get('raw_data', {}),
                 preconditions=row.get('preconditions', ''),
                 test_data=row.get('test_data', ''),
                 test_steps=row.get('test_steps', ''),
@@ -293,6 +344,21 @@ def get_executor_name(db: Session, executor_id: int | None) -> str:
         return ""
     user = db.query(User).filter(User.id == executor_id).first()
     return user.name if user else ""
+
+
+def get_sprint_name(db: Session, sprint_id: int | None) -> str:
+    if not sprint_id:
+        return ""
+    from app.models.sprint import Sprint
+    sprint = db.query(Sprint).filter(Sprint.id == sprint_id).first()
+    return sprint.name if sprint else ""
+
+
+def get_coverage_count(db: Session, testcase_id: int) -> int:
+    from app.models.coverage import FeaturePointTestCase
+    return db.query(FeaturePointTestCase).filter(
+        FeaturePointTestCase.testcase_id == testcase_id
+    ).count()
 
 
 def get_project_name(db: Session, project_id: int | None) -> str:

@@ -11,8 +11,11 @@
       <div class="card-head">
         <div class="card-title">测试用例列表</div>
         <div style="display:flex;gap:8px">
-          <el-select v-model="selectedProject" placeholder="全部项目" size="small" style="width: 150px" clearable @change="loadCases">
+          <el-select v-model="selectedProject" placeholder="全部项目" size="small" style="width: 150px" clearable @change="handleProjectFilterChange">
             <el-option v-for="p in projectOptions" :key="p.id" :label="p.name" :value="p.name" />
+          </el-select>
+          <el-select v-model="selectedSprintId" placeholder="全部 Sprint" size="small" style="width: 150px" clearable @change="loadCases">
+            <el-option v-for="s in sprintOptions" :key="s.id" :label="s.name" :value="s.id" />
           </el-select>
           <el-button type="primary" size="small" @click="handleBatchExecute" :loading="batchExecuting">
             <el-icon><VideoPlay /></el-icon>批量执行
@@ -64,6 +67,9 @@
           </template>
         </el-table-column>
         <el-table-column prop="title" label="用例标题" min-width="250" show-overflow-tooltip />
+        <el-table-column label="Sprint" width="120"><template #default="{ row }">{{ row.sprint_name || '-' }}</template></el-table-column>
+        <el-table-column label="来源" width="90"><template #default="{ row }">{{ getSourceText(row.source) }}</template></el-table-column>
+        <el-table-column label="自动化" width="100"><template #default="{ row }"><el-tag :type="getAutomationStatusType(row.automation_status)" size="small">{{ getAutomationStatusText(row.automation_status) }}</el-tag></template></el-table-column>
         <el-table-column label="优先级" width="80"><template #default="{ row }"><span :class="getPriorityClass(row.priority)">{{ row.priority }}</span></template></el-table-column>
         <el-table-column label="执行状态" width="100"><template #default="{ row }"><el-tag :type="getExecStatusType(row.exec_status)" size="small">{{ row.exec_status }}</el-tag></template></el-table-column>
         <el-table-column prop="executor" label="执行人" width="80"><template #default="{ row }">{{ row.executor || '-' }}</template></el-table-column>
@@ -120,8 +126,13 @@
     <el-dialog v-model="importVisible" title="导入测试用例" width="480px" destroy-on-close>
       <el-form label-width="80px">
         <el-form-item label="目标项目" required>
-          <el-select v-model="importProjectId" placeholder="请选择项目" style="width: 100%">
+          <el-select v-model="importProjectId" placeholder="请选择项目" style="width: 100%" @change="handleImportProjectChange">
             <el-option v-for="p in projectOptions" :key="p.id" :label="p.name" :value="p.id" />
+          </el-select>
+        </el-form-item>
+        <el-form-item label="Sprint">
+          <el-select v-model="importSprintId" placeholder="可选，导入到指定 Sprint" style="width: 100%" clearable>
+            <el-option v-for="s in importSprintOptions" :key="s.id" :label="s.name" :value="s.id" />
           </el-select>
         </el-form-item>
         <el-form-item label="选择文件" required>
@@ -153,7 +164,7 @@ import { Edit, Delete, VideoPlay, Download, Upload } from '@element-plus/icons-v
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { getTestCases, getTestCaseStats, createTestCase, updateTestCase, deleteTestCase, batchExecuteTestCases, exportTestCases, downloadTemplate, importTestCases } from '../../api/testcase'
 import { getProjects } from '../../api/project'
-import { getModules } from '../../api/sprint'
+import { getModules, getSprints } from '../../api/sprint'
 
 const appStore = useAppStore()
 const loading = ref(false)
@@ -165,11 +176,15 @@ const downloading = ref(false)
 const importing = ref(false)
 const importVisible = ref(false)
 const importProjectId = ref(null)
+const importSprintId = ref(null)
+const importSprintOptions = ref([])
 const importFile = ref(null)
 const importUploadRef = ref(null)
 const stats = ref({ total: 0, projectCount: 0, passed: 0, passRate: 0, failed: 0, pending: 0 })
 const selectedProject = ref('')
+const selectedSprintId = ref(null)
 const projectOptions = ref([])
+const sprintOptions = ref([])
 const testCases = ref([])
 const createModuleOptions = ref([])
 const editModuleOptions = ref([])
@@ -182,6 +197,9 @@ const editForm = reactive({ title: '', priority: '', exec_status: '', module_id:
 
 function getPriorityClass(p) { return { 高: 'badge badge-red', 中: 'badge badge-amber', 低: 'badge badge-blue' }[p] || 'badge badge-gray' }
 function getExecStatusType(s) { return { 通过: 'success', 失败: 'danger', 执行中: 'warning', 待执行: 'info' }[s] || 'info' }
+function getSourceText(s) { return { manual: '手工', ai_generated: 'AI生成', imported: '导入', skill_generated: 'SKILL' }[s] || '手工' }
+function getAutomationStatusText(s) { return { not_generated: '未生成', generated: '已生成', validated: '已验证', executed: '已执行', healed: '已自愈', failed: '失败' }[s] || '未生成' }
+function getAutomationStatusType(s) { return { not_generated: 'info', generated: 'warning', validated: 'success', executed: 'success', healed: 'success', failed: 'danger' }[s] || 'info' }
 function formatDate(d) { return d ? d.split('T')[0] : '' }
 
 async function handleBatchExecute() {
@@ -201,6 +219,22 @@ async function handleBatchExecute() {
     ElMessage.error('批量执行失败')
   } finally {
     batchExecuting.value = false
+  }
+}
+
+async function handleProjectFilterChange() {
+  selectedSprintId.value = null
+  await loadSprintOptions()
+  await loadCases()
+}
+
+async function loadSprintOptions() {
+  try {
+    const proj = selectedProject.value ? projectOptions.value.find(p => p.name === selectedProject.value) : null
+    const res = await getSprints(proj?.id ? { project_id: proj.id } : {})
+    sprintOptions.value = res.data || []
+  } catch (e) {
+    sprintOptions.value = []
   }
 }
 
@@ -253,7 +287,7 @@ async function handleExport() {
       const proj = projectOptions.value.find(p => p.name === selectedProject.value)
       if (proj) projectId = proj.id
     }
-    const res = await exportTestCases(projectId)
+    const res = await exportTestCases(projectId, selectedSprintId.value)
     _triggerBlobDownload(res, 'testcases.xlsx')
     ElMessage.success('导出成功')
   } catch (e) { /* 拦截器已展示错误 */ } finally {
@@ -274,13 +308,28 @@ async function handleDownloadTemplate() {
 
 function openImportDialog() {
   importProjectId.value = null
+  importSprintId.value = null
+  importSprintOptions.value = []
   importFile.value = null
   // 如果当前已选择项目，自动填入
   if (selectedProject.value) {
     const proj = projectOptions.value.find(p => p.name === selectedProject.value)
-    if (proj) importProjectId.value = proj.id
+    if (proj) {
+      importProjectId.value = proj.id
+      handleImportProjectChange(proj.id)
+    }
   }
   importVisible.value = true
+}
+
+async function handleImportProjectChange(projectId) {
+  importSprintId.value = null
+  try {
+    const res = await getSprints(projectId ? { project_id: projectId } : {})
+    importSprintOptions.value = res.data || []
+  } catch (e) {
+    importSprintOptions.value = []
+  }
 }
 
 function handleFileChange(file) {
@@ -302,7 +351,7 @@ async function handleImport() {
   }
   importing.value = true
   try {
-    const res = await importTestCases(importProjectId.value, importFile.value)
+    const res = await importTestCases(importProjectId.value, importFile.value, importSprintId.value)
     const data = res.data
     if (data.fail_count > 0) {
       const errorList = data.errors.map(e => `第 ${e.row} 行: ${e.reason}`).join('\n')
@@ -327,7 +376,8 @@ async function loadCases() {
   loading.value = true
   try {
     const keyword = appStore.searchKeyword?.trim() || undefined
-    testCases.value = (await getTestCases(selectedProject.value || undefined, keyword)).data
+    const filters = selectedSprintId.value ? { sprint_id: selectedSprintId.value } : {}
+    testCases.value = (await getTestCases(selectedProject.value || undefined, keyword, filters)).data
   } catch (e) { console.error(e) } finally { loading.value = false }
 }
 
@@ -400,6 +450,7 @@ onMounted(async () => {
     if (casesRes.status === 'fulfilled') testCases.value = casesRes.value.data
     if (statsRes.status === 'fulfilled') stats.value = statsRes.value.data
     if (projRes.status === 'fulfilled') projectOptions.value = projRes.value.data
+    await loadSprintOptions()
   } catch (e) { console.error(e) } finally { loading.value = false }
 })
 </script>
