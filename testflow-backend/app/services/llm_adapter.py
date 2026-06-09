@@ -59,6 +59,8 @@ class LLMAdapter:
         # 3. 读取全局配置
         timeout = self._get_global_config("timeout", 120, as_int=True)
         retries = self._get_global_config("retries", 3, as_int=True)
+        # max_tokens: Provider 级 > 全局配置 > 默认 16384
+        # 不建议设为 128K（那是总上下文窗口，max_tokens 只控制输出长度）
         max_tokens = provider.max_tokens or self._get_global_config("max_tokens", 16384, as_int=True)
 
         # 4. 限制 prompt 摘要长度用于日志

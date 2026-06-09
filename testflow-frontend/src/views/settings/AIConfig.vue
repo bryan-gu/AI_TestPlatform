@@ -176,7 +176,17 @@
           <el-input v-model="providerForm.model" placeholder="例如：gpt-4o" />
         </el-form-item>
         <el-form-item label="API Key">
-          <el-input v-model="providerForm.api_key" :placeholder="isEditProvider ? '留空则不修改' : '请输入 API Key'" show-password />
+          <div style="display:flex;gap:8px;width:100%">
+            <el-input
+              v-model="providerForm.api_key"
+              :placeholder="isEditProvider ? '点击右侧按钮输入新 Key' : '请输入 API Key'"
+              :readonly="isEditProvider && !apiKeyEditing"
+              style="flex:1"
+            />
+            <el-button v-if="isEditProvider" :type="apiKeyEditing ? 'danger' : 'primary'" plain size="small" @click="toggleApiKeyEdit">
+              {{ apiKeyEditing ? '取消' : '修改 Key' }}
+            </el-button>
+          </div>
         </el-form-item>
         <el-form-item label="自定义端点">
           <el-input v-model="providerForm.endpoint_url" placeholder="可选，留空使用默认端点" />
@@ -272,6 +282,7 @@ const providers = ref([])
 const providerEditVisible = ref(false)
 const isEditProvider = ref(false)
 const editProviderId = ref(null)
+const apiKeyEditing = ref(false)
 const providerForm = reactive({
   provider_type: 'OpenAI',
   name: '',
@@ -402,6 +413,7 @@ async function loadCallLogs() {
 function handleAddProvider() {
   isEditProvider.value = false
   editProviderId.value = null
+  apiKeyEditing.value = false
   Object.assign(providerForm, {
     provider_type: 'OpenAI', name: '', model: '', api_key: '',
     endpoint_url: '', max_tokens: 4096,
@@ -412,15 +424,29 @@ function handleAddProvider() {
 function handleEditProvider(row) {
   isEditProvider.value = true
   editProviderId.value = row.id
+  apiKeyEditing.value = false
   Object.assign(providerForm, {
     provider_type: row.provider_type,
     name: row.name,
     model: row.model,
-    api_key: '',  // 不回显 API Key
+    api_key: row.api_key_masked,  // 显示脱敏值
     endpoint_url: row.endpoint_url || '',
     max_tokens: row.max_tokens ?? 4096,
   })
   providerEditVisible.value = true
+}
+
+function toggleApiKeyEdit() {
+  if (apiKeyEditing.value) {
+    // 取消 — 恢复脱敏值
+    const provider = providers.value.find(p => p.id === editProviderId.value)
+    providerForm.api_key = provider?.api_key_masked || ''
+    apiKeyEditing.value = false
+  } else {
+    // 开始编辑 — 清空让用户输入新 Key
+    providerForm.api_key = ''
+    apiKeyEditing.value = true
+  }
 }
 
 async function handleSaveProvider() {
@@ -442,7 +468,8 @@ async function handleSaveProvider() {
         endpoint_url: providerForm.endpoint_url || null,
         max_tokens: providerForm.max_tokens,
       }
-      if (providerForm.api_key.trim()) {
+      // 只有用户主动修改了 API Key（非脱敏值）才提交
+      if (apiKeyEditing.value && providerForm.api_key.trim()) {
         data.api_key = providerForm.api_key
       }
       await updateProvider(editProviderId.value, data)
