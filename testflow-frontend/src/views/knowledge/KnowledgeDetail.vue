@@ -144,7 +144,7 @@
         </div>
         <div class="card-action" @click="openCreateFpDialog">添加功能点</div>
       </div>
-      <el-table :data="featurePoints" style="width:100%" v-loading="fpLoading" empty-text=" ">
+      <el-table :data="featurePoints" style="width:100%" v-loading="fpLoading" empty-text="暂无功能点，点击「添加功能点」手动添加">
         <el-table-column prop="name" label="功能点名称" min-width="200" show-overflow-tooltip />
         <el-table-column label="来源文档" width="160">
           <template #default="{ row }">
@@ -177,9 +177,6 @@
           </template>
         </el-table-column>
       </el-table>
-      <div v-if="!fpLoading && featurePoints.length === 0" style="text-align:center;padding:40px;color:var(--color-text-tertiary)">
-        暂无功能点，点击"添加功能点"手动添加
-      </div>
     </div>
 
     <!-- 新建功能点对话框 -->
