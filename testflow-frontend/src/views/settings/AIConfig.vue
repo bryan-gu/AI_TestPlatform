@@ -176,17 +176,12 @@
           <el-input v-model="providerForm.model" placeholder="例如：gpt-4o" />
         </el-form-item>
         <el-form-item label="API Key">
-          <div style="display:flex;gap:8px;width:100%">
-            <el-input
-              v-model="providerForm.api_key"
-              :placeholder="isEditProvider ? '点击右侧按钮输入新 Key' : '请输入 API Key'"
-              :readonly="isEditProvider && !apiKeyEditing"
-              style="flex:1"
-            />
-            <el-button v-if="isEditProvider" :type="apiKeyEditing ? 'danger' : 'primary'" plain size="small" @click="toggleApiKeyEdit">
-              {{ apiKeyEditing ? '取消' : '修改 Key' }}
-            </el-button>
-          </div>
+          <el-input
+            v-model="providerForm.api_key"
+            :placeholder="apiKeyPlaceholder"
+            @focus="handleApiKeyFocus"
+            @blur="handleApiKeyBlur"
+          />
         </el-form-item>
         <el-form-item label="自定义端点">
           <el-input v-model="providerForm.endpoint_url" placeholder="可选，留空使用默认端点" />
@@ -282,7 +277,6 @@ const providers = ref([])
 const providerEditVisible = ref(false)
 const isEditProvider = ref(false)
 const editProviderId = ref(null)
-const apiKeyEditing = ref(false)
 const providerForm = reactive({
   provider_type: 'OpenAI',
   name: '',
@@ -312,6 +306,30 @@ const globalParamsEditTitle = computed(() => globalParamsEditGroup.value === 'ta
 const callLogs = ref([])
 const logFilterProvider = ref('')
 const logFilterStatus = ref('')
+
+// API Key 编辑状态
+const editProviderMaskedKey = ref('')  // 记住脱敏值，用于 blur 恢复
+const apiKeyFocused = ref(false)
+const apiKeyPlaceholder = computed(() => {
+  if (!isEditProvider.value) return '请输入 API Key'
+  return apiKeyFocused.value ? '输入新 Key 覆盖原值' : ''
+})
+
+function handleApiKeyFocus() {
+  if (!isEditProvider.value) return
+  apiKeyFocused.value = true
+  // 聚焦时清空脱敏值，让用户输入新 Key
+  providerForm.api_key = ''
+}
+
+function handleApiKeyBlur() {
+  if (!isEditProvider.value) return
+  apiKeyFocused.value = false
+  // 如果用户没输入任何内容，恢复脱敏值
+  if (!providerForm.api_key.trim()) {
+    providerForm.api_key = editProviderMaskedKey.value
+  }
+}
 
 // ============ 格式化工具 ============
 
@@ -413,7 +431,6 @@ async function loadCallLogs() {
 function handleAddProvider() {
   isEditProvider.value = false
   editProviderId.value = null
-  apiKeyEditing.value = false
   Object.assign(providerForm, {
     provider_type: 'OpenAI', name: '', model: '', api_key: '',
     endpoint_url: '', max_tokens: 4096,
@@ -424,7 +441,8 @@ function handleAddProvider() {
 function handleEditProvider(row) {
   isEditProvider.value = true
   editProviderId.value = row.id
-  apiKeyEditing.value = false
+  editProviderMaskedKey.value = row.api_key_masked || ''
+  apiKeyFocused.value = false
   Object.assign(providerForm, {
     provider_type: row.provider_type,
     name: row.name,
@@ -434,19 +452,6 @@ function handleEditProvider(row) {
     max_tokens: row.max_tokens ?? 4096,
   })
   providerEditVisible.value = true
-}
-
-function toggleApiKeyEdit() {
-  if (apiKeyEditing.value) {
-    // 取消 — 恢复脱敏值
-    const provider = providers.value.find(p => p.id === editProviderId.value)
-    providerForm.api_key = provider?.api_key_masked || ''
-    apiKeyEditing.value = false
-  } else {
-    // 开始编辑 — 清空让用户输入新 Key
-    providerForm.api_key = ''
-    apiKeyEditing.value = true
-  }
 }
 
 async function handleSaveProvider() {
@@ -468,8 +473,8 @@ async function handleSaveProvider() {
         endpoint_url: providerForm.endpoint_url || null,
         max_tokens: providerForm.max_tokens,
       }
-      // 只有用户主动修改了 API Key（非脱敏值）才提交
-      if (apiKeyEditing.value && providerForm.api_key.trim()) {
+      // 只有用户输入了新 Key（与脱敏值不同）才提交
+      if (providerForm.api_key.trim() && providerForm.api_key !== editProviderMaskedKey.value) {
         data.api_key = providerForm.api_key
       }
       await updateProvider(editProviderId.value, data)
