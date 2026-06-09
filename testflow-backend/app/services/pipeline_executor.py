@@ -68,6 +68,7 @@ class PipelineExecutor:
                         document_content=document_content,
                     )
                 except Exception as e:
+                    db.rollback()  # 恢复 Session 状态，避免 PendingRollbackError
                     logger.exception(f"Stage {stage.stage_no} failed: {e}")
                     stage.status = "failed"
                     stage.result_summary = {"error": str(e)}
@@ -435,24 +436,34 @@ class PipelineExecutor:
 
     def _get_or_create_module(self, db, project_id: int | None,
                                name: str, code: str) -> Module:
-        """获取或创建 Module"""
-        # 先按项目+名称查找
+        """获取或创建 Module（同时按 name 和 code 匹配，防止唯一约束冲突）"""
+        code = code.strip().upper() if code else ""
         query = db.query(Module)
         if project_id:
             query = query.filter(Module.project_id == project_id)
+
+        # 先按名称查找
         module = query.filter(Module.name == name).first()
+
+        # 名称没找到，再按 code 查找（LLM 可能给不同名称但相同 code）
+        if not module and code:
+            from sqlalchemy import or_
+            module = db.query(Module).filter(
+                Module.project_id == (project_id or None),
+                or_(Module.code == code, Module.name == name)
+            ).first()
 
         if module:
             # 更新 code（如果原来没有）
             if code and not module.code:
-                module.code = code.strip().upper()
+                module.code = code
                 db.commit()
             return module
 
         # 创建新 Module
         module = Module(
             name=name,
-            code=code.strip().upper() if code else "",
+            code=code,
             project_id=project_id,
             color="",
         )
