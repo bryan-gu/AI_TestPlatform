@@ -134,28 +134,27 @@
         </div>
       </div>
       <el-table :data="callLogs" style="width:100%" v-loading="logLoading">
-        <el-table-column label="时间" width="180">
+        <el-table-column label="时间" min-width="170">
           <template #default="{ row }">
             <span class="mono-text">{{ formatDateTime(row.created_at) }}</span>
           </template>
         </el-table-column>
-        <el-table-column prop="task_type" label="任务类型" width="140" />
-        <el-table-column prop="model" label="模型" width="150" />
-        <el-table-column label="输入 Token" width="100">
+        <el-table-column prop="task_type" label="任务类型" min-width="120" />
+        <el-table-column prop="model" label="模型" min-width="130" />
+        <el-table-column label="输入 Token" min-width="100">
           <template #default="{ row }"><span class="mono-text">{{ row.input_tokens?.toLocaleString() }}</span></template>
         </el-table-column>
-        <el-table-column label="输出 Token" width="100">
+        <el-table-column label="输出 Token" min-width="100">
           <template #default="{ row }"><span class="mono-text">{{ row.output_tokens?.toLocaleString() }}</span></template>
         </el-table-column>
-        <el-table-column label="耗时" width="80">
+        <el-table-column label="耗时" min-width="80">
           <template #default="{ row }"><span class="mono-text">{{ row.duration_ms ? (row.duration_ms / 1000).toFixed(1) + 's' : '--' }}</span></template>
         </el-table-column>
-        <el-table-column label="状态" width="80">
+        <el-table-column label="状态" min-width="80">
           <template #default="{ row }">
             <el-tag :type="logStatusType(row.status)" size="small" effect="plain" round>{{ row.status }}</el-tag>
           </template>
         </el-table-column>
-        <el-table-column prop="request_summary" label="请求摘要" min-width="200" show-overflow-tooltip />
       </el-table>
     </div>
 
