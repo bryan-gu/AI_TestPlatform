@@ -43,7 +43,7 @@
           <div class="card-action" @click="openModuleManager">管理模块标签</div>
         </div>
       </div>
-      <el-table :data="documents" style="width:100%" @row-click="goToPreview" v-loading="loading">
+      <el-table :data="documents" style="width:100%" @row-click="goToPreview" v-loading="loading" empty-text="暂无文档，点击「上传文档」添加">
         <el-table-column label="文档名称" min-width="240">
           <template #default="{ row }">
             <div style="display:flex;align-items:center;gap:8px">
@@ -95,9 +95,6 @@
           </template>
         </el-table-column>
       </el-table>
-      <div v-if="!loading && documents.length === 0" style="text-align:center;padding:40px;color:var(--color-text-tertiary)">
-        暂无文档，点击"上传文档"添加
-      </div>
     </div>
 
     <!-- 上传文档对话框 -->
