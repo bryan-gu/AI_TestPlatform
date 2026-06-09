@@ -462,21 +462,98 @@ class PipelineExecutor:
         return module
 
     def _extract_and_parse_json(self, text: str) -> dict | list | None:
-        """从 LLM 回复中提取并解析 JSON"""
+        """从 LLM 回复中提取并解析 JSON，支持截断修复"""
         json_str = self._extract_json(text)
         if json_str:
+            # 第一次尝试：直接解析
             try:
                 return json.loads(json_str)
             except json.JSONDecodeError as e:
                 logger.warning(f"JSON parse error: {e}")
-                # 尝试修复常见问题
-                try:
-                    # 移除尾随逗号
-                    fixed = re.sub(r',\s*([}\]])', r'\1', json_str)
-                    return json.loads(fixed)
-                except json.JSONDecodeError:
-                    pass
+
+            # 第二次尝试：移除尾随逗号
+            try:
+                fixed = re.sub(r',\s*([}\]])', r'\1', json_str)
+                return json.loads(fixed)
+            except json.JSONDecodeError:
+                pass
+
+            # 第三次尝试：截断修复 — 自动补全未闭合的括号
+            try:
+                repaired = self._repair_truncated_json(json_str)
+                if repaired:
+                    return json.loads(repaired)
+            except json.JSONDecodeError as e2:
+                logger.warning(f"JSON 截断修复后仍无法解析: {e2}")
+
         return None
+
+    def _repair_truncated_json(self, json_str: str) -> str | None:
+        """
+        尝试修复被截断的 JSON（LLM 输出未完成的情况）。
+        策略：从末尾找到最后一个完整的值，截断到那里，然后补全闭合括号。
+        """
+        # 先移除尾随逗号
+        json_str = re.sub(r',\s*$', '', json_str.rstrip())
+
+        # 统计未闭合的括号
+        open_braces = 0    # {
+        open_brackets = 0  # [
+        in_string = False
+        escape_next = False
+
+        for ch in json_str:
+            if escape_next:
+                escape_next = False
+                continue
+            if ch == '\\' and in_string:
+                escape_next = True
+                continue
+            if ch == '"' and not escape_next:
+                in_string = not in_string
+                continue
+            if in_string:
+                continue
+            if ch == '{':
+                open_braces += 1
+            elif ch == '}':
+                open_braces -= 1
+            elif ch == '[':
+                open_brackets += 1
+            elif ch == ']':
+                open_brackets -= 1
+
+        if open_braces < 0 or open_brackets < 0:
+            return None  # 括号计数异常，无法修复
+
+        # 尝试从末尾截断到最后一个完整值的位置
+        # 寻找最后一个完整的 "key": value 或 value 对
+        repaired = json_str
+
+        # 如果末尾在字符串中间，截断到最后一个完整的字符串
+        if in_string:
+            # 找到最后引号前的内容
+            last_quote = json_str.rfind('"')
+            if last_quote > 0:
+                # 看这个引号前面是否是 key: 的模式
+                before = json_str[:last_quote].rstrip()
+                # 如果是冒号后面，说明 value 的字符串被截断了，用空字符串代替
+                if before.endswith(':'):
+                    repaired = before + ' ""'
+                elif before.endswith(','):
+                    repaired = before
+                else:
+                    repaired = before + '"'
+
+        # 移除末尾不完整的内容（最后一个逗号之后的不完整键值对）
+        # 找到最后一个完整值结束的位置
+        # 策略：逐步从末尾尝试添加闭合括号
+        repaired = repaired.rstrip().rstrip(',')
+
+        # 补全闭合括号
+        repaired += '}' * max(0, open_braces) + ']' * max(0, open_brackets)
+
+        return repaired
 
     def _extract_json(self, text: str) -> str | None:
         """从文本中提取 JSON 块"""
