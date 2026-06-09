@@ -100,6 +100,7 @@ class AICallLogOut(BaseModel):
     duration_ms: int = 0
     status: str = "成功"
     error_message: str | None = None
+    request_summary: str | None = None
     created_at: datetime | None = None
     provider_name: str = ""  # computed
 

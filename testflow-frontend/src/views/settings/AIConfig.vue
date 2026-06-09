@@ -155,6 +155,7 @@
             <el-tag :type="logStatusType(row.status)" size="small" effect="plain" round>{{ row.status }}</el-tag>
           </template>
         </el-table-column>
+        <el-table-column prop="request_summary" label="请求摘要" min-width="200" show-overflow-tooltip />
       </el-table>
     </div>
 

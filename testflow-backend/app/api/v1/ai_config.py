@@ -64,6 +64,7 @@ def _log_to_out(log, db: Session) -> dict:
         duration_ms=log.duration_ms or 0,
         status=log.status or "成功",
         error_message=log.error_message,
+        request_summary=log.request_summary,
         created_at=log.created_at,
         provider_name=crud_ai_config.get_provider_name(db, log.provider_id),
     ).model_dump()
