@@ -146,7 +146,16 @@ class PipelineExecutor:
 
         # 3. 解析 JSON 结果
         parsed = self._extract_and_parse_json(content)
-        if not parsed or "modules" not in parsed:
+        if not parsed:
+            preview = content[:500] if content else "(空)"
+            raise ValueError(
+                f"LLM 返回结果无法解析为有效的模块结构。原始返回前500字符: {preview}"
+            )
+
+        # 兼容：如果解析结果直接是 modules 数组，自动包装
+        if isinstance(parsed, list):
+            parsed = {"modules": parsed}
+        if "modules" not in parsed:
             preview = content[:500] if content else "(空)"
             raise ValueError(
                 f"LLM 返回结果无法解析为有效的模块结构。原始返回前500字符: {preview}"
@@ -568,10 +577,21 @@ class PipelineExecutor:
 
     def _extract_json(self, text: str) -> str | None:
         """从文本中提取 JSON 块"""
+        stripped = text.strip()
+
         # 尝试匹配 ```json ... ``` 代码块
         match = re.search(r'```(?:json)?\s*\n?(.*?)\n?```', text, re.DOTALL)
         if match:
             return match.group(1).strip()
+
+        # 如果文本以 { 开头，优先按对象处理，避免内层 [...] 被误提取
+        if stripped.startswith('{'):
+            # 尝试匹配完整的 { ... }
+            match = re.search(r'(\{[\s\S]*\})', text, re.DOTALL)
+            if match:
+                return match.group(1).strip()
+            # 没有闭合 } → 截断的 JSON，直接返回全文让修复逻辑处理
+            return stripped
 
         # 尝试匹配 [...] （数组优先，Stage 2 期望数组）
         match = re.search(r'(\[[\s\S]*\])', text, re.DOTALL)
@@ -584,9 +604,8 @@ class PipelineExecutor:
             return match.group(1).strip()
 
         # 整段文本直接尝试解析
-        text = text.strip()
-        if text.startswith(('{', '[')):
-            return text
+        if stripped.startswith('['):
+            return stripped
 
         return None
 
