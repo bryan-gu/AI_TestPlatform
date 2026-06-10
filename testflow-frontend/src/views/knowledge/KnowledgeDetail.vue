@@ -29,6 +29,7 @@
       </div>
       <div class="sprint-meta">
         <span>文档数：<strong>{{ documents.length }}</strong></span>
+        <span>资产数：<strong>{{ assets.length }}</strong></span>
         <span>模块数：<strong>{{ sprint.moduleCount }}</strong></span>
         <span v-if="sprint.description" style="flex:1">描述：{{ sprint.description }}</span>
       </div>
@@ -130,6 +131,44 @@
         <el-button type="primary" @click="handleSaveDoc" :loading="saving">保存</el-button>
       </template>
     </el-dialog>
+
+    <!-- 资产列表 -->
+    <div class="card" style="margin-bottom:16px">
+      <div class="card-head">
+        <div style="display:flex;align-items:center;gap:8px">
+          <el-icon :size="16" style="color:#16a34a"><Collection /></el-icon>
+          <div class="card-title">资产列表</div>
+        </div>
+        <div style="display:flex;gap:8px">
+          <el-select v-model="assetTypeFilter" placeholder="全部类型" size="small" style="width:150px" clearable @change="loadAssets">
+            <el-option v-for="item in assetTypeOptions" :key="item.value" :label="item.label" :value="item.value" />
+          </el-select>
+        </div>
+      </div>
+      <el-table :data="assets" style="width:100%" v-loading="assetLoading" empty-text="暂无资产，上传文档或运行 AI 流水线后自动生成">
+        <el-table-column prop="name" label="资产名称" min-width="220" show-overflow-tooltip />
+        <el-table-column label="资产类型" width="130">
+          <template #default="{ row }">
+            <el-tag size="small" effect="plain" :type="getAssetTagType(row.asset_type)">{{ getAssetTypeText(row.asset_type) }}</el-tag>
+          </template>
+        </el-table-column>
+        <el-table-column label="来源" width="90">
+          <template #default="{ row }">{{ getAssetSourceText(row.source_kind) }}</template>
+        </el-table-column>
+        <el-table-column label="解析状态" width="90">
+          <template #default="{ row }"><el-tag size="small" effect="plain" :type="getAssetParseType(row.parse_status)">{{ row.parse_status || 'pending' }}</el-tag></template>
+        </el-table-column>
+        <el-table-column label="模块" width="120">
+          <template #default="{ row }">{{ row.module_name || '-' }}</template>
+        </el-table-column>
+        <el-table-column label="大小" width="90">
+          <template #default="{ row }">{{ formatFileSize(row.file_size) }}</template>
+        </el-table-column>
+        <el-table-column label="更新时间" width="120">
+          <template #default="{ row }">{{ formatDate(row.updated_at || row.created_at) }}</template>
+        </el-table-column>
+      </el-table>
+    </div>
 
     <!-- 功能点列表 -->
     <div class="card" style="margin-bottom:16px">
@@ -298,7 +337,7 @@
 import { ref, reactive, onMounted, onBeforeUnmount } from 'vue'
 import { useRouter, useRoute } from 'vue-router'
 import { useAppStore } from '../../stores/app'
-import { Folder, Promotion, Document, Edit, Delete, Upload, MagicStick, Refresh } from '@element-plus/icons-vue'
+import { Folder, Promotion, Document, Edit, Delete, Upload, MagicStick, Refresh, Collection } from '@element-plus/icons-vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import {
   getSprint, getSprintDocuments, uploadSprintDocument,
@@ -308,6 +347,7 @@ import {
 import {
   getFeaturePoints, createFeaturePoint, updateFeaturePoint, deleteFeaturePoint,
 } from '../../api/featurePoint'
+import { getKnowledgeAssets } from '../../api/knowledgeAsset'
 
 const router = useRouter()
 const route = useRoute()
@@ -317,6 +357,8 @@ const saving = ref(false)
 const uploading = ref(false)
 const fpLoading = ref(false)
 const fpSaving = ref(false)
+const assetLoading = ref(false)
+const assetTypeFilter = ref('')
 
 // 解析状态轮询
 let parsePollingTimer = null
@@ -362,6 +404,20 @@ const sprint = ref({
 
 // 文档列表
 const documents = ref([])
+
+// 资产列表
+const assets = ref([])
+const assetTypeOptions = [
+  { label: '需求文档', value: 'requirement_doc' },
+  { label: '功能点规格', value: 'feature_spec' },
+  { label: '用例 JSON', value: 'test_case_json' },
+  { label: '用例 Excel', value: 'test_case_excel' },
+  { label: '接口文档', value: 'api_doc_md' },
+  { label: 'OpenAPI', value: 'api_doc_openapi' },
+  { label: '自动化脚本', value: 'test_script' },
+  { label: '执行报告', value: 'execution_report' },
+  { label: '其他', value: 'other' },
+]
 
 // 模块标签
 const modules = ref([])
@@ -443,6 +499,30 @@ function getSourceTypeText(type) {
   return { requirement: '需求', ui_explore: 'UI探索', api_doc: '接口', manual: '手工', ai_generated: 'AI生成' }[type] || '手工'
 }
 
+function getAssetTypeText(type) {
+  const item = assetTypeOptions.find(i => i.value === type)
+  return item ? item.label : '其他'
+}
+
+function getAssetSourceText(source) {
+  return { uploaded: '上传', ai_generated: 'AI生成', skill_generated: 'SKILL', imported: '导入', manual: '手工' }[source] || '上传'
+}
+
+function getAssetTagType(type) {
+  return { requirement_doc: '', feature_spec: 'success', test_case_json: 'warning', test_case_excel: 'danger', api_doc_md: 'info', api_doc_openapi: 'info', test_script: 'warning', execution_report: 'success' }[type] || 'info'
+}
+
+function getAssetParseType(status) {
+  return { pending: 'info', '待解析': 'info', '解析中': 'warning', '已解析': 'success', '解析失败': 'danger' }[status] || 'info'
+}
+
+function formatFileSize(size) {
+  if (!size) return '-'
+  if (size < 1024) return `${size} B`
+  if (size < 1024 * 1024) return `${(size / 1024).toFixed(1)} KB`
+  return `${(size / 1024 / 1024).toFixed(1)} MB`
+}
+
 function getFileIconColor(type) {
   return { 'PDF': '#E24B4A', 'Word': '#16a34a', 'Markdown': '#8B5CF6', 'Excel': '#EF9F27' }[type] || 'var(--accent)'
 }
@@ -469,10 +549,27 @@ async function loadData() {
       }
     }
     documents.value = docsRes.data || []
+    await loadAssets()
   } catch (e) {
     console.error(e)
   } finally {
     loading.value = false
+  }
+}
+
+// ========== 资产操作 ==========
+
+async function loadAssets() {
+  assetLoading.value = true
+  try {
+    const params = { sprint_id: sprintId }
+    if (assetTypeFilter.value) params.asset_type = assetTypeFilter.value
+    const res = await getKnowledgeAssets(params)
+    assets.value = res.data || []
+  } catch (e) {
+    console.error(e)
+  } finally {
+    assetLoading.value = false
   }
 }
 
@@ -521,6 +618,7 @@ async function handleSaveDoc() {
     ElMessage.success('保存成功')
     editDocVisible.value = false
     await loadData()
+    await loadAssets()
   } catch (e) {
     ElMessage.error('保存失败')
   } finally {

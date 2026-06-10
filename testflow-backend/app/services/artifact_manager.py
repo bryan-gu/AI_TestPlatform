@@ -20,7 +20,9 @@ from datetime import datetime
 from sqlalchemy.orm import Session
 
 from app.models.document import Document
+from app.models.module import Module
 from app.models.sprint import Sprint
+from app.crud import crud_knowledge_asset
 
 logger = logging.getLogger(__name__)
 
@@ -71,6 +73,15 @@ class ArtifactManager:
             ai_summary=f"AI 提取的 {module_name} 模块功能点",
             ai_status="AI生成",
         )
+        crud_knowledge_asset.upsert_asset_for_document(
+            self.db,
+            doc,
+            project_id=self.sprint.project_id if self.sprint else None,
+            source_kind="ai_generated",
+            asset_type="feature_spec",
+            module_id=self._get_module_id(module_name),
+            metadata={"artifact_kind": "feature_points_md", "module_name": module_name},
+        )
         return doc
 
     # ============ cases.json ============
@@ -105,6 +116,15 @@ class ArtifactManager:
             content_preview=f"共 {len(cases)} 条测试用例",
             ai_summary=f"{module_name} 模块的 {len(cases)} 条结构化测试用例",
             ai_status="AI生成",
+        )
+        crud_knowledge_asset.upsert_asset_for_document(
+            self.db,
+            doc,
+            project_id=self.sprint.project_id if self.sprint else None,
+            source_kind="ai_generated",
+            asset_type="test_case_json",
+            module_id=self._get_module_id(module_name),
+            metadata={"artifact_kind": "cases_json", "module_name": module_name, "case_count": len(cases)},
         )
         return doc
 
@@ -183,6 +203,14 @@ class ArtifactManager:
             ai_summary=f"{self.sprint_name} Sprint 测试用例汇总 Excel，共 {total} 条",
             ai_status="AI生成",
         )
+        crud_knowledge_asset.upsert_asset_for_document(
+            self.db,
+            doc,
+            project_id=self.sprint.project_id if self.sprint else None,
+            source_kind="ai_generated",
+            asset_type="test_case_excel",
+            metadata={"artifact_kind": "testcase_excel", "case_count": total, "module_count": len(all_cases)},
+        )
         return doc
 
     # ============ 读取文件 ============
@@ -204,6 +232,15 @@ class ArtifactManager:
             return f.read()
 
     # ============ 内部方法 ============
+
+    def _get_module_id(self, module_name: str) -> int | None:
+        if not module_name:
+            return None
+        query = self.db.query(Module).filter(Module.name == module_name)
+        if self.sprint and self.sprint.project_id:
+            query = query.filter(Module.project_id == self.sprint.project_id)
+        module = query.first()
+        return module.id if module else None
 
     def _upsert_document(
         self,

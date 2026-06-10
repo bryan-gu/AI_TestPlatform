@@ -11,7 +11,7 @@ from app.models.document import Document
 from app.schemas.common import ResponseModel
 from app.schemas.sprint import SprintCreate, SprintUpdate, SprintOut
 from app.schemas.document import DocumentUpdate, DocumentOut
-from app.crud import crud_sprint, crud_document
+from app.crud import crud_sprint, crud_document, crud_knowledge_asset
 
 
 router = APIRouter(prefix="/sprints", tags=["Sprint 管理"])
@@ -169,6 +169,7 @@ async def upload_document(
     doc.file_size = len(content)
     db.commit()
     db.refresh(doc)
+    crud_knowledge_asset.upsert_asset_for_document(db, doc, source_kind="uploaded")
 
     # 触发后台 MinerU 文档解析
     from app.services.document_parser import DocumentParser
@@ -184,6 +185,7 @@ def update_document(sprint_id: int, doc_id: int, data: DocumentUpdate, db: Sessi
     if not doc or doc.sprint_id != sprint_id:
         raise HTTPException(status_code=404, detail="文档不存在")
     doc = crud_document.update_document(db, doc, data)
+    crud_knowledge_asset.upsert_asset_for_document(db, doc, source_kind="uploaded")
     return ResponseModel(data=_doc_to_out(doc, db))
 
 
@@ -195,6 +197,7 @@ def delete_document(sprint_id: int, doc_id: int, db: Session = Depends(get_db), 
     # 删除物理文件
     if doc.file_path and os.path.exists(doc.file_path):
         os.remove(doc.file_path)
+    crud_knowledge_asset.mark_document_asset_deleted(db, doc.id)
     crud_document.delete_document(db, doc)
     return ResponseModel(message="删除成功")
 

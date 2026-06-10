@@ -6,6 +6,7 @@ from app.models.report import Report
 from app.models.sprint import Sprint
 from app.models.module import Module
 from app.models.document import Document
+from app.models.knowledge_asset import KnowledgeAsset
 from app.models.activity import Activity
 from app.models.feature_point import FeaturePoint
 from app.models.ai_config import AIProvider, ModelStrategy, AIGlobalConfig, AICallLog
@@ -22,6 +23,7 @@ __all__ = [
     "Sprint",
     "Module",
     "Document",
+    "KnowledgeAsset",
     "Activity",
     "FeaturePoint",
     "AIProvider",

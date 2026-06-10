@@ -15,6 +15,7 @@ import httpx
 from app.core.database import SessionLocal
 from app.models.document import Document
 from app.models.ai_config import AIGlobalConfig
+from app.crud import crud_knowledge_asset
 
 logger = logging.getLogger(__name__)
 
@@ -60,13 +61,16 @@ class DocumentParser:
             if markdown_content:
                 document.content_preview = markdown_content
                 document.parse_status = "已解析"
+                db.commit()
+                crud_knowledge_asset.upsert_asset_for_document(db, document, source_kind="uploaded")
                 logger.info(f"文档 ID={document_id} 解析成功，内容长度={len(markdown_content)}")
             else:
                 document.parse_status = "解析失败"
                 document.content_preview = "MinerU 解析失败，请检查文件格式或重试"
+                db.commit()
+                crud_knowledge_asset.upsert_asset_for_document(db, document, source_kind="uploaded")
                 logger.warning(f"文档 ID={document_id} MinerU 解析返回空内容")
 
-            db.commit()
         except Exception as e:
             logger.exception(f"文档解析异常: {e}")
             try:
@@ -75,6 +79,7 @@ class DocumentParser:
                     document.parse_status = "解析失败"
                     document.content_preview = f"解析异常: {str(e)[:200]}"
                     db.commit()
+                    crud_knowledge_asset.upsert_asset_for_document(db, document, source_kind="uploaded")
             except Exception:
                 pass
         finally:
