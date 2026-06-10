@@ -19,12 +19,16 @@ router = APIRouter(prefix="/dashboard", tags=["仪表盘"])
 
 @router.get("/stats", response_model=ResponseModel)
 def dashboard_stats(db: Session = Depends(get_db), _=Depends(get_current_user)):
-    active = db.query(Project).filter(Project.status.in_(["active", "testing"])).count()
-    total_cases = db.query(TestCase).count()
-    passed = db.query(TestCase).filter(TestCase.exec_status == "通过").count()
+    active = db.query(Project).filter(
+        Project.status.in_(["active", "testing"]),
+        Project.is_deleted == False,  # noqa: E712
+    ).count()
+    case_base = db.query(TestCase).filter(TestCase.is_deleted == False)  # noqa: E712
+    total_cases = case_base.count()
+    passed = case_base.filter(TestCase.exec_status == "通过").count()
     pass_rate = round(passed / total_cases * 100) if total_cases > 0 else 0
-    failed = db.query(TestCase).filter(TestCase.exec_status == "失败").count()
-    pending = db.query(TestCase).filter(TestCase.exec_status == "待执行").count()
+    failed = case_base.filter(TestCase.exec_status == "失败").count()
+    pending = case_base.filter(TestCase.exec_status == "待执行").count()
 
     # Phase 7 增强统计
     total_sprints = db.query(KnowledgeAsset.sprint_id).filter(

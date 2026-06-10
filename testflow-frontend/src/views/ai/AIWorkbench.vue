@@ -295,6 +295,7 @@
               <div class="history-name">
                 {{ h.sprint_name || h.project_name || '未指定' }}
                 <el-tag size="small" style="margin-left:4px">{{ h.mode === 'incremental' ? '增量' : '全量' }}</el-tag>
+                <el-tag v-if="h.sprint_deleted || h.project_deleted" type="info" size="small" effect="plain" style="margin-left:4px">已删除</el-tag>
               </div>
               <div class="history-time">
                 {{ formatTime(h.created_at) }}

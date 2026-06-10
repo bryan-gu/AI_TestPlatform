@@ -1,4 +1,4 @@
-from sqlalchemy import Column, Integer, String, Text, DateTime, ForeignKey, JSON, func
+from sqlalchemy import Column, Integer, String, Text, Boolean, DateTime, ForeignKey, JSON, func
 from sqlalchemy.orm import relationship
 
 from app.core.database import Base
@@ -30,6 +30,8 @@ class TestCase(Base):
     test_steps = Column(Text, default="")  # 测试步骤
     expected_result = Column(Text, default="")  # 预期结果
     actual_result = Column(Text, default="")  # 实际结果
+    is_deleted = Column(Boolean, default=False, nullable=False)
+    deleted_at = Column(DateTime, nullable=True)
     created_at = Column(DateTime, server_default=func.now())
     updated_at = Column(DateTime, server_default=func.now(), onupdate=func.now())
 

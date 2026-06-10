@@ -80,7 +80,10 @@ def delete_project(project_id: int, db: Session = Depends(get_db), _=Depends(get
 
 @router.get("/{project_id}/testcases", response_model=ResponseModel)
 def get_project_testcases(project_id: int, db: Session = Depends(get_db), _=Depends(get_current_user)):
-    cases = db.query(crud_testcase.TestCase).filter(crud_testcase.TestCase.project_id == project_id).all()
+    cases = db.query(crud_testcase.TestCase).filter(
+        crud_testcase.TestCase.project_id == project_id,
+        crud_testcase.TestCase.is_deleted == False,  # noqa: E712
+    ).all()
     result = []
     for c in cases:
         result.append(TestCaseOut(

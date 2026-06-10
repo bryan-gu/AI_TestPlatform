@@ -7,14 +7,17 @@ from app.models.graph import Graph, GraphNode, GraphEdge
 # ============ Graph CRUD ============
 
 def get_graphs(db: Session, project_id: int | None = None):
-    q = db.query(Graph)
+    q = db.query(Graph).filter(Graph.is_deleted == False)  # noqa: E712
     if project_id is not None:
         q = q.filter(Graph.project_id == project_id)
     return q.order_by(Graph.created_at.desc()).all()
 
 
 def get_graph(db: Session, graph_id: int):
-    return db.query(Graph).filter(Graph.id == graph_id).first()
+    return db.query(Graph).filter(
+        Graph.id == graph_id,
+        Graph.is_deleted == False,  # noqa: E712
+    ).first()
 
 
 def create_graph(db: Session, name: str, project_id: int | None = None,
@@ -27,7 +30,9 @@ def create_graph(db: Session, name: str, project_id: int | None = None,
 
 
 def delete_graph(db: Session, graph: Graph):
-    db.delete(graph)
+    from datetime import datetime
+    graph.is_deleted = True
+    graph.deleted_at = datetime.utcnow()
     db.commit()
 
 
@@ -97,7 +102,7 @@ def delete_edges_by_graph(db: Session, graph_id: int):
 # ============ Stats ============
 
 def get_graph_stats(db: Session):
-    total_graphs = db.query(func.count(Graph.id)).scalar() or 0
+    total_graphs = db.query(func.count(Graph.id)).filter(Graph.is_deleted == False).scalar() or 0  # noqa: E712
     total_nodes = db.query(func.count(GraphNode.id)).scalar() or 0
     total_edges = db.query(func.count(GraphEdge.id)).scalar() or 0
 

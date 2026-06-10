@@ -41,7 +41,7 @@ def _generate_case_no(db: Session, project_id: int, module_str: str, module_id: 
     module_code = _resolve_module_code(db, module_id, module_str, project_id)
     pattern = f"{prefix}_TC_{module_code}_%"
 
-    # 查该项目+模块下最后一条
+    # 查该项目+模块下最后一条（含已软删，避免编号复用造成唯一性冲突）
     last_case = (
         db.query(TestCase)
         .filter(TestCase.project_id == project_id)
@@ -67,7 +67,7 @@ def get_testcases(
     module_id: int | None = None,
     case_type: str | None = None,
 ) -> list[TestCase]:
-    query = db.query(TestCase)
+    query = db.query(TestCase).filter(TestCase.is_deleted == False)  # noqa: E712
     if project:
         proj = db.query(Project).filter(Project.name == project).first()
         if proj:
@@ -89,7 +89,10 @@ def get_testcases(
 
 
 def get_testcase(db: Session, case_id: int) -> TestCase | None:
-    return db.query(TestCase).filter(TestCase.id == case_id).first()
+    return db.query(TestCase).filter(
+        TestCase.id == case_id,
+        TestCase.is_deleted == False,  # noqa: E712
+    ).first()
 
 
 def create_testcase(db: Session, data: TestCaseCreate) -> TestCase:
@@ -185,7 +188,10 @@ def update_testcase(db: Session, case: TestCase, data: TestCaseUpdate) -> TestCa
 
 def batch_execute(db: Session, project_id: int | None = None) -> int:
     """将所有'待执行'的用例批量标记为'通过'，返回受影响行数"""
-    query = db.query(TestCase).filter(TestCase.exec_status == "待执行")
+    query = db.query(TestCase).filter(
+        TestCase.exec_status == "待执行",
+        TestCase.is_deleted == False,  # noqa: E712
+    )
     if project_id:
         query = query.filter(TestCase.project_id == project_id)
     count = query.count()
@@ -195,20 +201,20 @@ def batch_execute(db: Session, project_id: int | None = None) -> int:
 
 
 def delete_testcase(db: Session, case: TestCase) -> None:
-    from app.models.coverage import FeaturePointTestCase
-    db.query(FeaturePointTestCase).filter(
-        FeaturePointTestCase.testcase_id == case.id
-    ).delete(synchronize_session=False)
-    db.delete(case)
+    from datetime import datetime
+    case.is_deleted = True
+    case.deleted_at = datetime.utcnow()
     db.commit()
 
 
 def get_testcase_stats(db: Session) -> dict:
-    total = db.query(TestCase).count()
-    passed = db.query(TestCase).filter(TestCase.exec_status == "通过").count()
-    failed = db.query(TestCase).filter(TestCase.exec_status == "失败").count()
-    pending = db.query(TestCase).filter(TestCase.exec_status == "待执行").count()
-    project_count = db.query(func.count(func.distinct(TestCase.project_id))).scalar() or 0
+    base = db.query(TestCase).filter(TestCase.is_deleted == False)  # noqa: E712
+    total = base.count()
+    passed = base.filter(TestCase.exec_status == "通过").count()
+    failed = base.filter(TestCase.exec_status == "失败").count()
+    pending = base.filter(TestCase.exec_status == "待执行").count()
+    project_count = db.query(func.count(func.distinct(TestCase.project_id))).filter(
+        TestCase.is_deleted == False).scalar() or 0  # noqa: E712
     pass_rate = round(passed / total * 100) if total > 0 else 0
     return {
         "total": total,
@@ -288,7 +294,8 @@ def import_testcases(db: Session, project_id: int, rows: list[dict]) -> dict:
         if imported_case_no:
             existing = db.query(TestCase).filter(
                 TestCase.project_id == project_id,
-                TestCase.case_no == imported_case_no
+                TestCase.case_no == imported_case_no,
+                TestCase.is_deleted == False,  # noqa: E712
             ).first()
 
         if existing:

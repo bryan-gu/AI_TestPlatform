@@ -1,4 +1,4 @@
-from sqlalchemy import Column, Integer, String, Text, DateTime, ForeignKey, JSON, func
+from sqlalchemy import Column, Integer, String, Text, Boolean, DateTime, ForeignKey, JSON, func
 from sqlalchemy.orm import relationship
 
 from app.core.database import Base
@@ -24,6 +24,8 @@ class FeaturePoint(Base):
     version = Column(String(40), default="v1.0")
     fingerprint = Column(String(64), default="")
     raw_data = Column(JSON, default=dict)
+    is_deleted = Column(Boolean, default=False, nullable=False)
+    deleted_at = Column(DateTime, nullable=True)
     created_at = Column(DateTime, server_default=func.now())
     updated_at = Column(DateTime, server_default=func.now(), onupdate=func.now())
 

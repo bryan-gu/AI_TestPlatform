@@ -56,6 +56,9 @@ def _stage_to_out(s: PipelineStage) -> dict:
 def _execution_to_out(e: PipelineExecution) -> dict:
     project_name = e.project.name if e.project else ""
     sprint_name = e.sprint.name if e.sprint else ""
+    # 软删除场景：项目/Sprint 已删除时仍展示历史名称，但标记 deleted 供前端禁用跳转
+    sprint_deleted = bool(e.sprint.is_deleted) if e.sprint else False
+    project_deleted = bool(e.project.is_deleted) if e.project else False
     out = PipelineOut(
         id=e.id,
         project_id=e.project_id,
@@ -68,6 +71,8 @@ def _execution_to_out(e: PipelineExecution) -> dict:
         created_at=e.created_at,
         project_name=project_name,
         sprint_name=sprint_name,
+        sprint_deleted=sprint_deleted,
+        project_deleted=project_deleted,
         duration_display=_format_duration(e.total_duration_ms),
     )
     return out.model_dump()
@@ -170,7 +175,8 @@ def get_execution_feature_points(execution_id: int, db: Session = Depends(get_db
 
     # 查询该 Sprint 下的功能点，附带模块信息
     feature_points = db.query(FeaturePoint).filter(
-        FeaturePoint.sprint_id == execution.sprint_id
+        FeaturePoint.sprint_id == execution.sprint_id,
+        FeaturePoint.is_deleted == False,  # noqa: E712
     ).all()
 
     result = []
@@ -203,14 +209,18 @@ def get_execution_test_cases(execution_id: int, db: Session = Depends(get_db)):
     # 查询该项目下的待执行用例（本次流水线生成的）
     # 通过 project_id + 最近创建时间筛选
     cases = db.query(TestCase).filter(
-        TestCase.project_id == execution.project_id
+        TestCase.project_id == execution.project_id,
+        TestCase.is_deleted == False,  # noqa: E712
     ).order_by(TestCase.id.desc()).all()
 
     # 如果执行有 sprint，通过 module 关联筛选
     if execution.sprint_id:
         sprint_fp_module_ids = [
             fp.module_id for fp in
-            db.query(FeaturePoint).filter(FeaturePoint.sprint_id == execution.sprint_id).all()
+            db.query(FeaturePoint).filter(
+                FeaturePoint.sprint_id == execution.sprint_id,
+                FeaturePoint.is_deleted == False,  # noqa: E712
+            ).all()
             if fp.module_id
         ]
         if sprint_fp_module_ids:

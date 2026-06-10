@@ -18,7 +18,10 @@ router = APIRouter(prefix="/sprints", tags=["Sprint 管理"])
 
 
 def _sprint_to_out(sprint, db: Session) -> dict:
-    docs = db.query(Document).filter(Document.sprint_id == sprint.id).all()
+    docs = db.query(Document).filter(
+        Document.sprint_id == sprint.id,
+        Document.is_deleted == False,  # noqa: E712
+    ).all()
     all_module_ids = set()
     for d in docs:
         if d.module_ids:
@@ -194,9 +197,7 @@ def delete_document(sprint_id: int, doc_id: int, db: Session = Depends(get_db), 
     doc = crud_document.get_document(db, doc_id)
     if not doc or doc.sprint_id != sprint_id:
         raise HTTPException(status_code=404, detail="文档不存在")
-    # 删除物理文件
-    if doc.file_path and os.path.exists(doc.file_path):
-        os.remove(doc.file_path)
+    # 软删除：保留物理文件以便恢复，仅同步标记关联资产为 deleted
     crud_knowledge_asset.mark_document_asset_deleted(db, doc.id)
     crud_document.delete_document(db, doc)
     return ResponseModel(message="删除成功")

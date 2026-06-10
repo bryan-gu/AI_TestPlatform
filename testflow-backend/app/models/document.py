@@ -1,4 +1,4 @@
-from sqlalchemy import Column, Integer, String, Text, DateTime, ForeignKey, JSON, func
+from sqlalchemy import Column, Integer, String, Text, Boolean, DateTime, ForeignKey, JSON, func
 from sqlalchemy.orm import relationship
 
 from app.core.database import Base
@@ -21,6 +21,8 @@ class Document(Base):
     module_ids = Column(JSON, default=list)  # AI 识别的模块 ID 列表，如 [1, 3, 5]
     ai_status = Column(String(20), default="待分析")  # 已分析/分析中/待分析
     parse_status = Column(String(20), default="待解析")  # 待解析/解析中/已解析/解析失败
+    is_deleted = Column(Boolean, default=False, nullable=False)
+    deleted_at = Column(DateTime, nullable=True)
     created_at = Column(DateTime, server_default=func.now())
 
     uploader = relationship("User", backref="uploaded_documents")

@@ -1,4 +1,4 @@
-from sqlalchemy import Column, Integer, String, DateTime, ForeignKey, func
+from sqlalchemy import Column, Integer, String, Boolean, DateTime, ForeignKey, func
 from sqlalchemy.orm import relationship
 
 from app.core.database import Base
@@ -12,6 +12,8 @@ class Module(Base):
     project_id = Column(Integer, ForeignKey("projects.id"), nullable=True)  # 项目级别，不隶属某个 Sprint
     code = Column(String(50), nullable=True)  # 英文缩写，如 "SJZH"、"DL"，用于用例编号
     color = Column(String(20), default="")  # 前端标签颜色，如 "#2563eb"
+    is_deleted = Column(Boolean, default=False, nullable=False)
+    deleted_at = Column(DateTime, nullable=True)
     created_at = Column(DateTime, server_default=func.now())
 
     project = relationship("Project", backref="modules")

@@ -1,4 +1,4 @@
-from sqlalchemy import Column, Integer, String, Text, DateTime, ForeignKey, JSON, func
+from sqlalchemy import Column, Integer, String, Text, Boolean, DateTime, ForeignKey, JSON, func
 from sqlalchemy.orm import relationship
 
 from app.core.database import Base
@@ -14,6 +14,8 @@ class Graph(Base):
     node_count = Column(Integer, default=0)
     edge_count = Column(Integer, default=0)
     status = Column(String(20), default="最新")  # 最新 / 需更新
+    is_deleted = Column(Boolean, default=False, nullable=False)
+    deleted_at = Column(DateTime, nullable=True)
     generated_at = Column(DateTime, server_default=func.now())
     created_at = Column(DateTime, server_default=func.now())
 

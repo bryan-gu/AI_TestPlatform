@@ -7,11 +7,17 @@ from app.schemas.document import DocumentCreate, DocumentUpdate
 
 
 def get_documents(db: Session, sprint_id: int) -> list[Document]:
-    return db.query(Document).filter(Document.sprint_id == sprint_id).order_by(Document.created_at.desc()).all()
+    return db.query(Document).filter(
+        Document.sprint_id == sprint_id,
+        Document.is_deleted == False,  # noqa: E712
+    ).order_by(Document.created_at.desc()).all()
 
 
 def get_document(db: Session, doc_id: int) -> Document | None:
-    return db.query(Document).filter(Document.id == doc_id).first()
+    return db.query(Document).filter(
+        Document.id == doc_id,
+        Document.is_deleted == False,  # noqa: E712
+    ).first()
 
 
 def create_document(db: Session, data: DocumentCreate) -> Document:
@@ -48,7 +54,9 @@ def update_document(db: Session, doc: Document, data: DocumentUpdate) -> Documen
 
 
 def delete_document(db: Session, doc: Document) -> None:
-    db.delete(doc)
+    from datetime import datetime
+    doc.is_deleted = True
+    doc.deleted_at = datetime.utcnow()
     db.commit()
 
 

@@ -125,7 +125,7 @@ def export_testcases(
 ):
     """导出测试用例为 xlsx，按模块分 Sheet，模块列显示中文名"""
     # 获取用例
-    query = db.query(crud_testcase.TestCase)
+    query = db.query(crud_testcase.TestCase).filter(crud_testcase.TestCase.is_deleted == False)  # noqa: E712
     if project_id:
         query = query.filter(crud_testcase.TestCase.project_id == project_id)
     if sprint_id:

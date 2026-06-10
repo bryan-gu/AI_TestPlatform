@@ -48,6 +48,8 @@ class PipelineOut(BaseModel):
     # 计算字段
     project_name: str = ""
     sprint_name: str = ""
+    sprint_deleted: bool = False
+    project_deleted: bool = False
     duration_display: str = ""
 
     class Config:

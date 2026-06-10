@@ -158,6 +158,7 @@
         <el-table-column label="Sprint" width="120">
           <template #default="{ row }">
             {{ row.sprint_name || '-' }}
+            <el-tag v-if="row.sprint_deleted" type="info" size="small" effect="plain">已删除</el-tag>
           </template>
         </el-table-column>
         <el-table-column label="状态" width="100">

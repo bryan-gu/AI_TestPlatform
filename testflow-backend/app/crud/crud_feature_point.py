@@ -15,7 +15,7 @@ def get_feature_points(
     source_doc_id: int | None = None,
     keyword: str | None = None,
 ) -> list[FeaturePoint]:
-    query = db.query(FeaturePoint)
+    query = db.query(FeaturePoint).filter(FeaturePoint.is_deleted == False)  # noqa: E712
     if sprint_id:
         query = query.filter(FeaturePoint.sprint_id == sprint_id)
     if module_id:
@@ -36,7 +36,10 @@ def get_feature_points(
 
 
 def get_feature_point(db: Session, fp_id: int) -> FeaturePoint | None:
-    return db.query(FeaturePoint).filter(FeaturePoint.id == fp_id).first()
+    return db.query(FeaturePoint).filter(
+        FeaturePoint.id == fp_id,
+        FeaturePoint.is_deleted == False,  # noqa: E712
+    ).first()
 
 
 def create_feature_point(db: Session, data: FeaturePointCreate) -> FeaturePoint:
@@ -100,17 +103,15 @@ def update_feature_point(db: Session, fp: FeaturePoint, data: FeaturePointUpdate
 
 
 def delete_feature_point(db: Session, fp: FeaturePoint) -> None:
-    from app.models.coverage import FeaturePointTestCase
-    db.query(FeaturePointTestCase).filter(
-        FeaturePointTestCase.feature_point_id == fp.id
-    ).delete(synchronize_session=False)
-    db.delete(fp)
+    from datetime import datetime
+    fp.is_deleted = True
+    fp.deleted_at = datetime.utcnow()
     db.commit()
 
 
 def get_feature_point_count(db: Session, sprint_id: int | None = None) -> int:
     """统计功能点数量，可按 sprint_id 筛选"""
-    query = db.query(FeaturePoint)
+    query = db.query(FeaturePoint).filter(FeaturePoint.is_deleted == False)  # noqa: E712
     if sprint_id:
         query = query.filter(FeaturePoint.sprint_id == sprint_id)
     return query.count()

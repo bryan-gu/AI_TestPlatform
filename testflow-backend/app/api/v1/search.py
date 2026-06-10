@@ -36,7 +36,8 @@ def global_search(
     # 搜索项目
     if "project" in type_list:
         results = db.query(Project).filter(
-            Project.name.ilike(keyword)
+            Project.name.ilike(keyword),
+            Project.is_deleted == False,  # noqa: E712
         ).limit(10).all()
         for p in results:
             response.projects.append(SearchResultItem(
@@ -51,7 +52,8 @@ def global_search(
     # 搜索测试用例
     if "testcase" in type_list:
         results = db.query(TestCase).filter(
-            or_(TestCase.title.ilike(keyword), TestCase.case_no.ilike(keyword))
+            or_(TestCase.title.ilike(keyword), TestCase.case_no.ilike(keyword)),
+            TestCase.is_deleted == False,  # noqa: E712
         ).limit(10).all()
         for tc in results:
             response.testcases.append(SearchResultItem(
@@ -66,7 +68,8 @@ def global_search(
     # 搜索文档
     if "document" in type_list:
         results = db.query(Document).filter(
-            Document.name.ilike(keyword)
+            Document.name.ilike(keyword),
+            Document.is_deleted == False,  # noqa: E712
         ).limit(10).all()
         for doc in results:
             response.documents.append(SearchResultItem(
