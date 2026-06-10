@@ -115,6 +115,7 @@ import { getReportStats } from '../../api/report'
 import { getKnowledgeStats } from '../../api/knowledge'
 import { getUsers } from '../../api/user'
 import { getRoleStats } from '../../api/role'
+import { getExecutions } from '../../api/pipeline'
 
 const router = useRouter()
 const route = useRoute()
@@ -137,7 +138,7 @@ const knowledgeMenus = reactive([
 ])
 
 const aiMenus = reactive([
-  { path: '/ai-workbench', title: 'AI 工作台', icon: 'MagicStick', badgeText: '运行中' }
+  { path: '/ai-workbench', title: 'AI 工作台', icon: 'MagicStick', badgeText: '' }
 ])
 
 const systemMenus = reactive([
@@ -150,15 +151,27 @@ function navigateTo(item) {
   router.push(item.path)
 }
 
+function pipelineStatusLabel(status) {
+  const map = {
+    completed: '已完成',
+    running: '运行中',
+    paused: '已暂停',
+    waiting: '等待中',
+    failed: '失败'
+  }
+  return map[status] || ''
+}
+
 async function loadBadges() {
   try {
-    const [projRes, caseStatsRes, reportStatsRes, kbStatsRes, usersRes, roleStatsRes] = await Promise.allSettled([
+    const [projRes, caseStatsRes, reportStatsRes, kbStatsRes, usersRes, roleStatsRes, executionsRes] = await Promise.allSettled([
       getProjects(),
       getTestCaseStats(),
       getReportStats(),
       getKnowledgeStats(),
       getUsers(),
-      getRoleStats()
+      getRoleStats(),
+      getExecutions()
     ])
 
     if (projRes.status === 'fulfilled') {
@@ -178,6 +191,10 @@ async function loadBadges() {
     }
     if (roleStatsRes.status === 'fulfilled') {
       systemMenus[0].badge = roleStatsRes.value.data?.totalRoles || 0
+    }
+    if (executionsRes.status === 'fulfilled') {
+      const executions = executionsRes.value.data?.data || executionsRes.value.data || []
+      aiMenus[0].badgeText = executions.length > 0 ? pipelineStatusLabel(executions[0].status) : ''
     }
   } catch (e) {
     console.error('加载侧边栏数据失败:', e)

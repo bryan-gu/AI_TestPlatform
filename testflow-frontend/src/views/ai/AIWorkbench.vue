@@ -379,6 +379,7 @@ function startPolling(executionId) {
       if (['completed', 'failed'].includes(data.status)) {
         stopPolling()
         await loadExecutionHistory()
+        appStore.refreshSidebarBadges()
         // 加载产物数据
         await loadArtifacts(executionId)
       }
@@ -593,6 +594,7 @@ async function handleStart() {
     const execution = res.data?.data || res.data || {}
     currentExecution.value = execution
     ElMessage.success('流水线已启动')
+    appStore.refreshSidebarBadges()
     await loadExecutionHistory()
     // 启动轮询跟踪执行进度
     if (execution.id && ['running', 'waiting'].includes(execution.status)) {
@@ -612,6 +614,7 @@ async function handlePause() {
     const res = await pauseExecution(currentExecution.value.id)
     currentExecution.value = res.data?.data || res.data || {}
     stopPolling()
+    appStore.refreshSidebarBadges()
     ElMessage.info('已暂停')
   } catch (e) {
     ElMessage.error('暂停失败')
@@ -625,6 +628,7 @@ async function handleResume() {
     const execution = res.data?.data || res.data || {}
     currentExecution.value = execution
     ElMessage.success('流水线已恢复执行')
+    appStore.refreshSidebarBadges()
     // 启动轮询跟踪执行进度
     if (execution.id && ['running', 'waiting'].includes(execution.status)) {
       startPolling(execution.id)
