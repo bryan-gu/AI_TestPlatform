@@ -30,7 +30,7 @@
         <el-button type="primary" size="small" @click="handleAddModule" :loading="moduleSaving">添加</el-button>
         <el-button size="small" @click="showAddModule = false">取消</el-button>
       </div>
-      <el-table :data="modules" style="width:100%" size="small" v-loading="moduleLoading">
+      <el-table :data="modules" style="width:100%" size="small" v-loading="moduleLoading" empty-text="暂无模块，点击「添加模块」创建">
         <el-table-column label="模块名称" min-width="160">
           <template #default="{ row }">
             <div style="display:flex;align-items:center;gap:6px">
@@ -57,9 +57,6 @@
         <el-color-picker v-model="editingModule.color" size="small" />
         <el-button type="primary" size="small" @click="handleSaveModule" :loading="moduleSaving">保存</el-button>
         <el-button size="small" @click="editingModule = null">取消</el-button>
-      </div>
-      <div v-if="!moduleLoading && modules.length === 0" style="text-align:center;padding:24px;color:var(--color-text-tertiary)">
-        暂无模块，点击"添加模块"创建
       </div>
     </div>
 
