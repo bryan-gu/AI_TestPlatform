@@ -58,11 +58,6 @@
     <div class="card">
       <div class="card-head">
         <div class="card-title">知识图谱列表</div>
-        <div style="display:flex;gap:8px">
-          <el-select v-model="filterProjectId" size="small" style="width:160px" placeholder="全部项目" clearable @change="loadGraphs">
-            <el-option v-for="p in projects" :key="p.id" :label="p.name" :value="p.id" />
-          </el-select>
-        </div>
       </div>
       <el-table :data="graphs" style="width:100%" @row-click="goToDetail" v-loading="loading">
         <el-table-column label="图谱名称" min-width="200">
@@ -136,7 +131,6 @@ const router = useRouter()
 const regenerating = ref(false)
 const loading = ref(false)
 const selectedProject = ref(null)
-const filterProjectId = ref('')
 const currentProjectStatus = ref('')
 
 const projects = ref([])
@@ -174,7 +168,6 @@ function formatTime(dateStr) {
 function onProjectChange(pid) {
   const p = projects.value.find(p => p.id === pid)
   currentProjectStatus.value = p?.status || '进行中'
-  filterProjectId.value = pid
   loadGraphs()
 }
 
@@ -195,8 +188,7 @@ async function loadGraphs() {
   loading.value = true
   try {
     const params = {}
-    if (filterProjectId.value) params.project_id = filterProjectId.value
-    else if (selectedProject.value) params.project_id = selectedProject.value
+    if (selectedProject.value) params.project_id = selectedProject.value
     const res = await getGraphs(params)
     const list = res.data?.data || res.data || []
     graphs.value = list.map((g, i) => ({
@@ -230,7 +222,7 @@ function goToDetail(row) {
 async function handleRegenerate() {
   regenerating.value = true
   try {
-    const targetProjectId = filterProjectId.value || selectedProject.value
+    const targetProjectId = selectedProject.value
     if (graphs.value.length > 0) {
       await regenerateGraph(graphs.value[0].id)
       ElMessage.success('图谱重新生成完成')
