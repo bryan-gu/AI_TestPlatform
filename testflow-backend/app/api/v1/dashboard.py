@@ -8,8 +8,7 @@ from app.core.deps import get_current_user
 from app.models.project import Project
 from app.models.testcase import TestCase
 from app.models.activity import Activity
-from app.models.sprint import Sprint
-from app.models.document import Document
+from app.models.knowledge_asset import KnowledgeAsset
 from app.models.pipeline import PipelineExecution
 from app.models.ai_config import AICallLog
 from app.schemas.common import ResponseModel
@@ -28,8 +27,11 @@ def dashboard_stats(db: Session = Depends(get_db), _=Depends(get_current_user)):
     pending = db.query(TestCase).filter(TestCase.exec_status == "待执行").count()
 
     # Phase 7 增强统计
-    total_sprints = db.query(Sprint).count()
-    total_documents = db.query(Document).count()
+    total_sprints = db.query(KnowledgeAsset.sprint_id).filter(
+        KnowledgeAsset.status == "active",
+        KnowledgeAsset.sprint_id.isnot(None),
+    ).distinct().count()
+    total_documents = db.query(KnowledgeAsset).filter(KnowledgeAsset.status == "active").count()
     pipeline_executions = db.query(PipelineExecution).count()
     ai_call_count = db.query(AICallLog).count()
 

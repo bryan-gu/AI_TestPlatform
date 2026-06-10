@@ -39,11 +39,11 @@
     <!-- 统计卡片 — 知识库 & AI -->
     <div class="stats-grid" style="margin-top:12px">
       <div class="stat-card">
-        <div class="stat-label">知识库 Sprint</div>
-        <div class="stat-value">{{ stats.totalSprints }}</div>
+        <div class="stat-label">知识资产</div>
+        <div class="stat-value">{{ stats.totalDocuments }}</div>
         <div class="stat-sub">
           <span class="stat-dot dot-blue"></span>
-          文档 {{ stats.totalDocuments }} 份
+          覆盖 Sprint {{ stats.totalSprints }} 个
         </div>
       </div>
       <div class="stat-card">
