@@ -195,6 +195,10 @@ def batch_execute(db: Session, project_id: int | None = None) -> int:
 
 
 def delete_testcase(db: Session, case: TestCase) -> None:
+    from app.models.coverage import FeaturePointTestCase
+    db.query(FeaturePointTestCase).filter(
+        FeaturePointTestCase.testcase_id == case.id
+    ).delete(synchronize_session=False)
     db.delete(case)
     db.commit()
 

@@ -100,6 +100,10 @@ def update_feature_point(db: Session, fp: FeaturePoint, data: FeaturePointUpdate
 
 
 def delete_feature_point(db: Session, fp: FeaturePoint) -> None:
+    from app.models.coverage import FeaturePointTestCase
+    db.query(FeaturePointTestCase).filter(
+        FeaturePointTestCase.feature_point_id == fp.id
+    ).delete(synchronize_session=False)
     db.delete(fp)
     db.commit()
 

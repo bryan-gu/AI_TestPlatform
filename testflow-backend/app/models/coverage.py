@@ -15,5 +15,5 @@ class FeaturePointTestCase(Base):
     evidence = Column(Text, default="")
     created_at = Column(DateTime, server_default=func.now())
 
-    feature_point = relationship("FeaturePoint", backref="testcase_coverages")
-    testcase = relationship("TestCase", backref="feature_coverages")
+    feature_point = relationship("FeaturePoint", backref="testcase_coverages", passive_deletes=True)
+    testcase = relationship("TestCase", backref="feature_coverages", passive_deletes=True)
