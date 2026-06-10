@@ -72,6 +72,16 @@ def get_graphs(project_id: int | None = None, db: Session = Depends(get_db)):
     return ResponseModel(data=[_graph_to_out(g) for g in graphs])
 
 
+@router.post("/generate")
+def generate_graph(
+    project_id: int,
+    sprint_id: int | None = None,
+    db: Session = Depends(get_db),
+):
+    graph = crud_graph.generate_graph_for_scope(db, project_id=project_id, sprint_id=sprint_id)
+    return ResponseModel(data=_graph_to_out(graph), message="图谱生成完成")
+
+
 @router.get("/{graph_id}")
 def get_graph(graph_id: int, db: Session = Depends(get_db)):
     graph = crud_graph.get_graph(db, graph_id)

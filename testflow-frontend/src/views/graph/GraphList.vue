@@ -113,7 +113,11 @@
           </template>
         </el-table-column>
         <template #empty>
-          <el-empty v-if="!loading" description="暂无图谱数据，请在 AI 工作台中生成" />
+          <el-empty v-if="!loading" description="暂无图谱数据，可基于当前项目的追踪关系生成">
+            <el-button type="primary" size="small" @click.stop="handleRegenerate" :loading="regenerating">
+              <el-icon><Refresh /></el-icon>生成知识图谱
+            </el-button>
+          </el-empty>
         </template>
       </el-table>
     </div>
@@ -126,7 +130,7 @@ import { useRouter } from 'vue-router'
 import { Folder, Share, View, Refresh, MagicStick } from '@element-plus/icons-vue'
 import { ElMessage } from 'element-plus'
 import { getProjects } from '../../api/project'
-import { getGraphs, getGraphStats, regenerateGraph } from '../../api/graph'
+import { getGraphs, getGraphStats, regenerateGraph, generateGraph } from '../../api/graph'
 
 const router = useRouter()
 const regenerating = ref(false)
@@ -226,15 +230,19 @@ function goToDetail(row) {
 async function handleRegenerate() {
   regenerating.value = true
   try {
-    // 对当前筛选条件下的第一张图谱触发重新生成
+    const targetProjectId = filterProjectId.value || selectedProject.value
     if (graphs.value.length > 0) {
       await regenerateGraph(graphs.value[0].id)
       ElMessage.success('图谱重新生成完成')
-      await loadGraphs()
-      await loadStats()
+    } else if (targetProjectId) {
+      await generateGraph({ project_id: targetProjectId })
+      ElMessage.success('图谱生成完成')
     } else {
-      ElMessage.info('暂无图谱可重新生成')
+      ElMessage.info('请先选择项目')
+      return
     }
+    await loadGraphs()
+    await loadStats()
   } catch (e) {
     ElMessage.error('重新生成失败')
   } finally {

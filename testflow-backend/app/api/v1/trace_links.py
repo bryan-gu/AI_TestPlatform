@@ -5,7 +5,7 @@ from app.core.database import get_db
 from app.core.deps import get_current_user
 from app.schemas.common import ResponseModel
 from app.schemas.trace_link import TraceLinkCreate, TraceLinkUpdate, TraceLinkOut
-from app.crud import crud_trace_link
+from app.crud import crud_trace_link, crud_graph
 
 
 router = APIRouter(prefix="/trace-links", tags=["追踪关系"])
@@ -93,6 +93,14 @@ def backfill_trace_links(
     _=Depends(get_current_user),
 ):
     result = crud_trace_link.backfill_trace_links(db, project_id=project_id, sprint_id=sprint_id)
+    graph = None
+    if project_id is not None:
+        graph = crud_graph.generate_graph_for_scope(db, project_id=project_id, sprint_id=sprint_id)
+        result.update({
+            "graph_id": graph.id,
+            "node_count": graph.node_count,
+            "edge_count": graph.edge_count,
+        })
     return ResponseModel(data=result, message="追踪关系回填完成")
 
 

@@ -18,6 +18,10 @@ export function createGraph(data) {
   return request({ url: '/graphs', method: 'post', data })
 }
 
+export function generateGraph(params) {
+  return request({ url: '/graphs/generate', method: 'post', params })
+}
+
 export function deleteGraph(id) {
   return request({ url: `/graphs/${id}`, method: 'delete' })
 }

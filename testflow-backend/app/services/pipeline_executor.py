@@ -28,7 +28,7 @@ from app.models.feature_point import FeaturePoint
 from app.models.coverage import FeaturePointTestCase
 from app.models.testcase import TestCase
 from app.models.project import Project
-from app.crud import crud_knowledge_asset, crud_trace_link
+from app.crud import crud_knowledge_asset, crud_trace_link, crud_graph
 from app.schemas.trace_link import TraceLinkCreate
 from app.services.llm_adapter import LLMAdapter
 from app.services.llm_providers import LLMCallError
@@ -89,6 +89,12 @@ class PipelineExecutor:
             execution.completed_at = datetime.utcnow()
             self._calc_total_duration(execution)
             db.commit()
+            if execution.project_id:
+                crud_graph.generate_graph_for_scope(
+                    db,
+                    project_id=execution.project_id,
+                    sprint_id=execution.sprint_id,
+                )
 
         except Exception as e:
             logger.exception(f"Pipeline execution failed: {e}")

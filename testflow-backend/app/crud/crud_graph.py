@@ -4,6 +4,8 @@ from sqlalchemy.orm import Session
 
 from app.models.graph import Graph, GraphNode, GraphEdge
 from app.models.trace_link import TraceLink
+from app.models.project import Project
+from app.models.sprint import Sprint
 from app.crud import crud_trace_link
 
 
@@ -30,6 +32,59 @@ def create_graph(db: Session, name: str, project_id: int | None = None,
     db.commit()
     db.refresh(graph)
     return graph
+
+
+def get_graph_by_scope(db: Session, project_id: int | None = None, sprint_id: int | None = None):
+    query = db.query(Graph).filter(Graph.is_deleted == False)  # noqa: E712
+    if project_id is None:
+        query = query.filter(Graph.project_id.is_(None))
+    else:
+        query = query.filter(Graph.project_id == project_id)
+    if sprint_id is None:
+        query = query.filter(Graph.sprint_id.is_(None))
+    else:
+        query = query.filter(Graph.sprint_id == sprint_id)
+    return query.order_by(Graph.created_at.desc()).first()
+
+
+def _build_graph_name(db: Session, project_id: int | None = None, sprint_id: int | None = None) -> str:
+    project = db.query(Project).filter(Project.id == project_id).first() if project_id else None
+    sprint = db.query(Sprint).filter(Sprint.id == sprint_id).first() if sprint_id else None
+    if project and sprint:
+        return f"{project.name}-{sprint.name}-知识图谱"
+    if project:
+        return f"{project.name}-知识图谱"
+    if sprint:
+        return f"{sprint.name}-知识图谱"
+    return "知识图谱"
+
+
+def get_or_create_graph_for_scope(
+    db: Session,
+    project_id: int | None = None,
+    sprint_id: int | None = None,
+    name: str | None = None,
+):
+    graph = get_graph_by_scope(db, project_id=project_id, sprint_id=sprint_id)
+    if graph:
+        return graph
+    return create_graph(
+        db,
+        name=name or _build_graph_name(db, project_id=project_id, sprint_id=sprint_id),
+        project_id=project_id,
+        sprint_id=sprint_id,
+        status="需更新",
+    )
+
+
+def generate_graph_for_scope(
+    db: Session,
+    project_id: int | None = None,
+    sprint_id: int | None = None,
+    name: str | None = None,
+):
+    graph = get_or_create_graph_for_scope(db, project_id=project_id, sprint_id=sprint_id, name=name)
+    return regenerate_graph(db, graph)
 
 
 def delete_graph(db: Session, graph: Graph):

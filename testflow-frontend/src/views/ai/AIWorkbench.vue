@@ -381,8 +381,9 @@ function startPolling(executionId) {
         stopPolling()
         await loadExecutionHistory()
         appStore.refreshSidebarBadges()
-        // 加载产物数据
+        // 加载产物数据并刷新图谱统计
         await loadArtifacts(executionId)
+        await loadGraphStats()
       }
     } catch (e) {
       console.error('轮询执行状态失败', e)
