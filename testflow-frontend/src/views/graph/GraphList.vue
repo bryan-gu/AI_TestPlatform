@@ -112,8 +112,10 @@
             </div>
           </template>
         </el-table-column>
+        <template #empty>
+          <el-empty v-if="!loading" description="暂无图谱数据，请在 AI 工作台中生成" />
+        </template>
       </el-table>
-      <el-empty v-if="!loading && graphs.length === 0" description="暂无图谱数据，请在 AI 工作台中生成" />
     </div>
   </div>
 </template>
