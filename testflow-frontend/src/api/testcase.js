@@ -39,16 +39,6 @@ export function exportTestCases(projectId, sprintId) {
     params,
     responseType: 'blob',
     timeout: 60000
-  }).catch(async err => {
-    // blob 请求的错误需要从 blob 中解析 JSON
-    if (err.response && err.response.data instanceof Blob) {
-      const text = await err.response.data.text()
-      try {
-        const json = JSON.parse(text)
-        err.response.data = json
-      } catch (e) { /* ignore */ }
-    }
-    return Promise.reject(err)
   })
 }
 
@@ -58,15 +48,6 @@ export function downloadTemplate() {
     method: 'get',
     responseType: 'blob',
     timeout: 30000
-  }).catch(async err => {
-    if (err.response && err.response.data instanceof Blob) {
-      const text = await err.response.data.text()
-      try {
-        const json = JSON.parse(text)
-        err.response.data = json
-      } catch (e) { /* ignore */ }
-    }
-    return Promise.reject(err)
   })
 }
 
