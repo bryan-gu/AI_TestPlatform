@@ -18,7 +18,7 @@
         <el-table-column label="用例前缀" width="100"><template #default="{ row }">{{ row.case_prefix || '-' }}</template></el-table-column>
         <el-table-column prop="owner" label="负责人" width="100" />
         <el-table-column prop="description" label="描述" min-width="200" show-overflow-tooltip />
-        <el-table-column label="创建时间" width="120"><template #default="{ row }">{{ formatDate(row.created_at) }}</template></el-table-column>
+        <el-table-column label="创建时间" width="180"><template #default="{ row }">{{ formatDate(row.created_at) }}</template></el-table-column>
         <el-table-column label="操作" width="140" fixed="right">
           <template #default="{ row, $index }"><div class="action-btns" @click.stop><el-button type="primary" link size="small" @click="handleEdit(row)"><el-icon><Edit /></el-icon>编辑</el-button><el-button type="danger" link size="small" @click="handleDelete($index, row)"><el-icon><Delete /></el-icon>删除</el-button></div></template>
         </el-table-column>
