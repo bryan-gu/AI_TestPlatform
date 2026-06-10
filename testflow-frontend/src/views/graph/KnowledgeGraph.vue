@@ -14,7 +14,7 @@
 
       <div class="graph-content">
         <div class="graph-desc">
-          节点代表需求文档或功能模块，连线代表关联关系
+          节点代表知识资产、文档、功能点、用例或模块，连线代表可追踪关系
         </div>
 
         <!-- 节点区域 -->
@@ -116,20 +116,32 @@ const isolatedCount = computed(() => {
 
 function getNodeColorClass(nodeType) {
   const map = {
+    asset: 'gn-blue',
     document: 'gn-blue',
     module: 'gn-amber',
     testcase: 'gn-teal',
     feature: 'gn-purple',
+    api: 'gn-teal',
+    script: 'gn-coral',
+    selector: 'gn-coral',
+    execution: 'gn-amber',
+    change: 'gn-coral',
   }
   return map[nodeType] || 'gn-blue'
 }
 
 function getNodeIcon(nodeType) {
   const map = {
+    asset: 'Collection',
     document: 'Document',
     module: 'Box',
     testcase: 'List',
     feature: 'Star',
+    api: 'Connection',
+    script: 'Cpu',
+    selector: 'Aim',
+    execution: 'VideoPlay',
+    change: 'Refresh',
   }
   return map[nodeType] || 'Document'
 }
@@ -140,6 +152,19 @@ function getRelationLabel(relationType) {
     include: '包含',
     call: '调用',
     dataflow: '数据流',
+    contains: '包含',
+    derived_from: '来源于',
+    belongs_to: '属于',
+    covers: '覆盖',
+    tests_api: '测试接口',
+    implements: '实现',
+    changes: '变更',
+    depends_on: '依赖',
+    calls: '调用',
+    uses_schema: '使用 Schema',
+    generated_by: '生成自',
+    verified_by: '验证于',
+    mentions: '提及',
   }
   return map[relationType] || relationType
 }

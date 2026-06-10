@@ -28,6 +28,8 @@ from app.models.feature_point import FeaturePoint
 from app.models.coverage import FeaturePointTestCase
 from app.models.testcase import TestCase
 from app.models.project import Project
+from app.crud import crud_knowledge_asset, crud_trace_link
+from app.schemas.trace_link import TraceLinkCreate
 from app.services.llm_adapter import LLMAdapter
 from app.services.llm_providers import LLMCallError
 from app.services.artifact_manager import ArtifactManager
@@ -209,6 +211,49 @@ class PipelineExecutor:
                     raw_data=feat_data,
                 )
                 db.add(fp)
+                db.flush()
+                if source_doc_id:
+                    crud_trace_link.upsert_trace_link(db, TraceLinkCreate(
+                        project_id=project_id,
+                        sprint_id=execution.sprint_id,
+                        source_type="document",
+                        source_id=source_doc_id,
+                        target_type="feature",
+                        target_id=fp.id,
+                        relation_type="contains",
+                        confidence=90,
+                        evidence=f"需求文档提取功能点：{feat_name}",
+                        metadata={"stage": 1, "module_name": module.name},
+                        created_by="pipeline",
+                    ), commit=False)
+                    source_asset = crud_knowledge_asset.get_asset_by_document(db, source_doc_id)
+                    if source_asset:
+                        crud_trace_link.upsert_trace_link(db, TraceLinkCreate(
+                            project_id=project_id,
+                            sprint_id=execution.sprint_id,
+                            source_type="asset",
+                            source_id=source_asset.id,
+                            target_type="feature",
+                            target_id=fp.id,
+                            relation_type="derived_from",
+                            confidence=90,
+                            evidence=f"需求资产提取功能点：{feat_name}",
+                            metadata={"stage": 1, "module_name": module.name},
+                            created_by="pipeline",
+                        ), commit=False)
+                crud_trace_link.upsert_trace_link(db, TraceLinkCreate(
+                    project_id=project_id,
+                    sprint_id=execution.sprint_id,
+                    source_type="feature",
+                    source_id=fp.id,
+                    target_type="module",
+                    target_id=module.id,
+                    relation_type="belongs_to",
+                    confidence=100,
+                    evidence=f"功能点归属模块：{module.name}",
+                    metadata={"stage": 1},
+                    created_by="pipeline",
+                ), commit=False)
                 feature_count += 1
 
                 # 拼接 Markdown
@@ -390,6 +435,21 @@ class PipelineExecutor:
                 expected_result=case_data.get("expected", ""),
             )
             db.add(tc)
+            db.flush()
+            if module_id:
+                crud_trace_link.upsert_trace_link(db, TraceLinkCreate(
+                    project_id=project_id,
+                    sprint_id=sprint_id,
+                    source_type="testcase",
+                    source_id=tc.id,
+                    target_type="module",
+                    target_id=module_id,
+                    relation_type="belongs_to",
+                    confidence=100,
+                    evidence=f"测试用例归属模块：{case_module_name}",
+                    metadata={"stage": 2},
+                    created_by="pipeline",
+                ), commit=False)
             created_cases.append((tc, module_id))
             case_count += 1
 
@@ -522,6 +582,19 @@ class PipelineExecutor:
                     evidence=evidence,
                 )
                 db.add(coverage)
+                crud_trace_link.upsert_trace_link(db, TraceLinkCreate(
+                    project_id=case.project_id,
+                    sprint_id=case.sprint_id or fp.sprint_id,
+                    source_type="feature",
+                    source_id=fp.id,
+                    target_type="testcase",
+                    target_id=case.id,
+                    relation_type="covers",
+                    confidence=confidence,
+                    evidence=evidence,
+                    metadata={"stage": 2, "coverage_type": "functional"},
+                    created_by="pipeline",
+                ), commit=False)
                 coverage_count += 1
                 matched = True
                 if confidence >= 90:

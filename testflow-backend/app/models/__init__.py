@@ -12,6 +12,7 @@ from app.models.feature_point import FeaturePoint
 from app.models.ai_config import AIProvider, ModelStrategy, AIGlobalConfig, AICallLog
 from app.models.graph import Graph, GraphNode, GraphEdge
 from app.models.coverage import FeaturePointTestCase
+from app.models.trace_link import TraceLink
 from app.models.pipeline import PipelineExecution, PipelineStage
 
 __all__ = [
@@ -34,6 +35,7 @@ __all__ = [
     "GraphNode",
     "GraphEdge",
     "FeaturePointTestCase",
+    "TraceLink",
     "PipelineExecution",
     "PipelineStage",
 ]

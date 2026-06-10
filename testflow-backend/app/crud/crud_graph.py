@@ -1,7 +1,10 @@
+from datetime import datetime
 from sqlalchemy import func
 from sqlalchemy.orm import Session
 
 from app.models.graph import Graph, GraphNode, GraphEdge
+from app.models.trace_link import TraceLink
+from app.crud import crud_trace_link
 
 
 # ============ Graph CRUD ============
@@ -37,8 +40,52 @@ def delete_graph(db: Session, graph: Graph):
 
 
 def regenerate_graph(db: Session, graph: Graph):
-    """触发重新生成（当前为模拟，更新时间和状态）"""
-    graph.generated_at = func.now()
+    """从 TraceLink 重建图谱节点和边。"""
+    links_query = db.query(TraceLink).filter(TraceLink.status == "active")
+    if graph.project_id is not None:
+        links_query = links_query.filter(TraceLink.project_id == graph.project_id)
+    if graph.sprint_id is not None:
+        links_query = links_query.filter(TraceLink.sprint_id == graph.sprint_id)
+    links = links_query.all()
+
+    db.query(GraphEdge).filter(GraphEdge.graph_id == graph.id).delete()
+    db.query(GraphNode).filter(GraphNode.graph_id == graph.id).delete()
+    db.flush()
+
+    node_map: dict[tuple[str, int], GraphNode] = {}
+
+    def get_or_create_node(entity_type: str, entity_id: int) -> GraphNode:
+        key = (entity_type, entity_id)
+        if key in node_map:
+            return node_map[key]
+        node = GraphNode(
+            graph_id=graph.id,
+            name=crud_trace_link.get_entity_name(db, entity_type, entity_id),
+            node_type=entity_type,
+            properties={"entity_type": entity_type, "entity_id": entity_id},
+        )
+        db.add(node)
+        db.flush()
+        node_map[key] = node
+        return node
+
+    edge_count = 0
+    for link in links:
+        source_node = get_or_create_node(link.source_type, link.source_id)
+        target_node = get_or_create_node(link.target_type, link.target_id)
+        edge = GraphEdge(
+            graph_id=graph.id,
+            source_node_id=source_node.id,
+            target_node_id=target_node.id,
+            relation_type=link.relation_type,
+            description=link.evidence or "",
+        )
+        db.add(edge)
+        edge_count += 1
+
+    graph.node_count = len(node_map)
+    graph.edge_count = edge_count
+    graph.generated_at = datetime.utcnow()
     graph.status = "最新"
     db.commit()
     db.refresh(graph)

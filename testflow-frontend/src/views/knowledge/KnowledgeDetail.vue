@@ -209,9 +209,12 @@
         <el-table-column label="创建时间" width="110">
           <template #default="{ row }">{{ formatDate(row.created_at) }}</template>
         </el-table-column>
-        <el-table-column label="操作" width="140" fixed="right">
+        <el-table-column label="操作" width="190" fixed="right">
           <template #default="{ row, $index }">
             <div class="action-btns">
+              <el-button type="primary" link size="small" @click="openTraceDialog(row)">
+                <el-icon><Connection /></el-icon>关系
+              </el-button>
               <el-button type="primary" link size="small" @click="handleEditFp(row)">
                 <el-icon><Edit /></el-icon>编辑
               </el-button>
@@ -292,6 +295,36 @@
       </template>
     </el-dialog>
 
+    <!-- 关联关系对话框 -->
+    <el-dialog v-model="traceVisible" :title="`${traceFeature?.name || '功能点'} - 关联关系`" width="760px" destroy-on-close>
+      <div v-loading="traceLoading" class="trace-panel">
+        <div class="trace-section">
+          <div class="trace-title">一跳关系</div>
+          <el-table :data="traceLinks" size="small" empty-text="暂无关联关系">
+            <el-table-column label="方向" width="70">
+              <template #default="{ row }">{{ row.source_type === 'feature' && row.source_id === traceFeature?.id ? '下游' : '上游' }}</template>
+            </el-table-column>
+            <el-table-column label="关系" width="90"><template #default="{ row }">{{ row.relation_label || getRelationText(row.relation_type) }}</template></el-table-column>
+            <el-table-column label="来源" min-width="150"><template #default="{ row }">{{ formatEntity(row.source_type, row.source_name) }}</template></el-table-column>
+            <el-table-column label="目标" min-width="150"><template #default="{ row }">{{ formatEntity(row.target_type, row.target_name) }}</template></el-table-column>
+            <el-table-column label="置信度" width="80"><template #default="{ row }">{{ row.confidence || 0 }}%</template></el-table-column>
+          </el-table>
+        </div>
+        <div class="trace-section">
+          <div class="trace-title">影响范围</div>
+          <div class="impact-groups" v-if="hasImpactData">
+            <div v-for="group in impactGroups" :key="group.key" class="impact-group" v-show="group.items.length">
+              <div class="impact-label">{{ group.label }} · {{ group.items.length }}</div>
+              <div class="impact-tags">
+                <el-tag v-for="item in group.items" :key="`${item.type}-${item.id}`" size="small" effect="plain">{{ item.name }}</el-tag>
+              </div>
+            </div>
+          </div>
+          <el-empty v-else description="暂无影响数据" :image-size="72" />
+        </div>
+      </div>
+    </el-dialog>
+
     <!-- 模块标签管理对话框 -->
     <el-dialog v-model="moduleManagerVisible" title="模块标签管理" width="560px" destroy-on-close>
       <div style="margin-bottom:12px;display:flex;gap:8px">
@@ -334,10 +367,10 @@
 </template>
 
 <script setup>
-import { ref, reactive, onMounted, onBeforeUnmount } from 'vue'
+import { ref, reactive, onMounted, onBeforeUnmount, computed } from 'vue'
 import { useRouter, useRoute } from 'vue-router'
 import { useAppStore } from '../../stores/app'
-import { Folder, Promotion, Document, Edit, Delete, Upload, MagicStick, Refresh, Collection } from '@element-plus/icons-vue'
+import { Folder, Promotion, Document, Edit, Delete, Upload, MagicStick, Refresh, Collection, Connection } from '@element-plus/icons-vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import {
   getSprint, getSprintDocuments, uploadSprintDocument,
@@ -348,6 +381,7 @@ import {
   getFeaturePoints, createFeaturePoint, updateFeaturePoint, deleteFeaturePoint,
 } from '../../api/featurePoint'
 import { getKnowledgeAssets } from '../../api/knowledgeAsset'
+import { getEntityTraceLinks, getEntityImpact } from '../../api/traceLink'
 
 const router = useRouter()
 const route = useRoute()
@@ -359,6 +393,11 @@ const fpLoading = ref(false)
 const fpSaving = ref(false)
 const assetLoading = ref(false)
 const assetTypeFilter = ref('')
+const traceVisible = ref(false)
+const traceLoading = ref(false)
+const traceFeature = ref(null)
+const traceLinks = ref([])
+const traceImpact = ref({})
 
 // 解析状态轮询
 let parsePollingTimer = null
@@ -467,6 +506,18 @@ const editFpForm = reactive({
   source_type: 'manual',
 })
 
+const impactGroups = computed(() => [
+  { key: 'testcases', label: '测试用例', items: traceImpact.value.testcases || [] },
+  { key: 'assets', label: '知识资产', items: traceImpact.value.assets || [] },
+  { key: 'features', label: '功能点', items: traceImpact.value.features || [] },
+  { key: 'modules', label: '模块', items: traceImpact.value.modules || [] },
+  { key: 'api_endpoints', label: '接口', items: traceImpact.value.api_endpoints || [] },
+  { key: 'scripts', label: '脚本', items: traceImpact.value.scripts || [] },
+  { key: 'changes', label: '变更', items: traceImpact.value.changes || [] },
+])
+
+const hasImpactData = computed(() => impactGroups.value.some(group => group.items.length > 0))
+
 function formatDate(dateStr) {
   if (!dateStr) return '--'
   const d = new Date(dateStr)
@@ -514,6 +565,18 @@ function getAssetTagType(type) {
 
 function getAssetParseType(status) {
   return { pending: 'info', '待解析': 'info', '解析中': 'warning', '已解析': 'success', '解析失败': 'danger' }[status] || 'info'
+}
+
+function getRelationText(type) {
+  return { contains: '包含', derived_from: '来源于', belongs_to: '属于', covers: '覆盖', generated_by: '生成自', depends_on: '依赖', verified_by: '验证于', tests_api: '测试接口', implements: '实现', changes: '变更', mentions: '提及' }[type] || type
+}
+
+function getEntityText(type) {
+  return { asset: '资产', document: '文档', module: '模块', feature: '功能点', testcase: '用例', api: '接口', script: '脚本', selector: '选择器', execution: '执行', change: '变更' }[type] || type
+}
+
+function formatEntity(type, name) {
+  return `${getEntityText(type)}：${name || '-'}`
 }
 
 function formatFileSize(size) {
@@ -662,6 +725,26 @@ async function loadFeaturePoints() {
     console.error(e)
   } finally {
     fpLoading.value = false
+  }
+}
+
+async function openTraceDialog(row) {
+  traceFeature.value = row
+  traceLinks.value = []
+  traceImpact.value = {}
+  traceVisible.value = true
+  traceLoading.value = true
+  try {
+    const [linksRes, impactRes] = await Promise.all([
+      getEntityTraceLinks('feature', row.id),
+      getEntityImpact('feature', row.id),
+    ])
+    traceLinks.value = linksRes.data || []
+    traceImpact.value = impactRes.data || {}
+  } catch (e) {
+    ElMessage.error('加载关联关系失败')
+  } finally {
+    traceLoading.value = false
   }
 }
 
@@ -883,6 +966,41 @@ onBeforeUnmount(() => {
 
 .card-action:hover { text-decoration: underline; }
 
-.action-btns { display: flex; gap: 4px; }
+.action-btns { display: flex; gap: 4px; flex-wrap: wrap; }
+
+.trace-panel {
+  min-height: 220px;
+}
+
+.trace-section + .trace-section {
+  margin-top: 18px;
+  padding-top: 16px;
+  border-top: 0.5px solid var(--color-border-tertiary);
+}
+
+.trace-title {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--color-text-primary);
+  margin-bottom: 10px;
+}
+
+.impact-groups {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.impact-label {
+  font-size: 12px;
+  color: var(--color-text-secondary);
+  margin-bottom: 6px;
+}
+
+.impact-tags {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
 .el-table { cursor: pointer; }
 </style>
