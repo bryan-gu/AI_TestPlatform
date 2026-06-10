@@ -1,6 +1,11 @@
 services:
   db:
     image: postgres:16-alpine
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "50m"
+        max-file: "3"
     environment:
       POSTGRES_DB: testflow
       POSTGRES_USER: testflow
@@ -17,6 +22,11 @@ services:
 
   api:
     build: .
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "50m"
+        max-file: "3"
     ports:
       - "8002:8000"
     environment:
@@ -35,6 +45,11 @@ services:
 
   web:
     build: ../testflow-frontend
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "50m"
+        max-file: "3"
     ports:
       - "3000:80"
     depends_on:
