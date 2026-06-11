@@ -71,8 +71,8 @@
       <div class="card-head">
         <div class="card-title">接口列表</div>
       </div>
-      <el-table :data="endpoints" style="width:100%" v-loading="loading" empty-text="暂无接口数据" @row-click="openDetail">
-        <el-table-column label="Method" width="90">
+      <el-table :data="endpoints" style="width:100%" border v-loading="loading" empty-text="暂无接口数据" @row-click="openDetail">
+        <el-table-column label="Method" min-width="90">
           <template #default="{ row }">
             <span :class="['method-badge', `method-${row.method?.toLowerCase()}`]">{{ row.method }}</span>
           </template>
@@ -83,31 +83,31 @@
           </template>
         </el-table-column>
         <el-table-column prop="summary" label="Summary" min-width="180" show-overflow-tooltip />
-        <el-table-column label="Tag" width="120" show-overflow-tooltip>
+        <el-table-column label="Tag" min-width="100" show-overflow-tooltip>
           <template #default="{ row }">
             <el-tag v-if="row.tag" size="small" effect="plain" type="info">{{ row.tag }}</el-tag>
             <span v-else style="color:var(--color-text-tertiary)">-</span>
           </template>
         </el-table-column>
-        <el-table-column label="状态" width="80">
+        <el-table-column label="状态" min-width="80">
           <template #default="{ row }">
             <el-tag :type="getStatusType(row.status)" size="small" effect="plain" round>{{ getStatusText(row.status) }}</el-tag>
           </template>
         </el-table-column>
-        <el-table-column label="来源资产" width="160" show-overflow-tooltip>
+        <el-table-column label="来源资产" min-width="140" show-overflow-tooltip>
           <template #default="{ row }">{{ row.source_asset_name || '-' }}</template>
         </el-table-column>
-        <el-table-column label="Sprint" width="90" show-overflow-tooltip>
+        <el-table-column label="Sprint" min-width="100" show-overflow-tooltip>
           <template #default="{ row }">{{ row.sprint_name || '-' }}</template>
         </el-table-column>
-        <el-table-column label="覆盖用例" width="90">
+        <el-table-column label="覆盖用例" min-width="80">
           <template #default="{ row }">
             <span :style="{ color: row.testcase_count > 0 ? 'var(--accent)' : 'var(--color-text-tertiary)' }">
               {{ row.testcase_count }}
             </span>
           </template>
         </el-table-column>
-        <el-table-column label="操作" width="120" fixed="right">
+        <el-table-column label="操作" width="130" fixed="right" class-name="col-no-resize">
           <template #default="{ row }">
             <div class="action-btns" @click.stop>
               <el-button type="primary" link size="small" @click="openDetail(row)">
@@ -438,7 +438,11 @@ async function handleUnlink(link) {
 .dot-blue { background: var(--accent); }
 .dot-amber { background: #EF9F27; }
 
-.action-btns { display: flex; gap: 4px; flex-wrap: wrap; }
+.action-btns { display: flex; gap: 4px; flex-wrap: nowrap; white-space: nowrap; }
+
+/* 隐藏操作列的列宽拖拽手柄 */
+:deep(.col-no-resize .el-table__column-resize-proxy) { display: none; }
+:deep(.col-no-resize) { cursor: default !important; }
 
 /* Method Badge */
 .method-badge {
