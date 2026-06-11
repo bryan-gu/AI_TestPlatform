@@ -97,7 +97,7 @@
         <el-table-column label="来源资产" width="160" show-overflow-tooltip>
           <template #default="{ row }">{{ row.source_asset_name || '-' }}</template>
         </el-table-column>
-        <el-table-column label="Sprint" width="120" show-overflow-tooltip>
+        <el-table-column label="Sprint" width="90" show-overflow-tooltip>
           <template #default="{ row }">{{ row.sprint_name || '-' }}</template>
         </el-table-column>
         <el-table-column label="覆盖用例" width="90">
