@@ -1,45 +1,13 @@
 <template>
   <div class="api-endpoint-list">
-    <!-- 面包屑 -->
-    <div class="breadcrumb">
-      <span class="breadcrumb-item" @click="goToKnowledge">
-        <el-icon :size="13"><Collection /></el-icon>知识库
-      </span>
-      <span class="breadcrumb-sep">/</span>
-      <span class="breadcrumb-item current">接口清单</span>
-    </div>
-
-    <!-- 筛选栏 -->
-    <div class="card" style="margin-bottom:16px">
-      <div class="filter-bar">
-        <el-select v-model="filters.project_id" placeholder="选择项目" size="small" style="width:160px" clearable @change="handleFilterChange">
-          <el-option v-for="p in projectOptions" :key="p.id" :label="p.name" :value="p.id" />
-        </el-select>
-        <el-select v-model="filters.sprint_id" placeholder="选择 Sprint" size="small" style="width:180px" clearable @change="handleFilterChange">
-          <el-option v-for="s in sprintOptions" :key="s.id" :label="s.name" :value="s.id" />
-        </el-select>
-        <el-select v-model="filters.method" placeholder="Method" size="small" style="width:110px" clearable @change="handleFilterChange">
-          <el-option v-for="m in methodOptions" :key="m" :label="m" :value="m" />
-        </el-select>
-        <el-select v-model="filters.status" placeholder="状态" size="small" style="width:110px" clearable @change="handleFilterChange">
-          <el-option label="活跃" value="active" />
-          <el-option label="废弃" value="deprecated" />
-          <el-option label="停用" value="disabled" />
-        </el-select>
-        <el-input
-          v-model="filters.keyword"
-          placeholder="搜索路径 / Summary / Tag"
-          size="small"
-          style="width:240px"
-          clearable
-          @clear="handleFilterChange"
-          @keyup.enter="handleFilterChange"
-        >
-          <template #prefix><el-icon><Search /></el-icon></template>
-        </el-input>
-        <el-button type="primary" size="small" @click="handleFilterChange">
-          <el-icon><Search /></el-icon>搜索
-        </el-button>
+    <!-- 页面标题 -->
+    <div class="page-header">
+      <div>
+        <div class="page-title">
+          <el-icon :size="18"><Connection /></el-icon>
+          <span>接口清单</span>
+        </div>
+        <div class="page-subtitle">按项目、Sprint、Method、状态快速定位接口与用例覆盖情况</div>
       </div>
     </div>
 
@@ -68,8 +36,38 @@
 
     <!-- 接口列表 -->
     <div class="card">
-      <div class="card-head">
+      <div class="card-head endpoint-card-head">
         <div class="card-title">接口列表</div>
+        <div class="filter-bar">
+          <el-select v-model="filters.project_id" placeholder="选择项目" size="small" style="width:160px" clearable @change="handleProjectChange">
+            <el-option v-for="p in projectOptions" :key="p.id" :label="p.name" :value="p.id" />
+          </el-select>
+          <el-select v-model="filters.sprint_id" placeholder="选择 Sprint" size="small" style="width:180px" clearable @change="handleFilterChange">
+            <el-option v-for="s in sprintOptions" :key="s.id" :label="s.name" :value="s.id" />
+          </el-select>
+          <el-select v-model="filters.method" placeholder="Method" size="small" style="width:110px" clearable @change="handleFilterChange">
+            <el-option v-for="m in methodOptions" :key="m" :label="m" :value="m" />
+          </el-select>
+          <el-select v-model="filters.status" placeholder="状态" size="small" style="width:110px" clearable @change="handleFilterChange">
+            <el-option label="活跃" value="active" />
+            <el-option label="废弃" value="deprecated" />
+            <el-option label="停用" value="disabled" />
+          </el-select>
+          <el-input
+            v-model="filters.keyword"
+            placeholder="搜索路径 / Summary / Tag"
+            size="small"
+            style="width:240px"
+            clearable
+            @clear="handleFilterChange"
+            @keyup.enter="handleFilterChange"
+          >
+            <template #prefix><el-icon><Search /></el-icon></template>
+          </el-input>
+          <el-button type="primary" size="small" @click="handleFilterChange">
+            <el-icon><Search /></el-icon>搜索
+          </el-button>
+        </div>
       </div>
       <el-table :data="endpoints" style="width:100%" border v-loading="loading" empty-text="暂无接口数据" @row-click="openDetail">
         <el-table-column label="Method" min-width="90">
@@ -233,13 +231,13 @@
 </template>
 
 <script setup>
-import { ref, reactive, onMounted, computed, watch } from 'vue'
+import { ref, reactive, onMounted, computed } from 'vue'
 import { useRouter, useRoute } from 'vue-router'
-import { Collection, Search, View, Delete } from '@element-plus/icons-vue'
+import { Connection, Search, View, Delete } from '@element-plus/icons-vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { getApiEndpoints, getApiEndpoint, deleteApiEndpoint, getApiEndpointTestCases, unlinkApiEndpointTestCase } from '../../api/apiEndpoint'
 import { getProjects } from '../../api/project'
-import { getKnowledgeStats } from '../../api/knowledge'
+import { getSprints, getSprint } from '../../api/sprint'
 
 const router = useRouter()
 const route = useRoute()
@@ -279,16 +277,41 @@ const coveredCount = computed(() => endpoints.value.filter(e => e.testcase_count
 
 // 从 URL query 接收参数（从 Sprint 详情跳转时使用）
 onMounted(async () => {
-  // 从 query 初始化筛选
-  if (route.query.source_asset_id) {
-    // 不直接筛选 source_asset_id，但保持页面简洁
+  const queryProjectId = parseQueryInt(route.query.project_id)
+  const querySprintId = parseQueryInt(route.query.sprint_id)
+
+  if (queryProjectId) {
+    filters.project_id = queryProjectId
   }
-  if (route.query.sprint_id) {
-    filters.sprint_id = parseInt(route.query.sprint_id)
+  if (querySprintId) {
+    filters.sprint_id = querySprintId
+    if (!filters.project_id) {
+      await resolveProjectBySprint(querySprintId)
+    }
   }
+
   await loadProjects()
+  await loadSprintOptions(filters.project_id)
   await loadEndpoints()
 })
+
+function parseQueryInt(value) {
+  const raw = Array.isArray(value) ? value[0] : value
+  const num = parseInt(raw)
+  return Number.isNaN(num) ? null : num
+}
+
+async function resolveProjectBySprint(sprintId) {
+  try {
+    const res = await getSprint(sprintId)
+    const sprint = res.data || {}
+    if (sprint.project_id) {
+      filters.project_id = sprint.project_id
+    }
+  } catch (e) {
+    console.error(e)
+  }
+}
 
 async function loadProjects() {
   try {
@@ -297,6 +320,22 @@ async function loadProjects() {
   } catch (e) {
     console.error(e)
   }
+}
+
+async function loadSprintOptions(projectId) {
+  try {
+    const res = await getSprints(projectId ? { project_id: projectId } : {})
+    sprintOptions.value = res.data || []
+  } catch (e) {
+    console.error(e)
+    sprintOptions.value = []
+  }
+}
+
+async function handleProjectChange(projectId) {
+  filters.sprint_id = null
+  await loadSprintOptions(projectId)
+  handleFilterChange()
 }
 
 async function loadEndpoints() {
@@ -329,8 +368,6 @@ function handleFilterChange() {
   currentPage.value = 1
   loadEndpoints()
 }
-
-function goToKnowledge() { router.push('/knowledge') }
 
 function getStatusType(status) {
   return { active: 'success', deprecated: 'warning', disabled: 'info' }[status] || 'info'
@@ -397,30 +434,50 @@ async function handleUnlink(link) {
 <style scoped>
 .api-endpoint-list { max-width: 1400px; }
 
-.breadcrumb {
+.page-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 16px;
+  margin-bottom: 16px;
+}
+.page-title {
   display: flex;
   align-items: center;
-  gap: 0;
-  margin-bottom: 16px;
-  font-size: 13px;
+  gap: 8px;
+  font-size: 20px;
+  font-weight: 600;
+  color: var(--color-text-primary);
+  line-height: 1.3;
 }
-.breadcrumb-item {
-  color: var(--accent);
-  cursor: pointer;
-  display: inline-flex;
-  align-items: center;
-  gap: 4px;
+.page-title .el-icon { color: var(--accent); }
+.page-subtitle {
+  margin-top: 4px;
+  font-size: 12px;
+  color: var(--color-text-secondary);
 }
-.breadcrumb-item:hover { text-decoration: underline; }
-.breadcrumb-item.current { color: var(--color-text-primary); cursor: default; font-weight: 500; }
-.breadcrumb-item.current:hover { text-decoration: none; }
-.breadcrumb-sep { margin: 0 8px; color: var(--color-text-tertiary); }
+
+.endpoint-card-head {
+  align-items: flex-start;
+  gap: 12px;
+}
 
 .filter-bar {
   display: flex;
   gap: 10px;
   align-items: center;
+  justify-content: flex-end;
   flex-wrap: wrap;
+}
+
+@media (max-width: 1100px) {
+  .endpoint-card-head {
+    flex-direction: column;
+    align-items: stretch;
+  }
+  .filter-bar {
+    justify-content: flex-start;
+  }
 }
 
 .stats-grid { display: grid; gap: 12px; }
