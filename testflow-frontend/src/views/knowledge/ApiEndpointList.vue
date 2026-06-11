@@ -444,6 +444,13 @@ async function handleUnlink(link) {
 :deep(.col-no-resize .el-table__column-resize-proxy) { display: none; }
 :deep(.col-no-resize) { cursor: default !important; }
 
+/* 隐藏表格内边框线（保留列宽拖拽能力） */
+:deep(.el-table--border .el-table__inner-wrapper::after),
+:deep(.el-table--border .el-table__body-wrapper)::after { display: none; }
+:deep(.el-table--border th.el-table__cell),
+:deep(.el-table--border td.el-table__cell) { border-right: none; }
+:deep(.el-table--border tr.el-table__row:last-child td.el-table__cell) { border-bottom: none; }
+
 /* Method Badge */
 .method-badge {
   display: inline-block;
