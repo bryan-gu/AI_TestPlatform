@@ -10,6 +10,7 @@ from app.models.testcase import TestCase
 from app.models.module import Module
 from app.models.sprint import Sprint
 from app.models.api_endpoint import ApiEndpoint
+from app.models.change_item import ChangeItem
 from app.schemas.trace_link import TraceLinkCreate, TraceLinkUpdate
 
 
@@ -231,6 +232,7 @@ def get_entity_name(db: Session, entity_type: str, entity_id: int) -> str:
         "testcase": (TestCase, TestCase.title),
         "module": (Module, Module.name),
         "sprint": (Sprint, Sprint.name),
+        "change": (ChangeItem, ChangeItem.title),
     }
     item = model_map.get(entity_type)
     if not item:

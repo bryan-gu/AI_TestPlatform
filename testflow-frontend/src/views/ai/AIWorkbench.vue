@@ -22,7 +22,7 @@
           <el-icon :size="20" style="color:var(--color-text-secondary)"><Operation /></el-icon>
           <span class="mode-title">增量模式</span>
         </div>
-        <div class="mode-desc">基于当前 Sprint 快照，仅分析变更部分并生成增量用例。适用于迭代回归。</div>
+        <div class="mode-desc">基于当前 Sprint 快照识别变更项、计算影响范围，并为后续增量用例生成提供依据。适用于迭代回归。</div>
       </div>
     </div>
 
@@ -34,6 +34,14 @@
           <el-select v-model="selectedProject" size="small" style="width:160px" @change="onProjectChange">
             <el-option v-for="p in projects" :key="p.id" :label="p.name" :value="p.id" />
           </el-select>
+          <el-button
+            v-if="selectedSprint"
+            size="small"
+            plain
+            @click="goToChangeItems"
+          >
+            <el-icon><Operation /></el-icon>查看变更项
+          </el-button>
           <el-button
             type="primary"
             size="small"
@@ -437,6 +445,16 @@ function stageStatusLabel(status) {
 }
 
 function stageDescription(stageNo) {
+  const mode = currentExecution.value?.mode || selectedMode.value
+  if (mode === 'incremental') {
+    const incrementalMap = {
+      1: '规则分析当前 Sprint 与基线 Sprint 的差异，生成变更项并写入影响关系。',
+      2: '增量用例生成将在后续增强；当前阶段保留变更影响分析结果。',
+      3: '将增量用例转化为自动化脚本将在后续增强。',
+      4: '执行与自愈将在后续增强。',
+    }
+    return incrementalMap[stageNo] || ''
+  }
   const map = {
     1: 'AI 解析知识库中的需求文档，提取功能点、业务规则、接口定义，构建知识图谱关联。',
     2: '基于需求分析结果，AI 自动生成测试用例，覆盖正向、异常、边界场景。',
@@ -642,6 +660,10 @@ async function handleResume() {
 
 function goToGraphList() {
   router.push('/graphs')
+}
+
+function goToChangeItems() {
+  router.push({ path: '/change-items', query: { project_id: selectedProject.value, sprint_id: selectedSprint.value } })
 }
 
 // ── 初始化 ──

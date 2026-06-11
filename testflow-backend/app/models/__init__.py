@@ -15,6 +15,7 @@ from app.models.coverage import FeaturePointTestCase
 from app.models.trace_link import TraceLink
 from app.models.pipeline import PipelineExecution, PipelineStage
 from app.models.api_endpoint import ApiEndpoint, TestCaseApiEndpoint
+from app.models.change_item import ChangeItem
 
 __all__ = [
     "Role",
@@ -41,4 +42,5 @@ __all__ = [
     "PipelineStage",
     "ApiEndpoint",
     "TestCaseApiEndpoint",
+    "ChangeItem",
 ]

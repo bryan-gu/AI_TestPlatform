@@ -85,6 +85,12 @@ const routes = [
         meta: { title: '接口清单' }
       },
       {
+        path: 'change-items',
+        name: 'ChangeItemList',
+        component: () => import('../views/knowledge/ChangeItemList.vue'),
+        meta: { title: '变更项' }
+      },
+      {
         path: 'graphs/:id',
         name: 'GraphDetail',
         component: () => import('../views/graph/KnowledgeGraph.vue'),

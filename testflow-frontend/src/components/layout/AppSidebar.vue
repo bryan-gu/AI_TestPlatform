@@ -135,6 +135,7 @@ const projectMenus = reactive([
 const knowledgeMenus = reactive([
   { path: '/knowledge', title: '知识库', icon: 'Collection', badge: 0 },
   { path: '/api-endpoints', title: '接口清单', icon: 'Connection' },
+  { path: '/change-items', title: '变更项', icon: 'Refresh' },
   { path: '/graphs', title: '知识图谱', icon: 'Share' }
 ])
 

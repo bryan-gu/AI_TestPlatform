@@ -23,7 +23,13 @@
             </div>
           </div>
         </div>
-        <div style="display:flex;gap:10px">
+        <div style="display:flex;gap:10px;align-items:center">
+          <el-button size="small" type="primary" plain :loading="analyzingChanges" @click="handleAnalyzeChanges">
+            <el-icon><MagicStick /></el-icon>增量分析
+          </el-button>
+          <el-button size="small" type="primary" plain @click="goToChangeItems">
+            <el-icon><Refresh /></el-icon>查看变更项
+          </el-button>
           <el-tag :type="getSprintStatusType(sprint.status)" size="small" effect="plain" round>{{ sprint.status }}</el-tag>
         </div>
       </div>
@@ -396,6 +402,7 @@ import {
 import { getKnowledgeAssets } from '../../api/knowledgeAsset'
 import { getEntityTraceLinks, getEntityImpact } from '../../api/traceLink'
 import { importOpenApi } from '../../api/apiEndpoint'
+import { analyzeSprintChangeItems } from '../../api/changeItem'
 
 const router = useRouter()
 const route = useRoute()
@@ -413,6 +420,7 @@ const traceFeature = ref(null)
 const traceLinks = ref([])
 const traceImpact = ref({})
 const importingAssetId = ref(null)
+const analyzingChanges = ref(false)
 
 // 解析状态轮询
 let parsePollingTimer = null
@@ -608,6 +616,20 @@ function getFileIconColor(type) {
 function goToProject() { router.push('/projects') }
 function goToKnowledge() { router.push('/knowledge') }
 function goToPreview(row) { router.push(`/knowledge/doc/${row.id}`) }
+function goToChangeItems() { router.push({ path: '/change-items', query: { sprint_id: sprintId, project_id: sprint.value.projectId } }) }
+
+async function handleAnalyzeChanges() {
+  analyzingChanges.value = true
+  try {
+    const res = await analyzeSprintChangeItems(sprintId, { overwrite: false })
+    const result = res.data || {}
+    ElMessage.success(`分析完成：共 ${result.total || 0} 个变更，新增 ${result.created || 0} 个，更新 ${result.updated || 0} 个`)
+  } catch (e) {
+    ElMessage.error(e.response?.data?.detail || '增量分析失败')
+  } finally {
+    analyzingChanges.value = false
+  }
+}
 
 async function loadData() {
   loading.value = true
@@ -621,6 +643,7 @@ async function loadData() {
         id: sprintRes.data.id,
         name: sprintRes.data.name,
         projectName: sprintRes.data.project_name || '',
+        projectId: sprintRes.data.project_id,
         status: sprintRes.data.status,
         moduleCount: sprintRes.data.module_count || 0,
         description: sprintRes.data.description || '',
@@ -893,7 +916,7 @@ async function handleAddModule() {
     await createModule({
       name: newModuleName.value,
       code: newModuleCode.value.trim().toUpperCase(),
-      project_id: null, // TODO: 传入实际 project_id
+      project_id: sprint.value.projectId,
       color: newModuleColor.value,
     })
     ElMessage.success('添加成功')

@@ -33,6 +33,7 @@ from app.schemas.trace_link import TraceLinkCreate
 from app.services.llm_adapter import LLMAdapter
 from app.services.llm_providers import LLMCallError
 from app.services.artifact_manager import ArtifactManager
+from app.services.change_analyzer import ChangeAnalyzer
 from app.services.prompts.skill_prompts import build_stage1_prompt, build_stage2_prompt
 
 logger = logging.getLogger(__name__)
@@ -121,7 +122,11 @@ class PipelineExecutor:
         if stage.stage_no == 1:
             result = self._execute_stage_1(db, execution, stage, document_content)
         elif stage.stage_no == 2:
-            result = self._execute_stage_2(db, execution, stage)
+            if execution.mode == "incremental":
+                result = self._execute_stage_placeholder(db, execution, stage,
+                    "增量模式已完成变更识别与影响分析。增量用例生成将在后续增强。")
+            else:
+                result = self._execute_stage_2(db, execution, stage)
         elif stage.stage_no == 3:
             result = self._execute_stage_placeholder(db, execution, stage,
                 "E2E 脚本生成将在 Phase B 实现。当前阶段跳过，等待浏览器集成。")
@@ -136,6 +141,40 @@ class PipelineExecutor:
     # ============ Stage 1: 需求分析 ============
 
     def _execute_stage_1(self, db, execution, stage, document_content: str):
+        if execution.mode == "incremental":
+            return self._execute_stage_1_incremental(db, execution, stage)
+        return self._execute_stage_1_full(db, execution, stage, document_content)
+
+    def _execute_stage_1_incremental(self, db, execution, stage):
+        """增量模式：识别 ChangeItem 并生成影响关系。"""
+        if not execution.sprint_id:
+            raise ValueError("增量模式需要指定 Sprint")
+
+        analyzer = ChangeAnalyzer(db)
+        result = analyzer.analyze_sprint(execution.sprint_id)
+
+        stage.status = "completed"
+        stage.completed_at = datetime.utcnow()
+        stage.model = "rule-change-analyzer"
+        stage.input_tokens = 0
+        stage.output_tokens = 0
+        stage.duration_ms = int(
+            (stage.completed_at - stage.started_at).total_seconds() * 1000
+        )
+        stage.result_summary = {
+            "识别变更": result.total,
+            "新增": result.added,
+            "修改": result.modified,
+            "删除": result.removed,
+            "高影响": result.high_impact,
+            "受影响用例": result.impacted_testcases,
+            "基线Sprint": result.baseline_sprint_id,
+            "说明": result.message,
+        }
+        db.commit()
+        return result.model_dump_json()
+
+    def _execute_stage_1_full(self, db, execution, stage, document_content: str):
         """
         对齐 SKILL A1: 文档解析 + 模块识别 + 功能点提取
 
