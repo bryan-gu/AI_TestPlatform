@@ -77,7 +77,7 @@
             <span :class="['method-badge', `method-${row.method?.toLowerCase()}`]">{{ row.method }}</span>
           </template>
         </el-table-column>
-        <el-table-column label="Path" min-width="240" show-overflow-tooltip>
+        <el-table-column label="Path" min-width="200" show-overflow-tooltip>
           <template #default="{ row }">
             <span style="font-family:monospace;font-size:12.5px">{{ row.path }}</span>
           </template>
