@@ -124,10 +124,12 @@ import { ref, reactive, computed, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
 import { Folder, Share, View, Refresh, MagicStick } from '@element-plus/icons-vue'
 import { ElMessage } from 'element-plus'
+import { useAppStore } from '../../stores/app'
 import { getProjects } from '../../api/project'
 import { getGraphs, getGraphStats, regenerateGraph, generateGraph } from '../../api/graph'
 
 const router = useRouter()
+const appStore = useAppStore()
 const regenerating = ref(false)
 const loading = ref(false)
 const selectedProject = ref(null)
@@ -254,6 +256,7 @@ async function handleRefresh(row) {
 }
 
 onMounted(async () => {
+  appStore.setCurrentPage('graphs', '知识图谱')
   await loadProjects()
   await Promise.all([loadGraphs(), loadStats()])
 })

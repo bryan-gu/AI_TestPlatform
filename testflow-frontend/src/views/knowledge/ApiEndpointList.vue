@@ -235,12 +235,14 @@ import { ref, reactive, onMounted, computed } from 'vue'
 import { useRouter, useRoute } from 'vue-router'
 import { Connection, Search, View, Delete } from '@element-plus/icons-vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
+import { useAppStore } from '../../stores/app'
 import { getApiEndpoints, getApiEndpoint, deleteApiEndpoint, getApiEndpointTestCases, unlinkApiEndpointTestCase } from '../../api/apiEndpoint'
 import { getProjects } from '../../api/project'
 import { getSprints, getSprint } from '../../api/sprint'
 
 const router = useRouter()
 const route = useRoute()
+const appStore = useAppStore()
 
 const loading = ref(false)
 const endpoints = ref([])
@@ -277,6 +279,8 @@ const coveredCount = computed(() => endpoints.value.filter(e => e.testcase_count
 
 // 从 URL query 接收参数（从 Sprint 详情跳转时使用）
 onMounted(async () => {
+  appStore.setCurrentPage('api-endpoints', '接口清单')
+
   const queryProjectId = parseQueryInt(route.query.project_id)
   const querySprintId = parseQueryInt(route.query.sprint_id)
 
