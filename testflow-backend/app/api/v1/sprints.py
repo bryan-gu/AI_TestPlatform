@@ -148,6 +148,7 @@ async def upload_document(
     type_map = {
         ".pdf": "PDF", ".doc": "Word", ".docx": "Word",
         ".md": "Markdown", ".xlsx": "Excel", ".xls": "Excel",
+        ".json": "JSON", ".yaml": "YAML", ".yml": "YAML", ".txt": "Text",
     }
     file_type = type_map.get(ext, "其他")
 
@@ -188,7 +189,7 @@ async def upload_document(
         created_by="system",
     ))
 
-    # 触发后台 MinerU 文档解析
+    # 触发后台文档解析：文本/JSON 本地解析，复杂文档走 MinerU
     from app.services.document_parser import DocumentParser
     parser = DocumentParser()
     background_tasks.add_task(parser.parse_document, None, doc.id)
@@ -238,7 +239,7 @@ def reparse_document(
     db: Session = Depends(get_db),
     _=Depends(get_current_user),
 ):
-    """重新触发 MinerU 文档解析"""
+    """重新触发文档解析"""
     doc = crud_document.get_document(db, doc_id)
     if not doc or doc.sprint_id != sprint_id:
         raise HTTPException(status_code=404, detail="文档不存在")

@@ -1,9 +1,10 @@
 """
-文档解析服务 — 所有文件类型统一通过 MinerU API 解析
+文档解析服务 — 文本/结构化文件本地解析，复杂文档通过 MinerU API 解析
 
-流程：上传文档 → BackgroundTask 触发 → MinerU API 异步解析 → 存入 content_preview
+流程：上传文档 → BackgroundTask 触发 → 本地解析或 MinerU 异步解析 → 存入 content_preview
 """
 
+import json
 import os
 import time
 import zipfile
@@ -26,7 +27,7 @@ POLL_TIMEOUT = 300  # 最大等待秒数
 
 
 class DocumentParser:
-    """文档解析服务 — 所有文件统一走 MinerU API"""
+    """文档解析服务 — 文本/结构化文件本地解析，复杂文档走 MinerU API"""
 
     def parse_document(self, db_session, document_id: int):
         """主入口（在 BackgroundTask 中运行，使用独立 Session）
@@ -45,6 +46,25 @@ class DocumentParser:
             # 更新解析状态为"解析中"
             document.parse_status = "解析中"
             db.commit()
+
+            # 纯文本/结构化文件本地解析；复杂文档再调用 MinerU
+            local_result = self._parse_local_file(document.file_path)
+            if local_result:
+                markdown_content, asset_type, metadata = local_result
+                document.content_preview = markdown_content
+                document.parse_status = "已解析"
+                db.commit()
+                crud_knowledge_asset.upsert_asset_for_document(
+                    db,
+                    document,
+                    source_kind="uploaded",
+                    asset_type=asset_type,
+                    metadata=metadata,
+                )
+                logger.info(
+                    f"文档 ID={document_id} 本地解析成功，asset_type={asset_type}, 内容长度={len(markdown_content)}"
+                )
+                return
 
             # 从全局配置读取 Token
             token = self._get_token(db)
@@ -84,6 +104,64 @@ class DocumentParser:
                 pass
         finally:
             db.close()
+
+    def _parse_local_file(self, file_path: str) -> tuple[str, str, dict] | None:
+        """本地解析 MinerU 不支持或不需要解析的文本/结构化文件。"""
+        ext = os.path.splitext(file_path or "")[1].lower()
+        if ext == ".json":
+            return self._parse_json_file(file_path)
+        if ext in (".md", ".txt", ".yaml", ".yml"):
+            return self._parse_text_file(file_path, ext)
+        return None
+
+    def _parse_json_file(self, file_path: str) -> tuple[str, str, dict]:
+        """解析 JSON 文件，OpenAPI/Swagger 标记为接口文档资产。"""
+        with open(file_path, "r", encoding="utf-8") as f:
+            raw_content = f.read()
+
+        data = json.loads(raw_content)
+        is_openapi = isinstance(data, dict) and (
+            "openapi" in data or data.get("swagger") == "2.0" or "paths" in data
+        )
+        asset_type = "api_doc_openapi" if is_openapi else "test_case_json"
+        metadata = {
+            "parser": "local_json",
+            "is_openapi": is_openapi,
+        }
+
+        if isinstance(data, dict):
+            metadata.update({
+                "top_level_keys": list(data.keys())[:50],
+                "path_count": len(data.get("paths", {})) if isinstance(data.get("paths"), dict) else 0,
+                "title": data.get("info", {}).get("title", "") if isinstance(data.get("info"), dict) else "",
+                "version": data.get("info", {}).get("version", "") if isinstance(data.get("info"), dict) else "",
+            })
+
+        formatted = json.dumps(data, ensure_ascii=False, indent=2)
+        preview = formatted if len(formatted) <= 30000 else formatted[:30000] + "\n\n...（内容过长，已截断预览）"
+        title = "OpenAPI / Swagger 接口文档" if is_openapi else "JSON 文件"
+        content = f"# {title}\n\n```json\n{preview}\n```"
+        return content, asset_type, metadata
+
+    def _parse_text_file(self, file_path: str, ext: str) -> tuple[str, str, dict]:
+        """解析 Markdown/TXT/YAML 等纯文本文件。"""
+        with open(file_path, "r", encoding="utf-8") as f:
+            content = f.read()
+
+        lower_name = os.path.basename(file_path).lower()
+        is_api_doc = "api" in lower_name or "接口" in lower_name
+        asset_type = "api_doc_md" if is_api_doc and ext in (".md", ".yaml", ".yml") else "requirement_doc"
+        metadata = {
+            "parser": "local_text",
+            "extension": ext,
+            "is_api_doc": is_api_doc,
+        }
+
+        preview = content if len(content) <= 30000 else content[:30000] + "\n\n...（内容过长，已截断预览）"
+        if ext == ".md":
+            return preview, asset_type, metadata
+        fence = "yaml" if ext in (".yaml", ".yml") else "text"
+        return f"```{fence}\n{preview}\n```", asset_type, metadata
 
     def _get_token(self, db) -> str:
         """从 AIGlobalConfig 读取 MinerU Token"""
