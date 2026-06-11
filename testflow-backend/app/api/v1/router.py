@@ -18,6 +18,7 @@ from app.api.v1.knowledge import router as knowledge_router
 from app.api.v1.knowledge_assets import router as knowledge_assets_router
 from app.api.v1.coverage import router as coverage_router
 from app.api.v1.trace_links import router as trace_links_router
+from app.api.v1.api_endpoints import router as api_endpoints_router
 
 api_router = APIRouter(prefix="/api/v1")
 
@@ -39,3 +40,4 @@ api_router.include_router(knowledge_router)
 api_router.include_router(knowledge_assets_router)
 api_router.include_router(coverage_router)
 api_router.include_router(trace_links_router)
+api_router.include_router(api_endpoints_router)

@@ -9,6 +9,7 @@ from app.models.feature_point import FeaturePoint
 from app.models.testcase import TestCase
 from app.models.module import Module
 from app.models.sprint import Sprint
+from app.models.api_endpoint import ApiEndpoint
 from app.schemas.trace_link import TraceLinkCreate, TraceLinkUpdate
 
 
@@ -233,6 +234,14 @@ def get_entity_name(db: Session, entity_type: str, entity_id: int) -> str:
     }
     item = model_map.get(entity_type)
     if not item:
+        # API 端点特殊处理：显示 METHOD path summary
+        if entity_type == "api":
+            ep = db.query(ApiEndpoint).filter(ApiEndpoint.id == entity_id).first()
+            if ep:
+                parts = [ep.method, ep.path]
+                if ep.summary:
+                    parts.append(ep.summary)
+                return " ".join(parts)
         return f"{ENTITY_LABELS.get(entity_type, entity_type)} #{entity_id}"
     model, name_column = item
     obj = db.query(model).filter(model.id == entity_id).first()

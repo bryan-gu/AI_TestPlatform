@@ -79,6 +79,12 @@ const routes = [
         meta: { title: '知识图谱' }
       },
       {
+        path: 'api-endpoints',
+        name: 'ApiEndpointList',
+        component: () => import('../views/knowledge/ApiEndpointList.vue'),
+        meta: { title: '接口清单' }
+      },
+      {
         path: 'graphs/:id',
         name: 'GraphDetail',
         component: () => import('../views/graph/KnowledgeGraph.vue'),

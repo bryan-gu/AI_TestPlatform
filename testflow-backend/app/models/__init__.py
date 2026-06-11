@@ -14,6 +14,7 @@ from app.models.graph import Graph, GraphNode, GraphEdge
 from app.models.coverage import FeaturePointTestCase
 from app.models.trace_link import TraceLink
 from app.models.pipeline import PipelineExecution, PipelineStage
+from app.models.api_endpoint import ApiEndpoint, TestCaseApiEndpoint
 
 __all__ = [
     "Role",
@@ -38,4 +39,6 @@ __all__ = [
     "TraceLink",
     "PipelineExecution",
     "PipelineStage",
+    "ApiEndpoint",
+    "TestCaseApiEndpoint",
 ]

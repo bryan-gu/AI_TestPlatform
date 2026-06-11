@@ -167,6 +167,19 @@
         <el-table-column label="更新时间" width="120">
           <template #default="{ row }">{{ formatDate(row.updated_at || row.created_at) }}</template>
         </el-table-column>
+        <el-table-column label="操作" width="180" fixed="right">
+          <template #default="{ row }">
+            <div class="action-btns" v-if="row.asset_type === 'api_doc_openapi'">
+              <el-button type="primary" link size="small" @click="handleImportOpenApi(row)" :loading="importingAssetId === row.id">
+                <el-icon><Connection /></el-icon>解析接口
+              </el-button>
+              <el-button type="primary" link size="small" @click="goToApiEndpoints(row)">
+                <el-icon><View /></el-icon>查看接口
+              </el-button>
+            </div>
+            <span v-else style="color:var(--color-text-tertiary);font-size:12px">-</span>
+          </template>
+        </el-table-column>
       </el-table>
     </div>
 
@@ -370,7 +383,7 @@
 import { ref, reactive, onMounted, onBeforeUnmount, computed } from 'vue'
 import { useRouter, useRoute } from 'vue-router'
 import { useAppStore } from '../../stores/app'
-import { Folder, Promotion, Document, Edit, Delete, Upload, MagicStick, Refresh, Collection, Connection } from '@element-plus/icons-vue'
+import { Folder, Promotion, Document, Edit, Delete, Upload, MagicStick, Refresh, Collection, Connection, View } from '@element-plus/icons-vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import {
   getSprint, getSprintDocuments, uploadSprintDocument,
@@ -382,6 +395,7 @@ import {
 } from '../../api/featurePoint'
 import { getKnowledgeAssets } from '../../api/knowledgeAsset'
 import { getEntityTraceLinks, getEntityImpact } from '../../api/traceLink'
+import { importOpenApi } from '../../api/apiEndpoint'
 
 const router = useRouter()
 const route = useRoute()
@@ -398,6 +412,7 @@ const traceLoading = ref(false)
 const traceFeature = ref(null)
 const traceLinks = ref([])
 const traceImpact = ref({})
+const importingAssetId = ref(null)
 
 // 解析状态轮询
 let parsePollingTimer = null
@@ -634,6 +649,27 @@ async function loadAssets() {
   } finally {
     assetLoading.value = false
   }
+}
+
+// ========== OpenAPI 接口导入 ==========
+
+async function handleImportOpenApi(row) {
+  importingAssetId.value = row.id
+  try {
+    const res = await importOpenApi({ asset_id: row.id })
+    const result = res.data || {}
+    ElMessage.success(
+      `导入完成：共 ${result.total || 0} 个接口，新建 ${result.created || 0} 个，更新 ${result.updated || 0} 个`
+    )
+  } catch (e) {
+    ElMessage.error(e.response?.data?.detail || '接口导入失败')
+  } finally {
+    importingAssetId.value = null
+  }
+}
+
+function goToApiEndpoints(row) {
+  router.push({ path: '/api-endpoints', query: { source_asset_id: row.id, sprint_id: sprintId } })
 }
 
 // ========== 文档操作 ==========
