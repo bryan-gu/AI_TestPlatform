@@ -23,7 +23,7 @@ class ChangeItem(Base):
 
     priority = Column(String(10), default="中")
     impact_level = Column(String(10), default="中")
-    status = Column(String(30), default="open")           # open / confirmed / ignored / resolved
+    status = Column(String(30), default="open")           # open / confirmed / ignored / resolved / applied
 
     before_snapshot = Column(JSON, default=dict)
     after_snapshot = Column(JSON, default=dict)

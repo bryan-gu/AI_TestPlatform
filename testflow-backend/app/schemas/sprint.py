@@ -21,6 +21,13 @@ class SprintPrepareFromAllRequest(BaseModel):
     update_existing: bool = False
 
 
+class SprintMergeToAllRequest(BaseModel):
+    change_item_ids: list[int] = []
+    statuses: list[str] = ["confirmed", "resolved"]
+    target_types: list[str] = ["feature", "api"]
+    dry_run: bool = False
+
+
 class SprintOut(BaseModel):
     id: int
     name: str

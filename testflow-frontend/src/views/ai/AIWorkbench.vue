@@ -579,7 +579,7 @@ function stageDescription(stageNo) {
   const mode = currentExecution.value?.mode || selectedMode.value
   if (mode === 'incremental') {
     const incrementalMap = {
-      1: '规则分析当前 Sprint 与基线 Sprint 的差异，生成变更项并写入影响关系。',
+      1: '从 sprint_all 准备 SprintN 增量底稿，并基于结构化实体差异生成 ChangeItem 与影响关系。',
       2: '增量用例生成将在后续增强；当前阶段保留变更影响分析结果。',
       3: '将增量用例转化为自动化脚本将在后续增强。',
       4: '执行与自愈将在后续增强。',

@@ -34,6 +34,7 @@ from app.services.llm_adapter import LLMAdapter
 from app.services.llm_providers import LLMCallError
 from app.services.artifact_manager import ArtifactManager
 from app.services.change_analyzer import ChangeAnalyzer
+from app.services.sprint_baseline_manager import SprintBaselineManager
 from app.services.prompts.skill_prompts import build_stage1_prompt, build_stage2_prompt
 
 logger = logging.getLogger(__name__)
@@ -146,10 +147,25 @@ class PipelineExecutor:
         return self._execute_stage_1_full(db, execution, stage, document_content)
 
     def _execute_stage_1_incremental(self, db, execution, stage):
-        """增量模式：识别 ChangeItem 并生成影响关系。"""
+        """增量模式：从 sprint_all 准备增量底稿，再执行结构化差异分析生成 ChangeItem。"""
         if not execution.sprint_id:
             raise ValueError("增量模式需要指定 Sprint")
 
+        # 1. 自动从 sprint_all 准备增量底稿（create_missing only）
+        prepare_stats = {}
+        try:
+            mgr = SprintBaselineManager(db)
+            prepare_result = mgr.prepare_from_all(execution.sprint_id, update_existing=False)
+            prepare_stats = {
+                "底稿_功能点": f"新增 {prepare_result.get('features', {}).get('created', 0)}，跳过 {prepare_result.get('features', {}).get('skipped', 0)}",
+                "底稿_接口": f"新增 {prepare_result.get('api_endpoints', {}).get('created', 0)}，跳过 {prepare_result.get('api_endpoints', {}).get('skipped', 0)}",
+                "底稿_用例": f"新增 {prepare_result.get('testcases', {}).get('created', 0)}，跳过 {prepare_result.get('testcases', {}).get('skipped', 0)}",
+            }
+        except ValueError as e:
+            logger.warning(f"增量底稿准备跳过: {e}")
+            prepare_stats = {"底稿准备": f"跳过: {e}"}
+
+        # 2. 结构化差异分析
         analyzer = ChangeAnalyzer(db)
         result = analyzer.analyze_sprint(execution.sprint_id)
 
@@ -162,6 +178,7 @@ class PipelineExecutor:
             (stage.completed_at - stage.started_at).total_seconds() * 1000
         )
         stage.result_summary = {
+            **prepare_stats,
             "识别变更": result.total,
             "新增": result.added,
             "修改": result.modified,

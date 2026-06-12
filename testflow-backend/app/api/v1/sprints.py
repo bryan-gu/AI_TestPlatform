@@ -9,7 +9,7 @@ from app.core.config import settings
 from app.models.user import User
 from app.models.document import Document
 from app.schemas.common import ResponseModel
-from app.schemas.sprint import SprintCreate, SprintPrepareFromAllRequest, SprintUpdate, SprintOut
+from app.schemas.sprint import SprintCreate, SprintPrepareFromAllRequest, SprintMergeToAllRequest, SprintUpdate, SprintOut
 from app.schemas.document import DocumentUpdate, DocumentOut
 from app.crud import crud_sprint, crud_document, crud_knowledge_asset, crud_trace_link
 from app.schemas.trace_link import TraceLinkCreate
@@ -213,6 +213,27 @@ def prepare_sprint_from_all(
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc))
     return ResponseModel(data=result, message="已从最新汇总准备增量底稿")
+
+
+@router.post("/{sprint_id}/merge-to-all", response_model=ResponseModel)
+def merge_sprint_to_all(
+    sprint_id: int,
+    data: SprintMergeToAllRequest | None = None,
+    db: Session = Depends(get_db),
+    _=Depends(get_current_user),
+):
+    try:
+        req = data or SprintMergeToAllRequest()
+        result = SprintBaselineManager(db).merge_to_all(
+            sprint_id,
+            change_item_ids=req.change_item_ids or None,
+            statuses=req.statuses,
+            target_types=req.target_types,
+            dry_run=req.dry_run,
+        )
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc))
+    return ResponseModel(data=result, message="已将确认变更合并到最新汇总")
 
 
 # ========== Sprint 下文档 ==========

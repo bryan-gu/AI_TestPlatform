@@ -19,7 +19,11 @@ STATUS_LABELS = {
     "confirmed": "已确认",
     "ignored": "已忽略",
     "resolved": "已解决",
+    "applied": "已应用",
 }
+
+# 人工终态，重新分析时不会被回退为 open
+TERMINAL_STATUSES = {"confirmed", "resolved", "ignored", "applied"}
 
 
 def get_change_items(
@@ -177,7 +181,11 @@ def upsert_change_item(db: Session, data: ChangeItemCreate, *, commit: bool = Fa
         ).first()
 
     if existing:
+        # 保护人工终态状态：confirmed/resolved/ignored/applied 不被重新分析回退为 open
+        is_terminal = existing.status in TERMINAL_STATUSES
         for field, value in data.model_dump().items():
+            if is_terminal and field == "status":
+                continue  # 保留人工状态，不覆盖
             setattr(existing, field, value)
         if commit:
             db.commit()

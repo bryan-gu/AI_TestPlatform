@@ -86,7 +86,7 @@
         <el-table-column label="更新时间" width="120">
           <template #default="{ row }">{{ formatDate(row.updatedAt || row.updated_at) }}</template>
         </el-table-column>
-        <el-table-column label="操作" width="380" fixed="right">
+        <el-table-column label="操作" width="450" fixed="right">
           <template #default="{ row }">
             <div class="action-btns" @click.stop>
               <el-button v-if="row.isAll" type="primary" link size="small" @click="goToGraphList">
@@ -104,6 +104,9 @@
                 </el-button>
                 <el-button type="primary" link size="small" @click="handleSyncToAll(row)">
                   同步到最新汇总
+                </el-button>
+                <el-button type="success" link size="small" @click="handleMergeToAll(row)">
+                  合并确认变更
                 </el-button>
                 <el-button type="primary" link size="small" @click="handleEdit(row)">
                   <el-icon><Edit /></el-icon>编辑
@@ -159,7 +162,7 @@ import { useAppStore } from '../../stores/app'
 import { Folder, Plus, Edit, Delete, Promotion, CopyDocument, Share } from '@element-plus/icons-vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { getProjects } from '../../api/project'
-import { getSprints, getSprintStats, createSprint, updateSprint, deleteSprint, ensureSprintAll, markSprintAsBaseline, markSprintAsSprintAll, syncSprintToAll, prepareSprintFromAll } from '../../api/sprint'
+import { getSprints, getSprintStats, createSprint, updateSprint, deleteSprint, ensureSprintAll, markSprintAsBaseline, markSprintAsSprintAll, syncSprintToAll, prepareSprintFromAll, mergeSprintToAll } from '../../api/sprint'
 
 const router = useRouter()
 const appStore = useAppStore()
@@ -395,6 +398,30 @@ function handlePrepareFromAll(row) {
       await loadData()
     } catch (e) {
       ElMessage.error('准备失败')
+    }
+  }).catch(() => {})
+}
+
+function handleMergeToAll(row) {
+  ElMessageBox.confirm(
+    `确定将 Sprint"${row.name}" 中已确认/已解决的变更项合并到 sprint_all 最新汇总吗？只会应用状态为"已确认"或"已解决"的变更项（功能点和接口），成功应用后变更项将标记为"已应用"。`,
+    '合并确认变更',
+    { confirmButtonText: '确认合并', cancelButtonText: '取消', type: 'warning' },
+  ).then(async () => {
+    try {
+      const res = await mergeSprintToAll(row.id, {
+        statuses: ['confirmed', 'resolved'],
+        target_types: ['feature', 'api'],
+      })
+      const data = res.data || {}
+      const features = data.features || {}
+      const apis = data.api_endpoints || {}
+      ElMessage.success(
+        `已应用 ${data.applied || 0} 个变更（功能点：新增 ${features.created || 0}、更新 ${features.updated || 0}；接口：新增 ${apis.created || 0}、更新 ${apis.updated || 0}）`,
+      )
+      await loadData()
+    } catch (e) {
+      ElMessage.error(e.response?.data?.detail || '合并失败')
     }
   }).catch(() => {})
 }

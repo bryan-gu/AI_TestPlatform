@@ -11,6 +11,9 @@
       <el-button type="primary" size="small" :disabled="!filters.sprint_id" :loading="analyzing" @click="handleAnalyze">
         <el-icon><MagicStick /></el-icon>增量分析
       </el-button>
+      <el-button type="success" size="small" :disabled="!filters.sprint_id" :loading="merging" @click="handleMergeToAll">
+        <el-icon><Promotion /></el-icon>应用到最新汇总
+      </el-button>
     </div>
 
     <div class="stats-grid" style="grid-template-columns:repeat(4,1fr);margin-bottom:16px">
@@ -67,6 +70,7 @@
             <el-option label="已确认" value="confirmed" />
             <el-option label="已忽略" value="ignored" />
             <el-option label="已解决" value="resolved" />
+            <el-option label="已应用" value="applied" />
           </el-select>
           <el-input
             v-model="filters.keyword"
@@ -110,10 +114,11 @@
         <el-table-column label="置信度" width="80">
           <template #default="{ row }">{{ row.confidence || 0 }}%</template>
         </el-table-column>
-        <el-table-column label="操作" width="180" fixed="right" class-name="col-no-resize">
+        <el-table-column label="操作" width="220" fixed="right" class-name="col-no-resize">
           <template #default="{ row }">
             <div class="action-btns" @click.stop>
               <el-button type="primary" link size="small" @click="openDetail(row)"><el-icon><View /></el-icon>详情</el-button>
+              <el-button v-if="row.status === 'confirmed' || row.status === 'resolved'" type="success" link size="small" @click="handleApplySingle(row)">应用</el-button>
               <el-dropdown trigger="click" @command="cmd => handleStatusCommand(row, cmd)">
                 <el-button type="primary" link size="small">状态</el-button>
                 <template #dropdown>
@@ -121,6 +126,7 @@
                     <el-dropdown-item command="confirmed">确认</el-dropdown-item>
                     <el-dropdown-item command="ignored">忽略</el-dropdown-item>
                     <el-dropdown-item command="resolved">解决</el-dropdown-item>
+                    <el-dropdown-item command="applied">已应用</el-dropdown-item>
                     <el-dropdown-item command="open">重开</el-dropdown-item>
                   </el-dropdown-menu>
                 </template>
@@ -172,6 +178,13 @@
           </el-table>
         </div>
 
+        <div class="detail-section" v-if="detailData.raw_data && detailData.raw_data.applied_to_all">
+          <div class="detail-section-title">合并信息</div>
+          <div class="detail-row"><span class="detail-label">应用时间</span><span>{{ detailData.raw_data.applied_at || '-' }}</span></div>
+          <div class="detail-row"><span class="detail-label">目标汇总</span><span>sprint_all #{{ detailData.raw_data.target_sprint_all_id || '-' }}</span></div>
+          <div class="detail-row"><span class="detail-label">合并结果</span><span>{{ { created: '新增', updated: '更新', deprecated: '标记废弃', skipped: '跳过' }[detailData.raw_data.merge_result] || detailData.raw_data.merge_result }}</span></div>
+        </div>
+
         <div class="detail-section" v-if="hasSnapshot(detailData.before_snapshot)">
           <div class="detail-section-title">变更前</div>
           <pre class="schema-block">{{ JSON.stringify(detailData.before_snapshot, null, 2) }}</pre>
@@ -188,11 +201,11 @@
 <script setup>
 import { ref, reactive, computed, onMounted } from 'vue'
 import { useRoute } from 'vue-router'
-import { Refresh, Search, View, Delete, MagicStick } from '@element-plus/icons-vue'
+import { Refresh, Search, View, Delete, MagicStick, Promotion } from '@element-plus/icons-vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { useAppStore } from '../../stores/app'
 import { getProjects } from '../../api/project'
-import { getSprints, getSprint } from '../../api/sprint'
+import { getSprints, getSprint, mergeSprintToAll } from '../../api/sprint'
 import { getEntityTraceLinks } from '../../api/traceLink'
 import {
   getChangeItems,
@@ -208,6 +221,7 @@ const appStore = useAppStore()
 
 const loading = ref(false)
 const analyzing = ref(false)
+const merging = ref(false)
 const items = ref([])
 const total = ref(0)
 const currentPage = ref(1)
@@ -390,6 +404,59 @@ function handleDelete(row) {
   }).catch(() => {})
 }
 
+async function handleMergeToAll() {
+  if (!filters.sprint_id) {
+    ElMessage.warning('请先选择 Sprint')
+    return
+  }
+  ElMessageBox.confirm(
+    '确定将当前 Sprint 下已确认/已解决的变更项应用到 sprint_all 最新汇总吗？应用后变更项状态将变为"已应用"，sprint_all 中对应实体将被新增或更新。',
+    '应用到最新汇总',
+    { confirmButtonText: '确认应用', cancelButtonText: '取消', type: 'warning' },
+  ).then(async () => {
+    merging.value = true
+    try {
+      const res = await mergeSprintToAll(filters.sprint_id, {
+        statuses: ['confirmed', 'resolved'],
+        target_types: ['feature', 'api'],
+      })
+      const data = res.data || {}
+      const features = data.features || {}
+      const apis = data.api_endpoints || {}
+      const graph = data.graph || {}
+      ElMessage.success(
+        `已应用 ${data.applied || 0} 个变更（功能点：新增 ${features.created || 0}、更新 ${features.updated || 0}；接口：新增 ${apis.created || 0}、更新 ${apis.updated || 0}）`,
+      )
+      await loadItems()
+    } catch (e) {
+      ElMessage.error(e.response?.data?.detail || '应用失败')
+    } finally {
+      merging.value = false
+    }
+  }).catch(() => {})
+}
+
+async function handleApplySingle(row) {
+  ElMessageBox.confirm(
+    `确定将变更项 "${row.title}" 应用到 sprint_all 最新汇总吗？`,
+    '应用变更',
+    { confirmButtonText: '确认应用', cancelButtonText: '取消', type: 'warning' },
+  ).then(async () => {
+    try {
+      const res = await mergeSprintToAll(row.sprint_id, {
+        change_item_ids: [row.id],
+        statuses: ['confirmed', 'resolved'],
+        target_types: ['feature', 'api'],
+      })
+      const data = res.data || {}
+      ElMessage.success(`已应用 ${data.applied || 0} 个变更到最新汇总`)
+      await loadItems()
+    } catch (e) {
+      ElMessage.error(e.response?.data?.detail || '应用失败')
+    }
+  }).catch(() => {})
+}
+
 function getChangeTypeText(type) {
   return { added: '新增', modified: '修改', removed: '删除', deprecated: '废弃', unknown: '未知' }[type] || type
 }
@@ -403,11 +470,11 @@ function getTargetTypeText(type) {
 }
 
 function getStatusText(status) {
-  return { open: '待处理', confirmed: '已确认', ignored: '已忽略', resolved: '已解决' }[status] || status
+  return { open: '待处理', confirmed: '已确认', ignored: '已忽略', resolved: '已解决', applied: '已应用' }[status] || status
 }
 
 function getStatusTag(status) {
-  return { open: 'warning', confirmed: 'success', ignored: 'info', resolved: 'primary' }[status] || 'info'
+  return { open: 'warning', confirmed: 'success', ignored: 'info', resolved: 'primary', applied: 'success' }[status] || 'info'
 }
 
 function getImpactClass(level) {
