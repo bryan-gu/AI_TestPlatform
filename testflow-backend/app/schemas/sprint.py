@@ -17,6 +17,10 @@ class SprintUpdate(BaseModel):
     is_all: bool | None = None
 
 
+class SprintPrepareFromAllRequest(BaseModel):
+    update_existing: bool = False
+
+
 class SprintOut(BaseModel):
     id: int
     name: str

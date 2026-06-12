@@ -99,6 +99,9 @@
                 <el-button type="success" link size="small" @click="handleMarkSprintAll(row)">
                   设为最新汇总
                 </el-button>
+                <el-button type="primary" link size="small" @click="handlePrepareFromAll(row)">
+                  准备增量底稿
+                </el-button>
                 <el-button type="primary" link size="small" @click="handleSyncToAll(row)">
                   同步到最新汇总
                 </el-button>
@@ -156,7 +159,7 @@ import { useAppStore } from '../../stores/app'
 import { Folder, Plus, Edit, Delete, Promotion, CopyDocument, Share } from '@element-plus/icons-vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { getProjects } from '../../api/project'
-import { getSprints, getSprintStats, createSprint, updateSprint, deleteSprint, ensureSprintAll, markSprintAsBaseline, markSprintAsSprintAll, syncSprintToAll } from '../../api/sprint'
+import { getSprints, getSprintStats, createSprint, updateSprint, deleteSprint, ensureSprintAll, markSprintAsBaseline, markSprintAsSprintAll, syncSprintToAll, prepareSprintFromAll } from '../../api/sprint'
 
 const router = useRouter()
 const appStore = useAppStore()
@@ -217,6 +220,16 @@ function formatSyncStats(data) {
   const cases = data?.testcases || {}
   const links = data?.trace_links || {}
   return `功能点：新增 ${features.created || 0}，更新 ${features.updated || 0}；接口：新增 ${apis.created || 0}，更新 ${apis.updated || 0}；用例：新增 ${cases.created || 0}，更新 ${cases.updated || 0}；关系：新增 ${links.created || 0}，更新 ${links.updated || 0}`
+}
+
+function formatPrepareStats(data) {
+  const features = data?.features || {}
+  const apis = data?.api_endpoints || {}
+  const cases = data?.testcases || {}
+  const coverages = data?.coverages || {}
+  const apiLinks = data?.testcase_api_endpoints || {}
+  const links = data?.trace_links || {}
+  return `功能点：新增 ${features.created || 0}，跳过 ${features.skipped || 0}；接口：新增 ${apis.created || 0}，跳过 ${apis.skipped || 0}；用例：新增 ${cases.created || 0}，跳过 ${cases.skipped || 0}；覆盖：新增 ${coverages.created || 0}，更新 ${coverages.updated || 0}；接口用例：新增 ${apiLinks.created || 0}，更新 ${apiLinks.updated || 0}；追踪：新增 ${links.created || 0}，更新 ${links.updated || 0}`
 }
 
 function goToDetail(row) {
@@ -368,6 +381,20 @@ function handleSyncToAll(row) {
       await loadData()
     } catch (e) {
       ElMessage.error('同步失败')
+    }
+  }).catch(() => {})
+}
+
+function handlePrepareFromAll(row) {
+  ElMessageBox.confirm(`确定从 sprint_all 为 Sprint"${row.name}" 准备增量底稿吗？默认只新增当前 Sprint 缺失的功能点、接口、用例和结构化关系，不会覆盖当前 Sprint 已有内容，也不会复制 sprint_all 的文档/资产记录。`, '准备增量底稿', {
+    confirmButtonText: '确认准备', cancelButtonText: '取消', type: 'warning',
+  }).then(async () => {
+    try {
+      const res = await prepareSprintFromAll(row.id, { update_existing: false })
+      ElMessage.success(formatPrepareStats(res.data))
+      await loadData()
+    } catch (e) {
+      ElMessage.error('准备失败')
     }
   }).catch(() => {})
 }

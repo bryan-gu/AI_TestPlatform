@@ -2,20 +2,22 @@ from copy import deepcopy
 
 from sqlalchemy.orm import Session
 
-from app.crud import crud_graph, crud_sprint, crud_trace_link
-from app.models.api_endpoint import ApiEndpoint
+from app.crud import crud_api_endpoint, crud_graph, crud_sprint, crud_trace_link
+from app.models.api_endpoint import ApiEndpoint, TestCaseApiEndpoint
 from app.models.coverage import FeaturePointTestCase
 from app.models.feature_point import FeaturePoint
 from app.models.sprint import Sprint
 from app.models.testcase import TestCase
 from app.models.trace_link import TraceLink
+from app.schemas.api_endpoint import TestCaseApiEndpointCreate
 from app.schemas.trace_link import TraceLinkCreate
 
 
 class SprintBaselineManager:
-    """同步普通 Sprint 的结构化实体到项目最新汇总基线。"""
+    """同步 Sprint 结构化实体，用于最新汇总和增量底稿准备。"""
 
     MAPPED_ENTITY_TYPES = {"feature", "api", "testcase"}
+    STRUCTURAL_TRACE_TYPES = {"feature", "api", "testcase", "module"}
 
     def __init__(self, db: Session):
         self.db = db
@@ -33,10 +35,83 @@ class SprintBaselineManager:
         if target_sprint.id == source_sprint.id:
             raise ValueError("源 Sprint 与 sprint_all 不能相同")
 
-        feature_map, feature_stats = self._sync_feature_points(source_sprint, target_sprint)
-        api_map, api_stats = self._sync_api_endpoints(source_sprint, target_sprint)
-        testcase_map, testcase_stats = self._sync_testcases(source_sprint, target_sprint)
+        return self._sync_between_sprints(
+            source_sprint,
+            target_sprint,
+            direction="to_all",
+            update_existing=True,
+            copy_source_refs=True,
+            trace_link_policy="mapped_related",
+            created_by="baseline_sync",
+        )
+
+    def prepare_from_all(self, target_sprint_id: int, *, update_existing: bool = False) -> dict:
+        target_sprint = crud_sprint.get_sprint(self.db, target_sprint_id)
+        if not target_sprint:
+            raise ValueError("目标 Sprint 不存在")
+        if crud_sprint.is_sprint_all(target_sprint):
+            raise ValueError("sprint_all 不能作为增量底稿目标")
+        if not target_sprint.project_id:
+            raise ValueError("目标 Sprint 必须归属项目")
+
+        source_sprint = crud_sprint.get_sprint_all(self.db, target_sprint.project_id)
+        if not source_sprint:
+            raise ValueError("当前项目不存在 sprint_all 最新汇总基线")
+        if source_sprint.id == target_sprint.id:
+            raise ValueError("sprint_all 与目标 Sprint 不能相同")
+
+        result = self._sync_between_sprints(
+            source_sprint,
+            target_sprint,
+            direction="from_all",
+            update_existing=update_existing,
+            copy_source_refs=False,
+            trace_link_policy="structural_only",
+            created_by="baseline_prepare",
+        )
+        result["mode"] = "update_existing" if update_existing else "create_missing"
+        return result
+
+    def _sync_between_sprints(
+        self,
+        source_sprint: Sprint,
+        target_sprint: Sprint,
+        *,
+        direction: str,
+        update_existing: bool,
+        copy_source_refs: bool,
+        trace_link_policy: str,
+        created_by: str,
+    ) -> dict:
+        feature_map, feature_stats = self._sync_feature_points(
+            source_sprint,
+            target_sprint,
+            direction=direction,
+            update_existing=update_existing,
+            copy_source_refs=copy_source_refs,
+        )
+        api_map, api_stats = self._sync_api_endpoints(
+            source_sprint,
+            target_sprint,
+            direction=direction,
+            update_existing=update_existing,
+            copy_source_refs=copy_source_refs,
+        )
+        testcase_map, testcase_stats = self._sync_testcases(
+            source_sprint,
+            target_sprint,
+            direction=direction,
+            update_existing=update_existing,
+        )
         coverage_stats = self._sync_coverages(feature_map, testcase_map)
+        testcase_api_stats = self._sync_testcase_api_links(
+            testcase_map,
+            api_map,
+            source_sprint=source_sprint,
+            target_sprint=target_sprint,
+            direction=direction,
+            created_by=created_by,
+        )
         trace_stats = self._sync_trace_links(
             source_sprint,
             target_sprint,
@@ -45,12 +120,15 @@ class SprintBaselineManager:
                 "api": api_map,
                 "testcase": testcase_map,
             },
+            direction=direction,
+            trace_link_policy=trace_link_policy,
+            created_by=created_by,
         )
 
         self.db.commit()
         graph = crud_graph.generate_graph_for_scope(
             self.db,
-            project_id=source_sprint.project_id,
+            project_id=target_sprint.project_id or source_sprint.project_id,
             sprint_id=target_sprint.id,
         )
 
@@ -61,6 +139,7 @@ class SprintBaselineManager:
             "api_endpoints": api_stats,
             "testcases": testcase_stats,
             "coverages": coverage_stats,
+            "testcase_api_endpoints": testcase_api_stats,
             "trace_links": trace_stats,
             "graph": {
                 "id": graph.id,
@@ -70,7 +149,15 @@ class SprintBaselineManager:
             },
         }
 
-    def _sync_feature_points(self, source_sprint: Sprint, target_sprint: Sprint) -> tuple[dict[int, FeaturePoint], dict]:
+    def _sync_feature_points(
+        self,
+        source_sprint: Sprint,
+        target_sprint: Sprint,
+        *,
+        direction: str,
+        update_existing: bool,
+        copy_source_refs: bool,
+    ) -> tuple[dict[int, FeaturePoint], dict]:
         stats = self._new_stats()
         feature_map: dict[int, FeaturePoint] = {}
         source_items = self.db.query(FeaturePoint).filter(
@@ -84,6 +171,10 @@ class SprintBaselineManager:
             if created:
                 target = FeaturePoint(name=source.name, sprint_id=target_sprint.id)
                 self.db.add(target)
+            elif not update_existing:
+                feature_map[source.id] = target
+                stats["skipped"] += 1
+                continue
 
             target.name = source.name
             target.description = source.description or ""
@@ -91,11 +182,11 @@ class SprintBaselineManager:
             target.interaction_elements = source.interaction_elements or ""
             target.business_rules = source.business_rules or ""
             target.priority = source.priority or "中"
-            target.source_doc_id = source.source_doc_id
+            target.source_doc_id = source.source_doc_id if copy_source_refs else None
             target.sprint_id = target_sprint.id
             target.module_id = source.module_id
             target.linked_cases = source.linked_cases or ""
-            target.source_type = source.source_type or "manual"
+            target.source_type = source.source_type or "manual" if copy_source_refs else "baseline_draft"
             target.status = source.status or "active"
             target.version = source.version or "v1.0"
             target.fingerprint = source.fingerprint or ""
@@ -104,6 +195,7 @@ class SprintBaselineManager:
                 source_sprint.id,
                 "baseline_source_feature_id",
                 source.id,
+                direction=direction,
             )
             target.is_deleted = False
             self.db.flush()
@@ -113,7 +205,15 @@ class SprintBaselineManager:
 
         return feature_map, stats
 
-    def _sync_api_endpoints(self, source_sprint: Sprint, target_sprint: Sprint) -> tuple[dict[int, ApiEndpoint], dict]:
+    def _sync_api_endpoints(
+        self,
+        source_sprint: Sprint,
+        target_sprint: Sprint,
+        *,
+        direction: str,
+        update_existing: bool,
+        copy_source_refs: bool,
+    ) -> tuple[dict[int, ApiEndpoint], dict]:
         stats = self._new_stats()
         api_map: dict[int, ApiEndpoint] = {}
         source_items = self.db.query(ApiEndpoint).filter(
@@ -122,20 +222,25 @@ class SprintBaselineManager:
         ).all()
 
         for source in source_items:
-            target = self._find_target_api(source, target_sprint.id, source_sprint.project_id)
+            project_id = source.project_id or source_sprint.project_id or target_sprint.project_id
+            target = self._find_target_api(source, target_sprint.id, project_id)
             created = target is None
             if created:
                 target = ApiEndpoint(
-                    project_id=source.project_id or source_sprint.project_id,
+                    project_id=project_id,
                     sprint_id=target_sprint.id,
                     method=(source.method or "").upper(),
                     path=source.path or "",
                 )
                 self.db.add(target)
+            elif not update_existing:
+                api_map[source.id] = target
+                stats["skipped"] += 1
+                continue
 
-            target.project_id = source.project_id or source_sprint.project_id
+            target.project_id = project_id
             target.sprint_id = target_sprint.id
-            target.source_asset_id = source.source_asset_id
+            target.source_asset_id = source.source_asset_id if copy_source_refs else None
             target.module_id = source.module_id
             target.method = (source.method or "").upper()
             target.path = source.path or ""
@@ -157,6 +262,7 @@ class SprintBaselineManager:
                 source_sprint.id,
                 "baseline_source_api_id",
                 source.id,
+                direction=direction,
             )
             target.is_deleted = False
             self.db.flush()
@@ -166,7 +272,14 @@ class SprintBaselineManager:
 
         return api_map, stats
 
-    def _sync_testcases(self, source_sprint: Sprint, target_sprint: Sprint) -> tuple[dict[int, TestCase], dict]:
+    def _sync_testcases(
+        self,
+        source_sprint: Sprint,
+        target_sprint: Sprint,
+        *,
+        direction: str,
+        update_existing: bool,
+    ) -> tuple[dict[int, TestCase], dict]:
         stats = self._new_stats()
         testcase_map: dict[int, TestCase] = {}
         source_items = self.db.query(TestCase).filter(
@@ -175,23 +288,29 @@ class SprintBaselineManager:
         ).all()
 
         for source in source_items:
-            target = self._find_target_testcase(source, target_sprint.id, source_sprint.project_id)
+            project_id = source.project_id or source_sprint.project_id or target_sprint.project_id
+            target = self._find_target_testcase(source, target_sprint.id, project_id)
             created = target is None
             if created:
                 target = TestCase(
                     case_no=source.case_no or f"BASELINE-{source.id}",
                     title=source.title,
-                    project_id=source.project_id or source_sprint.project_id,
+                    project_id=project_id,
                     sprint_id=target_sprint.id,
                 )
                 self.db.add(target)
+            elif not update_existing:
+                testcase_map[source.id] = target
+                stats["skipped"] += 1
+                continue
 
+            is_prepare = direction == "from_all"
             target.case_no = source.case_no or f"BASELINE-{source.id}"
             target.title = source.title
             target.priority = source.priority or "中"
-            target.exec_status = source.exec_status or "待执行"
-            target.executor_id = source.executor_id
-            target.project_id = source.project_id or source_sprint.project_id
+            target.exec_status = "待执行" if is_prepare else (source.exec_status or "待执行")
+            target.executor_id = None if is_prepare else source.executor_id
+            target.project_id = project_id
             target.sprint_id = target_sprint.id
             target.module = source.module
             target.module_id = source.module_id
@@ -199,7 +318,7 @@ class SprintBaselineManager:
             target.automation_status = source.automation_status or "not_generated"
             target.automation_path = source.automation_path or ""
             target.selector_path = source.selector_path or ""
-            target.source = source.source or "manual"
+            target.source = "baseline_draft" if is_prepare else (source.source or "manual")
             target.version = source.version or "v1.0"
             target.fingerprint = source.fingerprint or ""
             target.raw_data = self._merge_baseline_metadata(
@@ -207,12 +326,13 @@ class SprintBaselineManager:
                 source_sprint.id,
                 "baseline_source_testcase_id",
                 source.id,
+                direction=direction,
             )
             target.preconditions = source.preconditions or ""
             target.test_data = source.test_data or ""
             target.test_steps = source.test_steps or ""
             target.expected_result = source.expected_result or ""
-            target.actual_result = source.actual_result or ""
+            target.actual_result = "" if is_prepare else (source.actual_result or "")
             target.is_deleted = False
             self.db.flush()
 
@@ -258,11 +378,72 @@ class SprintBaselineManager:
 
         return stats
 
+    def _sync_testcase_api_links(
+        self,
+        testcase_map: dict[int, TestCase],
+        api_map: dict[int, ApiEndpoint],
+        *,
+        source_sprint: Sprint,
+        target_sprint: Sprint,
+        direction: str,
+        created_by: str,
+    ) -> dict:
+        stats = self._new_stats()
+        if not testcase_map or not api_map:
+            return stats
+
+        source_items = self.db.query(TestCaseApiEndpoint).filter(
+            TestCaseApiEndpoint.testcase_id.in_(list(testcase_map.keys())),
+            TestCaseApiEndpoint.api_endpoint_id.in_(list(api_map.keys())),
+        ).all()
+
+        for source in source_items:
+            target_case = testcase_map.get(source.testcase_id)
+            target_api = api_map.get(source.api_endpoint_id)
+            if not target_case or not target_api:
+                stats["skipped"] += 1
+                continue
+
+            existing = self.db.query(TestCaseApiEndpoint).filter(
+                TestCaseApiEndpoint.testcase_id == target_case.id,
+                TestCaseApiEndpoint.api_endpoint_id == target_api.id,
+            ).first()
+            crud_api_endpoint.link_testcase_endpoint(
+                self.db,
+                TestCaseApiEndpointCreate(
+                    testcase_id=target_case.id,
+                    api_endpoint_id=target_api.id,
+                    coverage_type=source.coverage_type or "functional",
+                    confidence=source.confidence or 100,
+                    evidence=source.evidence or "",
+                ),
+                commit=False,
+            )
+            self._count(stats, existing is None)
+
+            self._upsert_testcase_api_trace_link(
+                target_case,
+                target_api,
+                source_sprint=source_sprint,
+                target_sprint=target_sprint,
+                direction=direction,
+                source_link_id=source.id,
+                confidence=source.confidence or 100,
+                evidence=source.evidence or "TestCaseApiEndpoint 同步",
+                created_by=created_by,
+            )
+
+        return stats
+
     def _sync_trace_links(
         self,
         source_sprint: Sprint,
         target_sprint: Sprint,
         entity_maps: dict[str, dict[int, object]],
+        *,
+        direction: str,
+        trace_link_policy: str,
+        created_by: str,
     ) -> dict:
         stats = self._new_stats()
         source_items = self.db.query(TraceLink).filter(
@@ -275,11 +456,13 @@ class SprintBaselineManager:
                 source.source_type,
                 source.source_id,
                 entity_maps,
+                trace_link_policy=trace_link_policy,
             )
             mapped_target_type, mapped_target_id, target_mapped = self._map_trace_endpoint(
                 source.target_type,
                 source.target_id,
                 entity_maps,
+                trace_link_policy=trace_link_policy,
             )
             if mapped_source_type is None or mapped_target_type is None:
                 stats["skipped"] += 1
@@ -287,15 +470,21 @@ class SprintBaselineManager:
             if not source_mapped and not target_mapped:
                 stats["skipped"] += 1
                 continue
+            if trace_link_policy == "structural_only" and not self._is_structural_trace(mapped_source_type, mapped_target_type):
+                stats["skipped"] += 1
+                continue
 
             metadata = deepcopy(source.link_metadata) if isinstance(source.link_metadata, dict) else {}
-            metadata.update({
-                "baseline_source_trace_id": source.id,
-                "baseline_source_sprint_id": source_sprint.id,
-            })
+            metadata.update(self._baseline_metadata(
+                source_sprint.id,
+                "baseline_source_trace_id",
+                source.id,
+                direction=direction,
+            ))
+            metadata["trace_link_policy"] = trace_link_policy
 
             existing = self.db.query(TraceLink).filter(
-                TraceLink.project_id == source_sprint.project_id,
+                TraceLink.project_id == (target_sprint.project_id or source_sprint.project_id),
                 TraceLink.sprint_id == target_sprint.id,
                 TraceLink.source_type == mapped_source_type,
                 TraceLink.source_id == mapped_source_id,
@@ -307,7 +496,7 @@ class SprintBaselineManager:
             crud_trace_link.upsert_trace_link(
                 self.db,
                 TraceLinkCreate(
-                    project_id=source_sprint.project_id,
+                    project_id=target_sprint.project_id or source_sprint.project_id,
                     sprint_id=target_sprint.id,
                     source_type=mapped_source_type,
                     source_id=mapped_source_id,
@@ -318,13 +507,52 @@ class SprintBaselineManager:
                     evidence=source.evidence or "",
                     metadata=metadata,
                     status="active",
-                    created_by="baseline_sync",
+                    created_by=created_by,
                 ),
                 commit=False,
             )
             self._count(stats, existing is None)
 
         return stats
+
+    def _upsert_testcase_api_trace_link(
+        self,
+        target_case: TestCase,
+        target_api: ApiEndpoint,
+        *,
+        source_sprint: Sprint,
+        target_sprint: Sprint,
+        direction: str,
+        source_link_id: int,
+        confidence: int,
+        evidence: str,
+        created_by: str,
+    ) -> None:
+        metadata = self._baseline_metadata(
+            source_sprint.id,
+            "baseline_source_testcase_api_link_id",
+            source_link_id,
+            direction=direction,
+        )
+        metadata["trace_link_policy"] = "testcase_api_endpoint"
+        crud_trace_link.upsert_trace_link(
+            self.db,
+            TraceLinkCreate(
+                project_id=target_sprint.project_id or source_sprint.project_id,
+                sprint_id=target_sprint.id,
+                source_type="testcase",
+                source_id=target_case.id,
+                target_type="api",
+                target_id=target_api.id,
+                relation_type="tests_api",
+                confidence=confidence,
+                evidence=evidence,
+                metadata=metadata,
+                status="active",
+                created_by=created_by,
+            ),
+            commit=False,
+        )
 
     def _find_target_feature(self, source: FeaturePoint, target_sprint_id: int) -> FeaturePoint | None:
         if source.fingerprint:
@@ -346,7 +574,7 @@ class SprintBaselineManager:
 
     def _find_target_api(self, source: ApiEndpoint, target_sprint_id: int, project_id: int) -> ApiEndpoint | None:
         candidates = self.db.query(ApiEndpoint).filter(
-            ApiEndpoint.project_id == (source.project_id or project_id),
+            ApiEndpoint.project_id == project_id,
             ApiEndpoint.sprint_id == target_sprint_id,
             ApiEndpoint.method == (source.method or "").upper(),
             ApiEndpoint.is_deleted == False,  # noqa: E712
@@ -355,10 +583,9 @@ class SprintBaselineManager:
         return next((item for item in candidates if self._normalize_path(item.path) == normalized_path), None)
 
     def _find_target_testcase(self, source: TestCase, target_sprint_id: int, project_id: int) -> TestCase | None:
-        resolved_project_id = source.project_id or project_id
         if source.case_no:
             target = self.db.query(TestCase).filter(
-                TestCase.project_id == resolved_project_id,
+                TestCase.project_id == project_id,
                 TestCase.sprint_id == target_sprint_id,
                 TestCase.case_no == source.case_no,
                 TestCase.is_deleted == False,  # noqa: E712
@@ -368,7 +595,7 @@ class SprintBaselineManager:
 
         if source.fingerprint:
             target = self.db.query(TestCase).filter(
-                TestCase.project_id == resolved_project_id,
+                TestCase.project_id == project_id,
                 TestCase.sprint_id == target_sprint_id,
                 TestCase.fingerprint == source.fingerprint,
                 TestCase.is_deleted == False,  # noqa: E712
@@ -377,7 +604,7 @@ class SprintBaselineManager:
                 return target
 
         candidates = self.db.query(TestCase).filter(
-            TestCase.project_id == resolved_project_id,
+            TestCase.project_id == project_id,
             TestCase.sprint_id == target_sprint_id,
             TestCase.module_id == source.module_id,
             TestCase.is_deleted == False,  # noqa: E712
@@ -390,7 +617,11 @@ class SprintBaselineManager:
         entity_type: str,
         entity_id: int,
         entity_maps: dict[str, dict[int, object]],
+        *,
+        trace_link_policy: str,
     ) -> tuple[str | None, int | None, bool]:
+        if trace_link_policy == "structural_only" and entity_type not in self.STRUCTURAL_TRACE_TYPES:
+            return None, None, False
         if entity_type not in self.MAPPED_ENTITY_TYPES:
             return entity_type, entity_id, False
         target = entity_maps.get(entity_type, {}).get(entity_id)
@@ -398,19 +629,43 @@ class SprintBaselineManager:
             return None, None, False
         return entity_type, target.id, True
 
+    def _is_structural_trace(self, source_type: str, target_type: str) -> bool:
+        return source_type in self.STRUCTURAL_TRACE_TYPES and target_type in self.STRUCTURAL_TRACE_TYPES
+
     def _merge_baseline_metadata(
         self,
         raw_data: dict | None,
         source_sprint_id: int,
         source_key: str,
         source_id: int,
+        *,
+        direction: str,
     ) -> dict:
         data = deepcopy(raw_data) if isinstance(raw_data, dict) else {}
-        data.update({
+        data.update(self._baseline_metadata(source_sprint_id, source_key, source_id, direction=direction))
+        return data
+
+    def _baseline_metadata(
+        self,
+        source_sprint_id: int,
+        source_key: str,
+        source_id: int,
+        *,
+        direction: str,
+    ) -> dict:
+        data = {
             "baseline_source_sprint_id": source_sprint_id,
             source_key: source_id,
             "baseline_sync": True,
-        })
+        }
+        if direction == "from_all":
+            data.update({
+                "baseline_direction": "from_all_to_sprint",
+                "prepared_from_all": True,
+                "baseline_origin": "sprint_all",
+            })
+        else:
+            data["baseline_direction"] = "to_all"
         return data
 
     def _normalize_text(self, value: str | None) -> str:

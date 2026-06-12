@@ -45,6 +45,10 @@ export function syncSprintToAll(id) {
   return request({ url: `/sprints/${id}/sync-to-all`, method: 'post' })
 }
 
+export function prepareSprintFromAll(id, data = {}) {
+  return request({ url: `/sprints/${id}/prepare-from-all`, method: 'post', data })
+}
+
 // ========== Sprint 下文档 ==========
 export function getSprintDocuments(sprintId) {
   return request({ url: `/sprints/${sprintId}/documents`, method: 'get' })
