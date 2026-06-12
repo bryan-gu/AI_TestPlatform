@@ -13,6 +13,7 @@ from app.schemas.sprint import SprintCreate, SprintUpdate, SprintOut
 from app.schemas.document import DocumentUpdate, DocumentOut
 from app.crud import crud_sprint, crud_document, crud_knowledge_asset, crud_trace_link
 from app.schemas.trace_link import TraceLinkCreate
+from app.services.sprint_baseline_manager import SprintBaselineManager
 
 
 router = APIRouter(prefix="/sprints", tags=["Sprint 管理"])
@@ -182,6 +183,19 @@ def mark_sprint_as_sprint_all(
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc))
     return ResponseModel(data=_sprint_to_out(sprint, db), message="已标记为最新汇总基线")
+
+
+@router.post("/{sprint_id}/sync-to-all", response_model=ResponseModel)
+def sync_sprint_to_all(
+    sprint_id: int,
+    db: Session = Depends(get_db),
+    _=Depends(get_current_user),
+):
+    try:
+        result = SprintBaselineManager(db).sync_sprint_to_all(sprint_id)
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc))
+    return ResponseModel(data=result, message="已同步到最新汇总基线")
 
 
 # ========== Sprint 下文档 ==========

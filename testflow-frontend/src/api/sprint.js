@@ -41,6 +41,10 @@ export function markSprintAsSprintAll(id) {
   return request({ url: `/sprints/${id}/mark-as-sprint-all`, method: 'post' })
 }
 
+export function syncSprintToAll(id) {
+  return request({ url: `/sprints/${id}/sync-to-all`, method: 'post' })
+}
+
 // ========== Sprint 下文档 ==========
 export function getSprintDocuments(sprintId) {
   return request({ url: `/sprints/${sprintId}/documents`, method: 'get' })

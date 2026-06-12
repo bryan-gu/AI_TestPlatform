@@ -86,7 +86,7 @@
         <el-table-column label="更新时间" width="120">
           <template #default="{ row }">{{ formatDate(row.updatedAt || row.updated_at) }}</template>
         </el-table-column>
-        <el-table-column label="操作" width="300" fixed="right">
+        <el-table-column label="操作" width="380" fixed="right">
           <template #default="{ row }">
             <div class="action-btns" @click.stop>
               <el-button v-if="row.isAll" type="primary" link size="small" @click="goToGraphList">
@@ -98,6 +98,9 @@
                 </el-button>
                 <el-button type="success" link size="small" @click="handleMarkSprintAll(row)">
                   设为最新汇总
+                </el-button>
+                <el-button type="primary" link size="small" @click="handleSyncToAll(row)">
+                  同步到最新汇总
                 </el-button>
                 <el-button type="primary" link size="small" @click="handleEdit(row)">
                   <el-icon><Edit /></el-icon>编辑
@@ -153,7 +156,7 @@ import { useAppStore } from '../../stores/app'
 import { Folder, Plus, Edit, Delete, Promotion, CopyDocument, Share } from '@element-plus/icons-vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { getProjects } from '../../api/project'
-import { getSprints, getSprintStats, createSprint, updateSprint, deleteSprint, ensureSprintAll, markSprintAsBaseline, markSprintAsSprintAll } from '../../api/sprint'
+import { getSprints, getSprintStats, createSprint, updateSprint, deleteSprint, ensureSprintAll, markSprintAsBaseline, markSprintAsSprintAll, syncSprintToAll } from '../../api/sprint'
 
 const router = useRouter()
 const appStore = useAppStore()
@@ -206,6 +209,14 @@ function normalizeSprint(row) {
     docCount: row.doc_count ?? row.docCount ?? 0,
     updatedAt: row.updated_at ?? row.updatedAt,
   }
+}
+
+function formatSyncStats(data) {
+  const features = data?.features || {}
+  const apis = data?.api_endpoints || {}
+  const cases = data?.testcases || {}
+  const links = data?.trace_links || {}
+  return `功能点：新增 ${features.created || 0}，更新 ${features.updated || 0}；接口：新增 ${apis.created || 0}，更新 ${apis.updated || 0}；用例：新增 ${cases.created || 0}，更新 ${cases.updated || 0}；关系：新增 ${links.created || 0}，更新 ${links.updated || 0}`
 }
 
 function goToDetail(row) {
@@ -343,6 +354,20 @@ function handleMarkSprintAll(row) {
       await loadData()
     } catch (e) {
       ElMessage.error('操作失败')
+    }
+  }).catch(() => {})
+}
+
+function handleSyncToAll(row) {
+  ElMessageBox.confirm(`确定将 Sprint"${row.name}" 的结构化实体同步到 sprint_all 吗？该操作会新增或更新功能点、接口、用例和关系，不会清空 sprint_all，也不会删除 sprint_all 中已有接口/功能点/用例。`, '同步到最新汇总', {
+    confirmButtonText: '确认同步', cancelButtonText: '取消', type: 'warning',
+  }).then(async () => {
+    try {
+      const res = await syncSprintToAll(row.id)
+      ElMessage.success(formatSyncStats(res.data))
+      await loadData()
+    } catch (e) {
+      ElMessage.error('同步失败')
     }
   }).catch(() => {})
 }
