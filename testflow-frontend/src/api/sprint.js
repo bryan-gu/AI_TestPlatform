@@ -25,6 +25,22 @@ export function deleteSprint(id) {
   return request({ url: `/sprints/${id}`, method: 'delete' })
 }
 
+export function getSprintAll(projectId) {
+  return request({ url: '/sprints/all', method: 'get', params: { project_id: projectId } })
+}
+
+export function ensureSprintAll(projectId) {
+  return request({ url: '/sprints/all/ensure', method: 'post', params: { project_id: projectId } })
+}
+
+export function markSprintAsBaseline(id) {
+  return request({ url: `/sprints/${id}/mark-as-baseline`, method: 'post' })
+}
+
+export function markSprintAsSprintAll(id) {
+  return request({ url: `/sprints/${id}/mark-as-sprint-all`, method: 'post' })
+}
+
 // ========== Sprint 下文档 ==========
 export function getSprintDocuments(sprintId) {
   return request({ url: `/sprints/${sprintId}/documents`, method: 'get' })

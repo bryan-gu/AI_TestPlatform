@@ -88,6 +88,29 @@ def sprint_stats(
     return ResponseModel(data=stats)
 
 
+@router.get("/all", response_model=ResponseModel)
+def get_sprint_all(
+    project_id: int = Query(..., description="项目ID"),
+    db: Session = Depends(get_db),
+    _=Depends(get_current_user),
+):
+    sprint = crud_sprint.get_sprint_all(db, project_id)
+    return ResponseModel(data=_sprint_to_out(sprint, db) if sprint else None)
+
+
+@router.post("/all/ensure", response_model=ResponseModel)
+def ensure_sprint_all(
+    project_id: int = Query(..., description="项目ID"),
+    db: Session = Depends(get_db),
+    _=Depends(get_current_user),
+):
+    try:
+        sprint = crud_sprint.ensure_sprint_all(db, project_id)
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc))
+    return ResponseModel(data=_sprint_to_out(sprint, db), message="已确保最新汇总基线")
+
+
 @router.get("/{sprint_id}", response_model=ResponseModel)
 def get_sprint(sprint_id: int, db: Session = Depends(get_db), _=Depends(get_current_user)):
     sprint = crud_sprint.get_sprint(db, sprint_id)
@@ -98,7 +121,10 @@ def get_sprint(sprint_id: int, db: Session = Depends(get_db), _=Depends(get_curr
 
 @router.post("", response_model=ResponseModel)
 def create_sprint(data: SprintCreate, db: Session = Depends(get_db), _=Depends(get_current_user)):
-    sprint = crud_sprint.create_sprint(db, data)
+    try:
+        sprint = crud_sprint.create_sprint(db, data)
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc))
     return ResponseModel(data=_sprint_to_out(sprint, db))
 
 
@@ -107,7 +133,10 @@ def update_sprint(sprint_id: int, data: SprintUpdate, db: Session = Depends(get_
     sprint = crud_sprint.get_sprint(db, sprint_id)
     if not sprint:
         raise HTTPException(status_code=404, detail="Sprint 不存在")
-    sprint = crud_sprint.update_sprint(db, sprint, data)
+    try:
+        sprint = crud_sprint.update_sprint(db, sprint, data)
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc))
     return ResponseModel(data=_sprint_to_out(sprint, db))
 
 
@@ -116,8 +145,43 @@ def delete_sprint(sprint_id: int, db: Session = Depends(get_db), _=Depends(get_c
     sprint = crud_sprint.get_sprint(db, sprint_id)
     if not sprint:
         raise HTTPException(status_code=404, detail="Sprint 不存在")
-    crud_sprint.delete_sprint(db, sprint)
+    try:
+        crud_sprint.delete_sprint(db, sprint)
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc))
     return ResponseModel(message="删除成功")
+
+
+@router.post("/{sprint_id}/mark-as-baseline", response_model=ResponseModel)
+def mark_sprint_as_baseline(
+    sprint_id: int,
+    db: Session = Depends(get_db),
+    _=Depends(get_current_user),
+):
+    sprint = crud_sprint.get_sprint(db, sprint_id)
+    if not sprint:
+        raise HTTPException(status_code=404, detail="Sprint 不存在")
+    try:
+        sprint = crud_sprint.mark_baseline(db, sprint)
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc))
+    return ResponseModel(data=_sprint_to_out(sprint, db), message="已标记为基线")
+
+
+@router.post("/{sprint_id}/mark-as-sprint-all", response_model=ResponseModel)
+def mark_sprint_as_sprint_all(
+    sprint_id: int,
+    db: Session = Depends(get_db),
+    _=Depends(get_current_user),
+):
+    sprint = crud_sprint.get_sprint(db, sprint_id)
+    if not sprint:
+        raise HTTPException(status_code=404, detail="Sprint 不存在")
+    try:
+        sprint = crud_sprint.mark_sprint_all(db, sprint)
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc))
+    return ResponseModel(data=_sprint_to_out(sprint, db), message="已标记为最新汇总基线")
 
 
 # ========== Sprint 下文档 ==========

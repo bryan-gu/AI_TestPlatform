@@ -26,9 +26,14 @@
           知识库按 Sprint 组织 · 每个 Sprint 是独立快照 · 共 {{ stats.sprintCount }} 个 Sprint、{{ stats.totalDocs }} 篇文档
         </div>
       </div>
-      <el-button type="primary" size="small" @click="openCreateDialog">
-        <el-icon><Plus /></el-icon>新建 Sprint
-      </el-button>
+      <div style="display:flex;gap:8px">
+        <el-button size="small" @click="handleEnsureSprintAll" :loading="ensuringAll">
+          <el-icon><CopyDocument /></el-icon>确保 sprint_all
+        </el-button>
+        <el-button type="primary" size="small" @click="openCreateDialog">
+          <el-icon><Plus /></el-icon>新建 Sprint
+        </el-button>
+      </div>
     </div>
 
     <!-- 统计卡片 -->
@@ -81,13 +86,19 @@
         <el-table-column label="更新时间" width="120">
           <template #default="{ row }">{{ formatDate(row.updatedAt || row.updated_at) }}</template>
         </el-table-column>
-        <el-table-column label="操作" width="140" fixed="right">
+        <el-table-column label="操作" width="300" fixed="right">
           <template #default="{ row }">
             <div class="action-btns" @click.stop>
               <el-button v-if="row.isAll" type="primary" link size="small" @click="goToGraphList">
                 <el-icon><Share /></el-icon>图谱
               </el-button>
               <template v-else>
+                <el-button type="warning" link size="small" @click="handleMarkBaseline(row)">
+                  设为基线
+                </el-button>
+                <el-button type="success" link size="small" @click="handleMarkSprintAll(row)">
+                  设为最新汇总
+                </el-button>
                 <el-button type="primary" link size="small" @click="handleEdit(row)">
                   <el-icon><Edit /></el-icon>编辑
                 </el-button>
@@ -142,13 +153,14 @@ import { useAppStore } from '../../stores/app'
 import { Folder, Plus, Edit, Delete, Promotion, CopyDocument, Share } from '@element-plus/icons-vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { getProjects } from '../../api/project'
-import { getSprints, getSprintStats, createSprint, updateSprint, deleteSprint } from '../../api/sprint'
+import { getSprints, getSprintStats, createSprint, updateSprint, deleteSprint, ensureSprintAll, markSprintAsBaseline, markSprintAsSprintAll } from '../../api/sprint'
 
 const router = useRouter()
 const appStore = useAppStore()
 const loading = ref(false)
 const saving = ref(false)
 const creating = ref(false)
+const ensuringAll = ref(false)
 
 const selectedProject = ref(null)
 const currentProjectStatus = ref('')
@@ -186,6 +198,16 @@ function getSprintStatusType(status) {
   return map[status] || 'info'
 }
 
+function normalizeSprint(row) {
+  return {
+    ...row,
+    isAll: row.is_all ?? row.isAll ?? false,
+    moduleCount: row.module_count ?? row.moduleCount ?? 0,
+    docCount: row.doc_count ?? row.docCount ?? 0,
+    updatedAt: row.updated_at ?? row.updatedAt,
+  }
+}
+
 function goToDetail(row) {
   if (row.isAll) {
     router.push('/graphs')
@@ -211,13 +233,34 @@ async function loadData() {
       getSprints({ project_id: selectedProject.value }),
       getSprintStats(selectedProject.value),
     ])
-    sprints.value = sprintRes.data || []
+    sprints.value = (sprintRes.data || []).map(normalizeSprint)
     stats.value = statsRes.data || { sprintCount: 0, moduleCount: 0, totalDocs: 0, featurePointCount: 0 }
   } catch (e) {
     console.error(e)
   } finally {
     loading.value = false
   }
+}
+
+async function handleEnsureSprintAll() {
+  if (!selectedProject.value) {
+    ElMessage.warning('请先选择项目')
+    return
+  }
+  ElMessageBox.confirm('将为当前项目创建或修正唯一的 sprint_all 最新汇总基线，不会同步或复制实体数据。是否继续？', '确保 sprint_all', {
+    confirmButtonText: '确认', cancelButtonText: '取消', type: 'warning',
+  }).then(async () => {
+    ensuringAll.value = true
+    try {
+      await ensureSprintAll(selectedProject.value)
+      ElMessage.success('已确保 sprint_all')
+      await loadData()
+    } catch (e) {
+      ElMessage.error('操作失败')
+    } finally {
+      ensuringAll.value = false
+    }
+  }).catch(() => {})
 }
 
 async function handleCreate() {
@@ -276,6 +319,34 @@ function handleDelete(row) {
   }).catch(() => {})
 }
 
+function handleMarkBaseline(row) {
+  ElMessageBox.confirm(`确定将 Sprint"${row.name}" 标记为基线吗？该操作只修改 Sprint 状态，不会同步实体数据。`, '设为基线', {
+    confirmButtonText: '确认', cancelButtonText: '取消', type: 'warning',
+  }).then(async () => {
+    try {
+      await markSprintAsBaseline(row.id)
+      ElMessage.success('已标记为基线')
+      await loadData()
+    } catch (e) {
+      ElMessage.error('操作失败')
+    }
+  }).catch(() => {})
+}
+
+function handleMarkSprintAll(row) {
+  ElMessageBox.confirm(`确定将 Sprint"${row.name}" 设为最新汇总基线吗？该操作会取消同项目其他 sprint_all 标记，但不会同步或复制实体数据。`, '设为最新汇总', {
+    confirmButtonText: '确认', cancelButtonText: '取消', type: 'warning',
+  }).then(async () => {
+    try {
+      await markSprintAsSprintAll(row.id)
+      ElMessage.success('已标记为最新汇总')
+      await loadData()
+    } catch (e) {
+      ElMessage.error('操作失败')
+    }
+  }).catch(() => {})
+}
+
 function handleProjectChange(id) {
   const proj = projectOptions.value.find(p => p.id === id)
   if (proj) currentProjectStatus.value = proj.status || '进行中'
@@ -291,7 +362,7 @@ watch(() => appStore.searchKeyword, (kw) => {
     loading.value = true
     try {
       const res = await getSprints({ project_id: selectedProject.value, keyword: kw || undefined })
-      sprints.value = res.data || []
+      sprints.value = (res.data || []).map(normalizeSprint)
     } catch (e) { console.error(e) } finally { loading.value = false }
   }, 300)
 })
