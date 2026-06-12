@@ -4,25 +4,27 @@
     <div class="mode-cards">
       <div
         class="mode-card"
-        :class="{ active: selectedMode === 'full' }"
-        @click="selectedMode = 'full'"
+        :class="{ active: selectedMode === 'full', disabled: modeConstraint.fullDisabled }"
+        @click="selectMode('full')"
       >
         <div class="mode-header">
           <el-icon :size="20" style="color:var(--accent)"><RefreshRight /></el-icon>
           <span class="mode-title">全量模式</span>
         </div>
         <div class="mode-desc">从零开始，完整执行 SKILL 全部 4 个阶段。适用于新项目或重大版本迭代。</div>
+        <div v-if="modeConstraint.fullReason" class="mode-reason">{{ modeConstraint.fullReason }}</div>
       </div>
       <div
         class="mode-card"
-        :class="{ active: selectedMode === 'incremental' }"
-        @click="selectedMode = 'incremental'"
+        :class="{ active: selectedMode === 'incremental', disabled: modeConstraint.incrementalDisabled }"
+        @click="selectMode('incremental')"
       >
         <div class="mode-header">
           <el-icon :size="20" style="color:var(--color-text-secondary)"><Operation /></el-icon>
           <span class="mode-title">增量模式</span>
         </div>
         <div class="mode-desc">基于当前 Sprint 快照识别变更项、计算影响范围，并为后续增量用例生成提供依据。适用于迭代回归。</div>
+        <div v-if="modeConstraint.incrementalReason" class="mode-reason">{{ modeConstraint.incrementalReason }}</div>
       </div>
     </div>
 
@@ -45,7 +47,7 @@
           <el-button
             type="primary"
             size="small"
-            :disabled="!selectedProject || !selectedSprint"
+            :disabled="!!startDisabledReason || starting"
             :loading="starting"
             @click="handleStart"
           >
@@ -60,12 +62,13 @@
           :key="s.id"
           class="sprint-badge"
           :class="{ active: selectedSprint === s.id }"
-          @click="selectedSprint = s.id"
+          @click="selectSprint(s)"
         >{{ s.name }}</span>
         <div v-if="sprints.length === 0" style="font-size:12px;color:var(--color-text-tertiary);padding:10px">
           请先选择一个项目
         </div>
       </div>
+      <div v-if="baselineWarning" class="baseline-warning">{{ baselineWarning }}</div>
     </div>
 
     <!-- SKILL 4 阶段流水线 -->
@@ -348,6 +351,7 @@ const starting = ref(false)
 
 // ── 数据 ──
 const projects = ref([])
+const projectSprints = ref([])
 const sprints = ref([])
 const executionHistory = ref([])
 const currentExecution = ref(null)
@@ -412,7 +416,134 @@ const currentStages = computed(() => {
   return currentExecution.value.stages
 })
 
+const selectedSprintObj = computed(() => {
+  return projectSprints.value.find(s => s.id === selectedSprint.value) || null
+})
+
+const hasSprintAllBaseline = computed(() => {
+  return projectSprints.value.some(s => isSprintAll(s))
+})
+
+const modeConstraint = computed(() => {
+  const sprint = selectedSprintObj.value
+  if (!sprint) {
+    return {
+      allowedMode: null,
+      fullDisabled: false,
+      incrementalDisabled: false,
+      fullReason: '',
+      incrementalReason: '',
+    }
+  }
+  if (isSprintAll(sprint)) {
+    return {
+      allowedMode: null,
+      fullDisabled: true,
+      incrementalDisabled: true,
+      fullReason: 'sprint_all 是汇总基线，不能直接执行流水线。',
+      incrementalReason: 'sprint_all 是汇总基线，不能直接执行流水线。',
+    }
+  }
+  if (isSprintZero(sprint)) {
+    return {
+      allowedMode: 'full',
+      fullDisabled: false,
+      incrementalDisabled: true,
+      fullReason: '',
+      incrementalReason: 'Sprint0 是初始基线，无可对比的历史基线。',
+    }
+  }
+  return {
+    allowedMode: 'incremental',
+    fullDisabled: true,
+    incrementalDisabled: false,
+    fullReason: 'SprintN 应基于 sprint_all 做增量分析，不建议全量重建。',
+    incrementalReason: '',
+  }
+})
+
+const baselineWarning = computed(() => {
+  if (!selectedSprintObj.value || isSprintAll(selectedSprintObj.value) || isSprintZero(selectedSprintObj.value)) return ''
+  if (hasSprintAllBaseline.value) return ''
+  return '当前项目尚未初始化 sprint_all，请先执行 Sprint0 全量模式，或在知识库中设置最新汇总基线。'
+})
+
+const startDisabledReason = computed(() => validateBeforeStart())
+
 // ── 工具函数 ──
+
+function normalizeSprintName(name) {
+  return String(name || '').toLowerCase().replace(/[\s_-]+/g, '')
+}
+
+function isSprintAll(sprint) {
+  if (!sprint) return false
+  const normalized = normalizeSprintName(sprint.name)
+  return sprint.is_all === true || normalized === 'sprintall' || normalized === '最新汇总'
+}
+
+function getSprintNo(sprint) {
+  if (!sprint?.name) return null
+  const match = String(sprint.name).match(/sprint\s*[-_]?\s*(\d+)/i)
+  if (!match) return null
+  return Number.parseInt(match[1], 10)
+}
+
+function isSprintZero(sprint) {
+  return getSprintNo(sprint) === 0
+}
+
+function sortNormalSprints(list) {
+  return [...list].sort((a, b) => {
+    const aNo = getSprintNo(a)
+    const bNo = getSprintNo(b)
+    if (aNo !== null && bNo !== null && aNo !== bNo) return aNo - bNo
+    if (aNo !== null && bNo === null) return -1
+    if (aNo === null && bNo !== null) return 1
+    const aTime = a.created_at ? new Date(a.created_at).getTime() : 0
+    const bTime = b.created_at ? new Date(b.created_at).getTime() : 0
+    if (aTime !== bTime) return aTime - bTime
+    return String(a.name || '').localeCompare(String(b.name || ''), 'zh-Hans-CN')
+  })
+}
+
+function applySprintModeConstraint() {
+  const constraint = modeConstraint.value
+  if (constraint.allowedMode && selectedMode.value !== constraint.allowedMode) {
+    selectedMode.value = constraint.allowedMode
+  }
+}
+
+function selectSprint(sprint) {
+  selectedSprint.value = sprint?.id || null
+  applySprintModeConstraint()
+}
+
+function selectMode(mode) {
+  const constraint = modeConstraint.value
+  if ((mode === 'full' && constraint.fullDisabled) || (mode === 'incremental' && constraint.incrementalDisabled)) {
+    const reason = mode === 'full' ? constraint.fullReason : constraint.incrementalReason
+    if (reason) ElMessage.warning(reason)
+    return
+  }
+  selectedMode.value = mode
+}
+
+function validateBeforeStart() {
+  if (!selectedProject.value) return '请先选择项目'
+  if (!selectedSprint.value) return '请先选择 Sprint'
+  const sprint = selectedSprintObj.value
+  if (!sprint) return '当前 Sprint 不存在或已被过滤，请重新选择'
+  if (isSprintAll(sprint)) return 'sprint_all 是汇总基线，不能直接执行流水线'
+  const constraint = modeConstraint.value
+  if (constraint.allowedMode && selectedMode.value !== constraint.allowedMode) {
+    return constraint.allowedMode === 'full' ? 'Sprint0 只能执行全量模式' : 'SprintN 只能执行增量模式'
+  }
+  if (!isSprintZero(sprint) && selectedMode.value === 'incremental' && !hasSprintAllBaseline.value) {
+    return '当前项目尚未初始化 sprint_all，请先执行 Sprint0 全量模式，或在知识库中设置最新汇总基线'
+  }
+  return ''
+}
 
 function statusTagType(status) {
   const map = {
@@ -501,15 +632,21 @@ async function loadProjects() {
 
 async function loadSprints() {
   if (!selectedProject.value) {
+    projectSprints.value = []
     sprints.value = []
+    selectedSprint.value = null
     return
   }
   try {
     const res = await getSprints({ project_id: selectedProject.value })
-    sprints.value = res.data?.data || res.data || []
-    if (sprints.value.length > 0 && !selectedSprint.value) {
-      selectedSprint.value = sprints.value[0].id
+    const list = res.data?.data || res.data || []
+    projectSprints.value = list
+    sprints.value = sortNormalSprints(list.filter(s => !isSprintAll(s)))
+    const stillSelectable = sprints.value.some(s => s.id === selectedSprint.value)
+    if (!stillSelectable) {
+      selectedSprint.value = sprints.value[0]?.id || null
     }
+    applySprintModeConstraint()
   } catch (e) {
     console.error('加载 Sprint 失败', e)
   }
@@ -600,8 +737,9 @@ async function onProjectChange() {
 // ── 操作 ──
 
 async function handleStart() {
-  if (!selectedProject.value || !selectedSprint.value) {
-    ElMessage.warning('请先选择项目和 Sprint')
+  const invalidReason = validateBeforeStart()
+  if (invalidReason) {
+    ElMessage.warning(invalidReason)
     return
   }
   starting.value = true
@@ -704,6 +842,27 @@ onUnmounted(() => {
   background: var(--accent-light, #EBF5FF);
 }
 
+.mode-card.disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+  background: var(--color-background-secondary);
+}
+
+.mode-card.disabled:hover {
+  opacity: 0.55;
+}
+
+.mode-reason {
+  margin-top: 8px;
+  font-size: 11px;
+  color: #D97706;
+  line-height: 1.5;
+}
+
+.mode-card.disabled .mode-reason {
+  color: var(--color-text-tertiary);
+}
+
 .mode-header {
   display: flex;
   align-items: center;
@@ -748,6 +907,17 @@ onUnmounted(() => {
 
 .sprint-badge:hover:not(.active) {
   opacity: 0.8;
+}
+
+.baseline-warning {
+  margin: 0 18px 14px;
+  padding: 10px 12px;
+  border-radius: var(--border-radius-md, 6px);
+  background: #FFFBEB;
+  border: 1px solid #FDE68A;
+  color: #B45309;
+  font-size: 12px;
+  line-height: 1.5;
 }
 
 /* 流水线 */

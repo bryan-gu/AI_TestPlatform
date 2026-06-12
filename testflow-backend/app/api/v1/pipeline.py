@@ -12,12 +12,77 @@ from app.schemas.pipeline import (
     PipelineCreate, PipelineOut, PipelineDetailOut,
     PipelineStageOut,
 )
-from app.crud import crud_pipeline
+from app.crud import crud_pipeline, crud_sprint
 
 router = APIRouter(prefix="/pipeline", tags=["AI 流水线"])
 
 
 # ── helpers ──
+
+def _normalize_sprint_name(name: str | None) -> str:
+    return "".join(ch for ch in (name or "").lower() if ch not in {" ", "_", "-"})
+
+
+def _is_sprint_all(sprint) -> bool:
+    normalized = _normalize_sprint_name(getattr(sprint, "name", ""))
+    return bool(getattr(sprint, "is_all", False)) or normalized in {"sprintall", "最新汇总"}
+
+
+def _get_sprint_no(sprint) -> int | None:
+    import re
+    match = re.search(r"sprint\s*[-_]?\s*(\d+)", getattr(sprint, "name", "") or "", re.IGNORECASE)
+    if not match:
+        return None
+    return int(match.group(1))
+
+
+def _is_sprint_zero(sprint) -> bool:
+    return _get_sprint_no(sprint) == 0
+
+
+def _has_sprint_all(db: Session, project_id: int | None, exclude_sprint_id: int | None = None) -> bool:
+    if not project_id:
+        return False
+    sprints = crud_sprint.get_sprints(db, project_id=project_id)
+    for sprint in sprints:
+        if exclude_sprint_id and sprint.id == exclude_sprint_id:
+            continue
+        if _is_sprint_all(sprint):
+            return True
+    return False
+
+
+def _validate_execution_mode(db: Session, body: PipelineCreate):
+    if not body.sprint_id:
+        raise HTTPException(status_code=400, detail="请选择 Sprint")
+
+    sprint = crud_sprint.get_sprint(db, body.sprint_id)
+    if not sprint:
+        raise HTTPException(status_code=404, detail="Sprint 不存在")
+
+    if body.project_id and sprint.project_id and body.project_id != sprint.project_id:
+        raise HTTPException(status_code=400, detail="项目与 Sprint 不匹配")
+
+    mode = body.mode or "full"
+    if mode not in {"full", "incremental"}:
+        raise HTTPException(status_code=400, detail="流水线模式不正确")
+
+    if _is_sprint_all(sprint):
+        raise HTTPException(status_code=400, detail="sprint_all 是汇总基线，不能直接执行流水线")
+
+    if _is_sprint_zero(sprint):
+        if mode != "full":
+            raise HTTPException(status_code=400, detail="Sprint0 只能执行全量模式")
+        return sprint
+
+    if mode != "incremental":
+        raise HTTPException(status_code=400, detail="SprintN 只能执行增量模式")
+
+    if not _has_sprint_all(db, sprint.project_id, exclude_sprint_id=sprint.id):
+        raise HTTPException(status_code=400, detail="当前项目尚未初始化 sprint_all")
+
+    return sprint
+
 
 def _format_duration(ms: int | None) -> str:
     if ms is None:
@@ -106,6 +171,7 @@ def create_execution(
     background_tasks: BackgroundTasks,
     db: Session = Depends(get_db),
 ):
+    _validate_execution_mode(db, body)
     execution = crud_pipeline.create_execution(
         db,
         project_id=body.project_id,
