@@ -227,7 +227,7 @@ def _extract_error_codes(operation: dict) -> list:
 
 # ============ Markdown 接口文档解析 ============
 
-def parse_markdown_api_file(file_path: str) -> tuple[list, list]:
+def parse_markdown_file(file_path: str) -> tuple[list, list]:
     """从文件读取 Markdown 接口文档并解析，返回 (endpoints, warnings)。"""
     p = Path(file_path)
     if not p.exists():
