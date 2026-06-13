@@ -70,7 +70,9 @@ import { ref, computed, onMounted } from 'vue'
 import { getFeaturePoints } from '../../api/featurePoint'
 import { getProjects } from '../../api/project'
 import { getSprints } from '../../api/sprint'
+import { useAppStore } from '../../stores/app'
 
+const appStore = useAppStore()
 const projects = ref([])
 const sprints = ref([])
 const projectId = ref(null)
@@ -143,6 +145,7 @@ async function loadFeatures() {
 }
 
 onMounted(async () => {
+  appStore.setCurrentPage('coverage-analysis', '覆盖分析')
   await loadProjects()
 })
 </script>

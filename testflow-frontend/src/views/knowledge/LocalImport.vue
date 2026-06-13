@@ -86,7 +86,9 @@ import { Search } from '@element-plus/icons-vue'
 import { ElMessage } from 'element-plus'
 import { importLocalProject } from '../../api/knowledgeAsset'
 import { getProjects } from '../../api/project'
+import { useAppStore } from '../../stores/app'
 
+const appStore = useAppStore()
 const projects = ref([])
 const running = ref(false)
 const result = ref(null)
@@ -141,6 +143,7 @@ async function handleConfirmImport() {
 }
 
 onMounted(async () => {
+  appStore.setCurrentPage('local-import', '本地导入')
   await loadProjects()
 })
 </script>

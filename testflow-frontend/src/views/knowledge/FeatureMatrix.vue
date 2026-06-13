@@ -76,7 +76,9 @@ import { getFeaturePoints } from '../../api/featurePoint'
 import { getProjects } from '../../api/project'
 import { getSprints } from '../../api/sprint'
 import { getFeaturePointTestCases } from '../../api/coverage'
+import { useAppStore } from '../../stores/app'
 
+const appStore = useAppStore()
 const loading = ref(false)
 const features = ref([])
 const projects = ref([])
@@ -147,6 +149,7 @@ async function openCases(row) {
 }
 
 onMounted(async () => {
+  appStore.setCurrentPage('feature-matrix', '功能点矩阵')
   await loadProjects()
 })
 </script>

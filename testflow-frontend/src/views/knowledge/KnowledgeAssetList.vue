@@ -86,7 +86,9 @@ import { getKnowledgeAssets } from '../../api/knowledgeAsset'
 import { getProjects } from '../../api/project'
 import { getSprints } from '../../api/sprint'
 import { importOpenApi, importMarkdownApi } from '../../api/apiEndpoint'
+import { useAppStore } from '../../stores/app'
 
+const appStore = useAppStore()
 const loading = ref(false)
 const assets = ref([])
 const projects = ref([])
@@ -192,6 +194,7 @@ async function handleParseApi(row) {
 }
 
 onMounted(async () => {
+  appStore.setCurrentPage('knowledge-assets', '资产中心')
   await loadProjects()
   await loadAssets()
 })
