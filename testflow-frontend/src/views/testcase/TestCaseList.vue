@@ -17,6 +17,7 @@
           <el-select v-model="selectedSprintId" placeholder="全部 Sprint" size="small" style="width: 150px" clearable @change="loadCases">
             <el-option v-for="s in sprintOptions" :key="s.id" :label="s.name" :value="s.id" />
           </el-select>
+          <el-button type="primary" size="small" @click="openCreateDialog"><el-icon><Plus /></el-icon>新建用例</el-button>
           <el-button type="primary" size="small" @click="handleBatchExecute" :loading="batchExecuting">
             <el-icon><VideoPlay /></el-icon>批量执行
           </el-button>
@@ -192,7 +193,7 @@
 import { ref, reactive, onMounted, watch } from 'vue'
 import { useRoute } from 'vue-router'
 import { useAppStore } from '../../stores/app'
-import { Edit, Delete, VideoPlay, Download, Upload, View } from '@element-plus/icons-vue'
+import { Edit, Delete, VideoPlay, Download, Upload, View, Plus } from '@element-plus/icons-vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { getTestCases, getTestCaseStats, createTestCase, updateTestCase, deleteTestCase, batchExecuteTestCases, exportTestCases, downloadTemplate, importTestCases } from '../../api/testcase'
 import { getProjects } from '../../api/project'
@@ -505,7 +506,7 @@ function handleDelete(index, row) {
 }
 
 onMounted(async () => {
-  appStore.setCurrentPage('testcases', '测试用例', '新建用例', openCreateDialog)
+  appStore.setCurrentPage('testcases', '测试用例')
   loading.value = true
   try {
     const [casesRes, statsRes, projRes] = await Promise.allSettled([getTestCases(), getTestCaseStats(), getProjects()])

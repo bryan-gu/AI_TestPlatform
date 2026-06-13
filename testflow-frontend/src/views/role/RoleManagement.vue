@@ -6,7 +6,7 @@
     </div>
 
     <div class="card">
-      <div class="card-head"><div class="card-title">角色列表</div></div>
+      <div class="card-head"><div class="card-title">角色列表</div><el-button type="primary" size="small" @click="openCreateDialog"><el-icon><Plus /></el-icon>新建角色</el-button></div>
       <el-table :data="roles" style="width: 100%" v-loading="loading">
         <el-table-column label="角色名称" min-width="200"><template #default="{ row }"><div class="role-name"><div class="role-icon" :style="{ background: getIconBg(row.name), color: getIconColor(row.name) }"><el-icon><component :is="getIcon(row.name)" /></el-icon></div><span>{{ row.name }}</span></div></template></el-table-column>
         <el-table-column label="类型" width="100"><template #default="{ row }"><el-tag :type="row.type === '内置' ? 'info' : ''" size="small">{{ row.type }}</el-tag></template></el-table-column>
@@ -42,7 +42,7 @@
 <script setup>
 import { ref, reactive, onMounted, watch } from 'vue'
 import { useAppStore } from '../../stores/app'
-import { Trophy, Lock, User, View, Edit, Delete } from '@element-plus/icons-vue'
+import { Trophy, Lock, User, View, Edit, Delete, Plus } from '@element-plus/icons-vue'
 import * as icons from '@element-plus/icons-vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { getRoles, getRoleStats, createRole, updateRole, deleteRole } from '../../api/role'
@@ -133,7 +133,7 @@ function handleDelete(index, row) {
 }
 
 onMounted(async () => {
-  appStore.setCurrentPage('roles', '角色管理', '新建角色', openCreateDialog)
+  appStore.setCurrentPage('roles', '角色管理')
   loading.value = true
   try {
     const [rolesRes, statsRes] = await Promise.allSettled([getRoles(), getRoleStats()])

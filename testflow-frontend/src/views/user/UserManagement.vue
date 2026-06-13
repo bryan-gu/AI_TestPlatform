@@ -8,7 +8,7 @@
     </div>
 
     <div class="card">
-      <div class="card-head"><div class="card-title">用户列表</div></div>
+      <div class="card-head"><div class="card-title">用户列表</div><el-button type="primary" size="small" @click="openCreateDialog"><el-icon><Plus /></el-icon>邀请用户</el-button></div>
       <el-table :data="users" style="width: 100%" v-loading="loading">
         <el-table-column label="姓名" min-width="160"><template #default="{ row }"><div class="user-name-cell"><div class="user-avatar" :style="{ background: getAvatarBg(row.name), color: getAvatarColor(row.name) }">{{ row.name.charAt(0) }}</div><span>{{ row.name }}</span></div></template></el-table-column>
         <el-table-column prop="email" label="账号" min-width="180" />
@@ -53,7 +53,7 @@
 <script setup>
 import { ref, reactive, onMounted, watch } from 'vue'
 import { useAppStore } from '../../stores/app'
-import { Edit, Delete } from '@element-plus/icons-vue'
+import { Edit, Delete, Plus } from '@element-plus/icons-vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { getUsers, getUserStats, createUser, updateUser, deleteUser } from '../../api/user'
 import { getRoles } from '../../api/role'
@@ -144,7 +144,7 @@ function handleDelete(index, row) {
 }
 
 onMounted(async () => {
-  appStore.setCurrentPage('users', '用户管理', '邀请用户', openCreateDialog)
+  appStore.setCurrentPage('users', '用户管理')
   loading.value = true
   try {
     const [usersRes, statsRes, rolesRes, projectsRes] = await Promise.allSettled([getUsers(), getUserStats(), getRoles(), getProjects()])

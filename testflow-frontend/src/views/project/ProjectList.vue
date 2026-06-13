@@ -8,7 +8,7 @@
     </div>
 
     <div class="card">
-      <div class="card-head"><div class="card-title">项目列表</div></div>
+      <div class="card-head"><div class="card-title">项目列表</div><el-button type="primary" size="small" @click="openCreateDialog"><el-icon><Plus /></el-icon>新建项目</el-button></div>
       <el-table :data="projects" style="width: 100%" @row-click="goToDetail" v-loading="loading">
         <el-table-column prop="name" label="项目名称" min-width="200" />
         <el-table-column label="进度" width="200">
@@ -60,7 +60,7 @@
 import { ref, reactive, onMounted, watch } from 'vue'
 import { useRouter } from 'vue-router'
 import { useAppStore } from '../../stores/app'
-import { Edit, Delete } from '@element-plus/icons-vue'
+import { Edit, Delete, Plus } from '@element-plus/icons-vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { getProjects, createProject, updateProject, deleteProject } from '../../api/project'
 import { getDashboardStats } from '../../api/dashboard'
@@ -163,7 +163,7 @@ function handleDelete(index, row) {
 }
 
 onMounted(async () => {
-  appStore.setCurrentPage('projects', '项目管理', '新建项目', openCreateDialog)
+  appStore.setCurrentPage('projects', '项目管理')
   loading.value = true
   try {
     const [projRes, statsRes] = await Promise.allSettled([getProjects(), getDashboardStats()])
