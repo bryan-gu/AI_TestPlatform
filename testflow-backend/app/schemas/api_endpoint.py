@@ -88,6 +88,8 @@ class ApiEndpointImportResult(BaseModel):
     created: int = 0
     updated: int = 0
     skipped: int = 0
+    source: str = "openapi"  # openapi / markdown
+    warnings: list[str] = Field(default_factory=list)
 
 
 # ========== TestCaseApiEndpoint ==========

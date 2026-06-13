@@ -10,6 +10,9 @@
           <el-select v-model="selectedProject" style="width:200px" size="small" @change="onProjectChange">
             <el-option v-for="p in projects" :key="p.id" :label="p.name" :value="p.id" />
           </el-select>
+          <el-select v-model="selectedSprint" placeholder="全部 Sprint" style="width:170px" size="small" clearable filterable @change="loadGraphs">
+            <el-option v-for="s in sprints" :key="s.id" :label="s.name" :value="s.id" />
+          </el-select>
           <el-tag v-if="currentProjectStatus" type="primary" size="small" effect="plain" round>{{ currentProjectStatus }}</el-tag>
         </div>
         <div style="font-size:12px;color:var(--color-text-secondary);margin-top:2px">
@@ -126,6 +129,7 @@ import { Folder, Share, View, Refresh, MagicStick } from '@element-plus/icons-vu
 import { ElMessage } from 'element-plus'
 import { useAppStore } from '../../stores/app'
 import { getProjects } from '../../api/project'
+import { getSprints } from '../../api/sprint'
 import { getGraphs, getGraphStats, regenerateGraph, generateGraph } from '../../api/graph'
 
 const router = useRouter()
@@ -133,9 +137,11 @@ const appStore = useAppStore()
 const regenerating = ref(false)
 const loading = ref(false)
 const selectedProject = ref(null)
+const selectedSprint = ref(null)
 const currentProjectStatus = ref('')
 
 const projects = ref([])
+const sprints = ref([])
 const graphs = ref([])
 
 const stats = reactive({
@@ -170,7 +176,22 @@ function formatTime(dateStr) {
 function onProjectChange(pid) {
   const p = projects.value.find(p => p.id === pid)
   currentProjectStatus.value = p?.status || '进行中'
+  selectedSprint.value = null
+  loadSprints()
   loadGraphs()
+}
+
+async function loadSprints() {
+  if (!selectedProject.value) {
+    sprints.value = []
+    return
+  }
+  try {
+    const res = await getSprints({ project_id: selectedProject.value })
+    sprints.value = res.data || []
+  } catch (e) {
+    sprints.value = []
+  }
 }
 
 async function loadProjects() {
@@ -193,7 +214,10 @@ async function loadGraphs() {
     if (selectedProject.value) params.project_id = selectedProject.value
     const res = await getGraphs(params)
     const list = res.data?.data || res.data || []
-    graphs.value = list.map((g, i) => ({
+    const filtered = selectedSprint.value
+      ? list.filter(g => g.sprint_id === selectedSprint.value)
+      : list
+    graphs.value = filtered.map((g, i) => ({
       ...g,
       iconColor: GRAPH_COLORS[i % GRAPH_COLORS.length]
     }))
@@ -229,7 +253,9 @@ async function handleRegenerate() {
       await regenerateGraph(graphs.value[0].id)
       ElMessage.success('图谱重新生成完成')
     } else if (targetProjectId) {
-      await generateGraph({ project_id: targetProjectId })
+      const genParams = { project_id: targetProjectId }
+      if (selectedSprint.value) genParams.sprint_id = selectedSprint.value
+      await generateGraph(genParams)
       ElMessage.success('图谱生成完成')
     } else {
       ElMessage.info('请先选择项目')

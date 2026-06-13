@@ -1,10 +1,46 @@
 """OpenAPI / Swagger 文档解析服务"""
 
 import json
+import re
 import hashlib
 from pathlib import Path
 
 HTTP_METHODS = {"get", "post", "put", "delete", "patch", "options", "head", "trace"}
+
+# Markdown 表头别名 → 规范字段
+_MD_HEADER_ALIASES = {
+    "method": {"method", "方法", "请求方法", "http method", "请求类型", "类型", "verb"},
+    "path": {"path", "路径", "接口地址", "接口路径", "url", "地址", "endpoint"},
+    "summary": {"summary", "说明", "描述", "简介", "接口说明", "名称", "接口名", "name", "title"},
+    "status": {"status", "状态", "接口状态"},
+    "priority": {"priority", "优先级"},
+    "tag": {"tag", "标签", "模块", "分类"},
+    "operation_id": {"operationid", "operation_id", "operation id", "接口id", "id"},
+}
+
+_STATUS_MAP = {
+    "现有": "active", "已实现": "active", "active": "active", "已完成": "active",
+    "待开发": "planned", "计划": "planned", "planned": "planned", "todo": "planned",
+    "待确认": "pending", "待定": "pending", "pending": "pending",
+    "废弃": "deprecated", "弃用": "deprecated", "deprecated": "deprecated",
+}
+
+_PRIORITY_MAP = {
+    "p0": "高", "p1": "高", "高": "高", "high": "高",
+    "p2": "中", "中": "中", "medium": "中",
+    "p3": "低", "低": "低", "low": "低",
+}
+
+_METHOD_RE = re.compile(
+    r"\b(GET|POST|PUT|DELETE|PATCH|OPTIONS|HEAD|TRACE)\b",
+    re.IGNORECASE,
+)
+_PATH_RE = re.compile(r"(/[\w\-./{}:]+)")
+_METHOD_PATH_RE = re.compile(
+    r"\b(GET|POST|PUT|DELETE|PATCH|OPTIONS|HEAD|TRACE)\b\s*(/[\w\-./{}:]+)",
+    re.IGNORECASE,
+)
+
 
 
 def build_endpoint_fingerprint(
@@ -187,3 +223,261 @@ def _extract_error_codes(operation: dict) -> list:
             desc = resp.get("description", "") if isinstance(resp, dict) else ""
             error_codes.append({"code": code, "description": desc})
     return error_codes
+
+
+# ============ Markdown 接口文档解析 ============
+
+def parse_markdown_api_file(file_path: str) -> tuple[list, list]:
+    """从文件读取 Markdown 接口文档并解析，返回 (endpoints, warnings)。"""
+    p = Path(file_path)
+    if not p.exists():
+        raise FileNotFoundError(f"文件不存在: {file_path}")
+    with open(p, "r", encoding="utf-8") as f:
+        text = f.read()
+    return parse_markdown_api_text(text)
+
+
+def parse_markdown_api_text(text: str) -> tuple[list, list]:
+    """
+    解析 Markdown 接口文档，返回 (endpoints, warnings)。
+
+    解析顺序：
+    1. 优先解析 Markdown 表格（识别 方法/路径/说明/状态/优先级 表头）。
+    2. 其次扫描文本行中的 `METHOD /path` 模式。
+
+    对无法识别 method/path 的行不强行猜测，记入 warnings。
+    """
+    if not text or not text.strip():
+        return [], ["文档内容为空"]
+
+    endpoints: list = []
+    warnings: list = []
+
+    # 1. 表格解析
+    table_endpoints, table_warnings, table_hit = _parse_markdown_tables(text)
+    endpoints.extend(table_endpoints)
+    warnings.extend(table_warnings)
+
+    # 2. 文本行扫描（仅当表格未命中时启用，避免重复）
+    if not table_hit:
+        line_endpoints, line_warnings = _parse_markdown_lines(text)
+        endpoints.extend(line_endpoints)
+        warnings.extend(line_warnings)
+
+    if not endpoints:
+        warnings.append("未能从文档中识别出任何 method + path 的接口")
+
+    return endpoints, warnings
+
+
+def _parse_markdown_tables(text: str) -> tuple[list, list, bool]:
+    """解析 Markdown 表格，返回 (endpoints, warnings, table_hit)。"""
+    lines = text.splitlines()
+    endpoints: list = []
+    warnings: list = []
+    i = 0
+    table_hit = False
+
+    while i < len(lines):
+        if "|" not in lines[i]:
+            i += 1
+            continue
+
+        # 收集连续的表格行块
+        block: list = []
+        while i < len(lines) and "|" in lines[i] and lines[i].strip():
+            block.append(lines[i])
+            i += 1
+
+        result = _parse_one_table(block)
+        if result is None:
+            # 不是接口表格，跳过该块
+            continue
+
+        table_hit = True
+        block_endpoints, block_warnings = result
+        endpoints.extend(block_endpoints)
+        warnings.extend(block_warnings)
+
+    return endpoints, warnings, table_hit
+
+
+def _parse_one_table(block: list) -> tuple[list, list] | None:
+    """解析单个表格块，若不是接口表格返回 None。"""
+    if len(block) < 2:
+        return None
+
+    # 解析每行的单元格
+    rows = [_split_md_row(line) for line in block]
+    # 定位表头行（含 method + path 语义列）
+    header_idx = -1
+    col_map: dict = {}
+    for idx, cells in enumerate(rows):
+        cmap = _match_header(cells)
+        if "method" in cmap and "path" in cmap:
+            header_idx = idx
+            col_map = cmap
+            break
+    if header_idx == -1:
+        return None
+
+    endpoints: list = []
+    warnings: list = []
+    # 数据行：跳过分隔行（如 |---|---|）和表头之前的行
+    for cells in rows[header_idx + 1:]:
+        if not cells:
+            continue
+        if all(set(c) <= set("-: ") for c in cells):  # 分隔行
+            continue
+        ep = _build_endpoint_from_row(cells, col_map)
+        if ep:
+            endpoints.append(ep)
+        else:
+            preview = " ".join(cells).strip()[:60]
+            warnings.append(f"表格行无法识别 method/path：{preview}")
+    return endpoints, warnings
+
+
+def _split_md_row(line: str) -> list:
+    """拆分 Markdown 表格行为单元格列表（去除首尾空管道）。"""
+    s = line.strip()
+    if s.startswith("|"):
+        s = s[1:]
+    if s.endswith("|"):
+        s = s[:-1]
+    return [c.strip() for c in s.split("|")]
+
+
+def _match_header(cells: list) -> dict:
+    """匹配表头单元格到规范字段，返回 {字段: 列索引}。"""
+    cmap: dict = {}
+    for idx, raw in enumerate(cells):
+        key = re.sub(r"\s+", "", raw).lower()
+        if not key:
+            continue
+        for field, aliases in _MD_HEADER_ALIASES.items():
+            if key in aliases and field not in cmap:
+                cmap[field] = idx
+                break
+    return cmap
+
+
+def _build_endpoint_from_row(cells: list, col_map: dict) -> dict | None:
+    """从表格数据行 + 列映射构建接口端点字典。"""
+    def cell(field: str) -> str:
+        idx = col_map.get(field)
+        return cells[idx] if idx is not None and idx < len(cells) else ""
+
+    method_raw = cell("method")
+    path_raw = cell("path")
+    summary = cell("summary")
+    status_raw = cell("status")
+    priority_raw = cell("priority")
+    tag = cell("tag")
+    operation_id = cell("operation_id")
+
+    method = _extract_method(method_raw)
+    path = _extract_path(path_raw)
+
+    # method 和 path 可能在同一单元格（如 "GET /api/users"）
+    if (not method or not path) and (method_raw or path_raw):
+        combined = f"{method_raw} {path_raw}".strip()
+        m = _METHOD_PATH_RE.search(combined)
+        if m:
+            method = method or m.group(1).upper()
+            path = path or m.group(2)
+
+    if not method or not path:
+        return None
+
+    return {
+        "method": method.upper(),
+        "path": path,
+        "summary": summary,
+        "description": summary,
+        "tag": tag,
+        "operation_id": operation_id,
+        "status": _map_status(status_raw) or "active",
+        "priority": _map_priority(priority_raw) or "中",
+        "auth_required": None,
+        "request_schema": {},
+        "response_schema": {},
+        "parameters": [],
+        "error_codes": [],
+        "version": "v1",
+        "raw_data": {
+            "source": "markdown_table",
+            "raw_method": method_raw,
+            "raw_path": path_raw,
+            "raw_status": status_raw,
+            "raw_priority": priority_raw,
+        },
+    }
+
+
+def _parse_markdown_lines(text: str) -> tuple[list, list]:
+    """扫描文本行中的 `METHOD /path` 模式。"""
+    endpoints: list = []
+    warnings: list = []
+    seen: set = set()
+    for line in text.splitlines():
+        m = _METHOD_PATH_RE.search(line)
+        if not m:
+            continue
+        method = m.group(1).upper()
+        path = m.group(2)
+        key = (method, path)
+        if key in seen:
+            continue
+        seen.add(key)
+        # 用行剩余文本作为 summary（去除匹配片段）
+        summary = (line[:m.start()] + " " + line[m.end():]).strip(" -|\t")
+        endpoints.append({
+            "method": method,
+            "path": path,
+            "summary": summary,
+            "description": summary,
+            "tag": "",
+            "operation_id": "",
+            "status": "active",
+            "priority": "中",
+            "auth_required": None,
+            "request_schema": {},
+            "response_schema": {},
+            "parameters": [],
+            "error_codes": [],
+            "version": "v1",
+            "raw_data": {"source": "markdown_line", "raw_line": line.strip()},
+        })
+    if not endpoints:
+        warnings.append("文本行模式扫描未识别到接口")
+    return endpoints, warnings
+
+
+def _extract_method(token: str) -> str | None:
+    if not token:
+        return None
+    m = _METHOD_RE.search(token)
+    return m.group(1).upper() if m else None
+
+
+def _extract_path(token: str) -> str | None:
+    if not token:
+        return None
+    m = _PATH_RE.search(token)
+    return m.group(1) if m else None
+
+
+def _map_status(text: str) -> str | None:
+    if not text:
+        return None
+    key = re.sub(r"\s+", "", text).lower()
+    return _STATUS_MAP.get(key)
+
+
+def _map_priority(text: str) -> str | None:
+    if not text:
+        return None
+    key = re.sub(r"\s+", "", text).lower()
+    return _PRIORITY_MAP.get(key)
+

@@ -14,6 +14,10 @@ export function importOpenApi(data) {
   return request({ url: '/api-endpoints/import-openapi', method: 'post', data })
 }
 
+export function importMarkdownApi(data) {
+  return request({ url: '/api-endpoints/import-markdown', method: 'post', data })
+}
+
 export function deleteApiEndpoint(id) {
   return request({ url: `/api-endpoints/${id}`, method: 'delete' })
 }

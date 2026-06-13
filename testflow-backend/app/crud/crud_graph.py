@@ -94,6 +94,126 @@ def delete_graph(db: Session, graph: Graph):
     db.commit()
 
 
+def _get_entity_properties(db: Session, entity_type: str, entity_id: int) -> dict:
+    """返回图谱节点的业务摘要 properties（不含完整 raw_data，避免膨胀）。"""
+    base = {"entity_type": entity_type, "entity_id": entity_id}
+    if not entity_id:
+        return base
+    try:
+        if entity_type == "asset":
+            from app.models.knowledge_asset import KnowledgeAsset
+            o = db.query(KnowledgeAsset).filter(KnowledgeAsset.id == entity_id).first()
+            if not o:
+                return base
+            base.update({
+                "asset_type": o.asset_type or "",
+                "source_kind": o.source_kind or "",
+                "sprint_id": o.sprint_id,
+                "project_id": o.project_id,
+                "module_id": o.module_id,
+                "status": o.status or "",
+                "parse_status": o.parse_status or "",
+                "file_type": o.file_type or "",
+                "file_size": o.file_size or 0,
+                "document_id": o.document_id,
+            })
+        elif entity_type == "document":
+            from app.models.document import Document
+            o = db.query(Document).filter(Document.id == entity_id).first()
+            if not o:
+                return base
+            base.update({
+                "file_type": o.file_type or "",
+                "sprint_id": o.sprint_id,
+                "parse_status": o.parse_status or "",
+                "ai_status": o.ai_status or "",
+                "version": o.version or "",
+            })
+        elif entity_type == "feature":
+            from app.models.feature_point import FeaturePoint
+            o = db.query(FeaturePoint).filter(FeaturePoint.id == entity_id).first()
+            if not o:
+                return base
+            base.update({
+                "priority": o.priority or "中",
+                "status": o.status or "active",
+                "sprint_id": o.sprint_id,
+                "module_id": o.module_id,
+                "source_doc_id": o.source_doc_id,
+                "source_asset_id": o.source_asset_id,
+                "source_type": o.source_type or "manual",
+                "fingerprint": (o.fingerprint or "")[:12],
+            })
+        elif entity_type == "testcase":
+            from app.models.testcase import TestCase
+            o = db.query(TestCase).filter(TestCase.id == entity_id).first()
+            if not o:
+                return base
+            base.update({
+                "case_no": o.case_no or "",
+                "priority": o.priority or "中",
+                "exec_status": o.exec_status or "待执行",
+                "project_id": o.project_id,
+                "sprint_id": o.sprint_id,
+                "module_id": o.module_id,
+                "case_type": o.case_type or "ui",
+                "automation_status": o.automation_status or "not_generated",
+                "source": o.source or "manual",
+                "source_asset_id": o.source_asset_id,
+            })
+        elif entity_type == "api":
+            from app.models.api_endpoint import ApiEndpoint
+            o = db.query(ApiEndpoint).filter(ApiEndpoint.id == entity_id).first()
+            if not o:
+                return base
+            base.update({
+                "method": o.method or "",
+                "path": o.path or "",
+                "summary": o.summary or "",
+                "tag": o.tag or "",
+                "status": o.status or "active",
+                "priority": o.priority or "中",
+                "source_asset_id": o.source_asset_id,
+                "module_id": o.module_id,
+                "auth_required": o.auth_required,
+            })
+        elif entity_type == "change":
+            from app.models.change_item import ChangeItem
+            o = db.query(ChangeItem).filter(ChangeItem.id == entity_id).first()
+            if not o:
+                return base
+            base.update({
+                "change_type": o.change_type or "unknown",
+                "target_type": o.target_type or "feature",
+                "target_id": o.target_id,
+                "priority": o.priority or "中",
+                "impact_level": o.impact_level or "中",
+                "status": o.status or "open",
+                "source_asset_id": o.source_asset_id,
+            })
+        elif entity_type == "module":
+            from app.models.module import Module
+            o = db.query(Module).filter(Module.id == entity_id).first()
+            if not o:
+                return base
+            base.update({
+                "project_id": o.project_id,
+                "code": o.code or "",
+            })
+        elif entity_type == "sprint":
+            o = db.query(Sprint).filter(Sprint.id == entity_id).first()
+            if not o:
+                return base
+            base.update({
+                "project_id": o.project_id,
+                "status": o.status or "",
+                "is_all": bool(o.is_all),
+            })
+    except Exception:
+        return base
+    return base
+
+
 def regenerate_graph(db: Session, graph: Graph):
     """从 TraceLink 重建图谱节点和边。"""
     links_query = db.query(TraceLink).filter(TraceLink.status == "active")
@@ -117,7 +237,7 @@ def regenerate_graph(db: Session, graph: Graph):
             graph_id=graph.id,
             name=crud_trace_link.get_entity_name(db, entity_type, entity_id),
             node_type=entity_type,
-            properties={"entity_type": entity_type, "entity_id": entity_id},
+            properties=_get_entity_properties(db, entity_type, entity_id),
         )
         db.add(node)
         db.flush()

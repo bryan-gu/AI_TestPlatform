@@ -4,8 +4,12 @@ from sqlalchemy.orm import Session
 from app.core.database import get_db
 from app.core.deps import get_current_user
 from app.schemas.common import ResponseModel
-from app.schemas.knowledge_asset import KnowledgeAssetCreate, KnowledgeAssetUpdate, KnowledgeAssetOut
+from app.schemas.knowledge_asset import (
+    KnowledgeAssetCreate, KnowledgeAssetUpdate, KnowledgeAssetOut,
+    LocalProjectImportRequest,
+)
 from app.crud import crud_knowledge_asset
+from app.services.local_project_importer import LocalProjectImporter
 
 
 router = APIRouter(prefix="/knowledge-assets", tags=["知识资产"])
@@ -103,3 +107,28 @@ def delete_asset(asset_id: int, db: Session = Depends(get_db), _=Depends(get_cur
     asset.status = "deleted"
     db.commit()
     return ResponseModel(message="删除成功")
+
+
+@router.post("/import-local-project", response_model=ResponseModel)
+def import_local_project(
+    data: LocalProjectImportRequest,
+    db: Session = Depends(get_db),
+    _=Depends(get_current_user),
+):
+    """扫描并导入本地项目资料（dry_run 预览 / 正式导入）。"""
+    from app.models.project import Project
+    project = db.query(Project).filter(Project.id == data.project_id).first()
+    if not project:
+        raise HTTPException(status_code=400, detail="项目不存在")
+
+    importer = LocalProjectImporter(db)
+    try:
+        result = importer.import_project(
+            data.root_path, data.project_id, dry_run=data.dry_run,
+        )
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+
+    msg = "扫描完成（dry_run）" if data.dry_run else "导入完成"
+    return ResponseModel(data=result.model_dump(), message=msg)
+

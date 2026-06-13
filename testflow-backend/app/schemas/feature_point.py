@@ -10,6 +10,7 @@ class FeaturePointCreate(BaseModel):
     business_rules: str = ""
     priority: str = "中"
     source_doc_id: int | None = None
+    source_asset_id: int | None = None
     sprint_id: int | None = None
     module_id: int | None = None
     linked_cases: str = ""
@@ -28,6 +29,7 @@ class FeaturePointUpdate(BaseModel):
     business_rules: str | None = None
     priority: str | None = None
     source_doc_id: int | None = None
+    source_asset_id: int | None = None
     sprint_id: int | None = None
     module_id: int | None = None
     linked_cases: str | None = None
@@ -47,6 +49,7 @@ class FeaturePointOut(BaseModel):
     business_rules: str = ""
     priority: str = "中"
     source_doc_id: int | None = None
+    source_asset_id: int | None = None
     sprint_id: int | None = None
     module_id: int | None = None
     linked_cases: str = ""
@@ -60,6 +63,7 @@ class FeaturePointOut(BaseModel):
     updated_at: datetime | None = None
     # computed fields
     source_doc_name: str = ""
+    source_asset_name: str = ""
     sprint_name: str = ""
     module_name: str = ""
     coverage_count: int = 0

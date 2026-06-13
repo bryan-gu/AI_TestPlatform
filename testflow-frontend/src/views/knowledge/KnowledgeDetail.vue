@@ -183,6 +183,14 @@
                 <el-icon><View /></el-icon>查看接口
               </el-button>
             </div>
+            <div class="action-btns" v-else-if="row.asset_type === 'api_doc_md'">
+              <el-button type="primary" link size="small" @click="handleImportMarkdownApi(row)" :loading="importingAssetId === row.id">
+                <el-icon><Connection /></el-icon>解析接口
+              </el-button>
+              <el-button type="primary" link size="small" @click="goToApiEndpoints(row)">
+                <el-icon><View /></el-icon>查看接口
+              </el-button>
+            </div>
             <span v-else style="color:var(--color-text-tertiary);font-size:12px">-</span>
           </template>
         </el-table-column>
@@ -401,7 +409,7 @@ import {
 } from '../../api/featurePoint'
 import { getKnowledgeAssets } from '../../api/knowledgeAsset'
 import { getEntityTraceLinks, getEntityImpact } from '../../api/traceLink'
-import { importOpenApi } from '../../api/apiEndpoint'
+import { importOpenApi, importMarkdownApi } from '../../api/apiEndpoint'
 import { analyzeSprintChangeItems } from '../../api/changeItem'
 
 const router = useRouter()
@@ -686,6 +694,29 @@ async function handleImportOpenApi(row) {
     )
   } catch (e) {
     ElMessage.error(e.response?.data?.detail || '接口导入失败')
+  } finally {
+    importingAssetId.value = null
+  }
+}
+
+async function handleImportMarkdownApi(row) {
+  importingAssetId.value = row.id
+  try {
+    const res = await importMarkdownApi({ asset_id: row.id })
+    const result = res.data || {}
+    const warnings = result.warnings || []
+    if (result.total === 0) {
+      ElMessage.warning(`未解析出接口：${warnings[0] || '请检查文档格式'}`)
+    } else {
+      ElMessage.success(
+        `解析完成：共 ${result.total} 个接口，新建 ${result.created || 0} 个，更新 ${result.updated || 0} 个`
+      )
+    }
+    if (warnings.length) {
+      console.warn('[markdown-api 解析告警]', warnings)
+    }
+  } catch (e) {
+    ElMessage.error(e.response?.data?.detail || 'Markdown 接口解析失败')
   } finally {
     importingAssetId.value = null
   }

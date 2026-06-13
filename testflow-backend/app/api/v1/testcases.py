@@ -58,6 +58,8 @@ def _to_out(case, db: Session) -> dict:
         project=crud_testcase.get_project_name(db, case.project_id),
         project_id=case.project_id,
         sprint_id=case.sprint_id,
+        source_asset_id=case.source_asset_id,
+        source_asset_name=crud_testcase.get_source_asset_name(db, case.source_asset_id),
         sprint_name=crud_testcase.get_sprint_name(db, case.sprint_id),
         module_id=case.module_id,
         module=case.module,

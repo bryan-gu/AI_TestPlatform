@@ -73,8 +73,8 @@
         <el-table-column label="优先级" width="80"><template #default="{ row }"><span :class="getPriorityClass(row.priority)">{{ row.priority }}</span></template></el-table-column>
         <el-table-column label="执行状态" width="100"><template #default="{ row }"><el-tag :type="getExecStatusType(row.exec_status)" size="small">{{ row.exec_status }}</el-tag></template></el-table-column>
         <el-table-column prop="executor" label="执行人" width="80"><template #default="{ row }">{{ row.executor || '-' }}</template></el-table-column>
-        <el-table-column label="操作" width="140" fixed="right">
-          <template #default="{ row, $index }"><div class="action-btns"><el-button type="primary" link size="small" @click="handleEdit(row)"><el-icon><Edit /></el-icon>编辑</el-button><el-button type="danger" link size="small" @click="handleDelete($index, row)"><el-icon><Delete /></el-icon>删除</el-button></div></template>
+        <el-table-column label="操作" width="190" fixed="right">
+          <template #default="{ row, $index }"><div class="action-btns"><el-button type="primary" link size="small" @click="openDetail(row)"><el-icon><View /></el-icon>详情</el-button><el-button type="primary" link size="small" @click="handleEdit(row)"><el-icon><Edit /></el-icon>编辑</el-button><el-button type="danger" link size="small" @click="handleDelete($index, row)"><el-icon><Delete /></el-icon>删除</el-button></div></template>
         </el-table-column>
       </el-table>
     </div>
@@ -154,19 +154,54 @@
         <el-button type="primary" @click="handleImport" :loading="importing">确认导入</el-button>
       </template>
     </el-dialog>
+
+    <!-- 详情抽屉 -->
+    <el-drawer v-model="detailVisible" :title="`${currentCase?.case_no || ''} 详情`" size="560px">
+      <div v-if="currentCase" v-loading="detailLoading">
+        <el-descriptions :column="1" border size="small">
+          <el-descriptions-item label="标题">{{ currentCase.title }}</el-descriptions-item>
+          <el-descriptions-item label="Sprint">{{ currentCase.sprint_name || '-' }}</el-descriptions-item>
+          <el-descriptions-item label="模块">{{ currentCase.module_name || currentCase.module || '-' }}</el-descriptions-item>
+          <el-descriptions-item label="来源">{{ getSourceText(currentCase.source) }}</el-descriptions-item>
+          <el-descriptions-item label="来源资产">{{ currentCase.source_asset_name || '-' }}</el-descriptions-item>
+          <el-descriptions-item label="自动化状态">{{ getAutomationStatusText(currentCase.automation_status) }}</el-descriptions-item>
+          <el-descriptions-item label="脚本路径">{{ currentCase.automation_path || '-' }}</el-descriptions-item>
+          <el-descriptions-item label="选择器路径">{{ currentCase.selector_path || '-' }}</el-descriptions-item>
+        </el-descriptions>
+
+        <div class="detail-sub">来源功能点 ({{ detailFeatures.length }})</div>
+        <el-table :data="detailFeatures" size="small" empty-text="暂无关联功能点">
+          <el-table-column prop="feature_point_name" label="功能点" min-width="160" show-overflow-tooltip />
+          <el-table-column label="覆盖类型" width="100"><template #default="{ row }">{{ row.coverage_type }}</template></el-table-column>
+          <el-table-column label="置信度" width="80"><template #default="{ row }">{{ row.confidence || 0 }}%</template></el-table-column>
+        </el-table>
+
+        <div class="detail-sub">关联接口 ({{ detailApis.length }})</div>
+        <el-table :data="detailApis" size="small" empty-text="暂无关联接口">
+          <el-table-column label="接口" min-width="180">
+            <template #default="{ row }">{{ row.api_method }} {{ row.api_path }}</template>
+          </el-table-column>
+          <el-table-column prop="api_summary" label="摘要" min-width="140" show-overflow-tooltip />
+        </el-table>
+      </div>
+    </el-drawer>
   </div>
 </template>
 
 <script setup>
 import { ref, reactive, onMounted, watch } from 'vue'
+import { useRoute } from 'vue-router'
 import { useAppStore } from '../../stores/app'
-import { Edit, Delete, VideoPlay, Download, Upload } from '@element-plus/icons-vue'
+import { Edit, Delete, VideoPlay, Download, Upload, View } from '@element-plus/icons-vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { getTestCases, getTestCaseStats, createTestCase, updateTestCase, deleteTestCase, batchExecuteTestCases, exportTestCases, downloadTemplate, importTestCases } from '../../api/testcase'
 import { getProjects } from '../../api/project'
 import { getModules, getSprints } from '../../api/sprint'
+import { getTestCaseFeaturePoints } from '../../api/coverage'
+import { getTestCaseApiEndpoints } from '../../api/apiEndpoint'
 
 const appStore = useAppStore()
+const route = useRoute()
 const loading = ref(false)
 const saving = ref(false)
 const creating = ref(false)
@@ -194,6 +229,33 @@ const createForm = reactive({ title: '', priority: '高', project_id: null, modu
 const editVisible = ref(false)
 const editId = ref(null)
 const editForm = reactive({ title: '', priority: '', exec_status: '', module_id: null, preconditions: '', test_data: '', test_steps: '', expected_result: '', actual_result: '' })
+
+// 详情抽屉
+const detailVisible = ref(false)
+const currentCase = ref(null)
+const detailFeatures = ref([])
+const detailApis = ref([])
+const detailLoading = ref(false)
+
+async function openDetail(row) {
+  currentCase.value = row
+  detailFeatures.value = []
+  detailApis.value = []
+  detailVisible.value = true
+  detailLoading.value = true
+  try {
+    const [fpRes, apiRes] = await Promise.all([
+      getTestCaseFeaturePoints(row.id),
+      getTestCaseApiEndpoints(row.id),
+    ])
+    detailFeatures.value = fpRes.data || []
+    detailApis.value = apiRes.data || []
+  } catch (e) {
+    console.error(e)
+  } finally {
+    detailLoading.value = false
+  }
+}
 
 function getPriorityClass(p) { return { 高: 'badge badge-red', 中: 'badge badge-amber', 低: 'badge badge-blue' }[p] || 'badge badge-gray' }
 function getExecStatusType(s) { return { 通过: 'success', 失败: 'danger', 执行中: 'warning', 待执行: 'info' }[s] || 'info' }
@@ -451,6 +513,23 @@ onMounted(async () => {
     if (statsRes.status === 'fulfilled') stats.value = statsRes.value.data
     if (projRes.status === 'fulfilled') projectOptions.value = projRes.value.data
     await loadSprintOptions()
+
+    // 支持 URL query 自动筛选：project_id / sprint_id
+    const qProjectId = route.query.project_id ? Number(route.query.project_id) : null
+    const qSprintId = route.query.sprint_id ? Number(route.query.sprint_id) : null
+    if (qProjectId) {
+      const proj = projectOptions.value.find(p => p.id === qProjectId)
+      if (proj) {
+        selectedProject.value = proj.name
+        await loadSprintOptions()
+      }
+    }
+    if (qSprintId) {
+      selectedSprintId.value = qSprintId
+    }
+    if (qProjectId || qSprintId) {
+      await loadCases()
+    }
   } catch (e) { console.error(e) } finally { loading.value = false }
 })
 </script>
@@ -494,5 +573,12 @@ onMounted(async () => {
   font-family: inherit;
   white-space: pre-wrap;
   word-break: break-word;
+}
+
+.detail-sub {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--color-text-secondary);
+  margin: 16px 0 8px;
 }
 </style>

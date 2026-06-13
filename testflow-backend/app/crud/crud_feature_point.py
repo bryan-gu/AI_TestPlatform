@@ -51,6 +51,7 @@ def create_feature_point(db: Session, data: FeaturePointCreate) -> FeaturePoint:
         business_rules=data.business_rules,
         priority=data.priority,
         source_doc_id=data.source_doc_id,
+        source_asset_id=data.source_asset_id,
         sprint_id=data.sprint_id,
         module_id=data.module_id,
         linked_cases=data.linked_cases,
@@ -81,6 +82,8 @@ def update_feature_point(db: Session, fp: FeaturePoint, data: FeaturePointUpdate
         fp.priority = data.priority
     if data.source_doc_id is not None:
         fp.source_doc_id = data.source_doc_id
+    if data.source_asset_id is not None:
+        fp.source_asset_id = data.source_asset_id
     if data.sprint_id is not None:
         fp.sprint_id = data.sprint_id
     if data.module_id is not None:
@@ -129,6 +132,14 @@ def get_source_doc_name(db: Session, doc_id: int | None) -> str:
         return ""
     doc = db.query(Document).filter(Document.id == doc_id).first()
     return doc.name if doc else ""
+
+
+def get_source_asset_name(db: Session, asset_id: int | None) -> str:
+    if not asset_id:
+        return ""
+    from app.models.knowledge_asset import KnowledgeAsset
+    asset = db.query(KnowledgeAsset).filter(KnowledgeAsset.id == asset_id).first()
+    return asset.name if asset else ""
 
 
 def get_sprint_name(db: Session, sprint_id: int | None) -> str:

@@ -60,6 +60,34 @@
       </div>
     </div>
 
+    <!-- 快捷入口 -->
+    <div class="quick-entries">
+      <div class="quick-entry" @click="router.push('/knowledge-assets')">
+        <el-icon :size="18" style="color:#16a34a"><Files /></el-icon>
+        <div class="qe-text"><div class="qe-title">资产中心</div><div class="qe-sub">知识资产统一检索</div></div>
+      </div>
+      <div class="quick-entry" @click="router.push('/feature-matrix')">
+        <el-icon :size="18" style="color:#8B5CF6"><Grid /></el-icon>
+        <div class="qe-text"><div class="qe-title">功能点矩阵</div><div class="qe-sub">功能点与覆盖用例</div></div>
+      </div>
+      <div class="quick-entry" @click="router.push('/api-endpoints')">
+        <el-icon :size="18" style="color:var(--accent)"><Connection /></el-icon>
+        <div class="qe-text"><div class="qe-title">接口清单</div><div class="qe-sub">接口与用例关联</div></div>
+      </div>
+      <div class="quick-entry" @click="router.push('/coverage-analysis')">
+        <el-icon :size="18" style="color:#EF9F27"><DataAnalysis /></el-icon>
+        <div class="qe-text"><div class="qe-title">覆盖分析</div><div class="qe-sub">覆盖率统计</div></div>
+      </div>
+      <div class="quick-entry" @click="router.push('/graphs')">
+        <el-icon :size="18" style="color:#378ADD"><Share /></el-icon>
+        <div class="qe-text"><div class="qe-title">知识图谱</div><div class="qe-sub">关联可视化</div></div>
+      </div>
+      <div class="quick-entry" @click="router.push('/local-import')">
+        <el-icon :size="18" style="color:#085041"><Upload /></el-icon>
+        <div class="qe-text"><div class="qe-title">本地导入</div><div class="qe-sub">批量导入项目资料</div></div>
+      </div>
+    </div>
+
     <!-- Sprint 知识快照表格 -->
     <div class="card">
       <div class="card-head">
@@ -159,7 +187,7 @@
 import { ref, reactive, onMounted, watch } from 'vue'
 import { useRouter } from 'vue-router'
 import { useAppStore } from '../../stores/app'
-import { Folder, Plus, Edit, Delete, Promotion, CopyDocument, Share } from '@element-plus/icons-vue'
+import { Folder, Plus, Edit, Delete, Promotion, CopyDocument, Share, Files, Grid, Connection, DataAnalysis, Upload } from '@element-plus/icons-vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { getProjects } from '../../api/project'
 import { getSprints, getSprintStats, createSprint, updateSprint, deleteSprint, ensureSprintAll, markSprintAsBaseline, markSprintAsSprintAll, syncSprintToAll, prepareSprintFromAll, mergeSprintToAll } from '../../api/sprint'
@@ -499,4 +527,42 @@ onMounted(async () => {
 
 .action-btns { display: flex; gap: 4px; }
 .el-table { cursor: pointer; }
+
+.quick-entries {
+  display: grid;
+  grid-template-columns: repeat(6, 1fr);
+  gap: 12px;
+  margin-bottom: 16px;
+}
+
+.quick-entry {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 14px 14px;
+  background: var(--color-background-primary);
+  border: 0.5px solid var(--color-border-tertiary);
+  border-radius: var(--border-radius-lg);
+  cursor: pointer;
+  transition: border-color 0.15s, box-shadow 0.15s;
+}
+
+.quick-entry:hover {
+  border-color: var(--accent);
+  box-shadow: var(--shadow-sm);
+}
+
+.qe-text { min-width: 0; }
+
+.qe-title {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--color-text-primary);
+}
+
+.qe-sub {
+  font-size: 11px;
+  color: var(--color-text-tertiary);
+  margin-top: 1px;
+}
 </style>

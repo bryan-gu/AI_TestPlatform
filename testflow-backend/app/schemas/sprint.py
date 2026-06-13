@@ -24,7 +24,7 @@ class SprintPrepareFromAllRequest(BaseModel):
 class SprintMergeToAllRequest(BaseModel):
     change_item_ids: list[int] = []
     statuses: list[str] = ["confirmed", "resolved"]
-    target_types: list[str] = ["feature", "api"]
+    target_types: list[str] = ["feature", "api", "testcase"]
     dry_run: bool = False
 
 

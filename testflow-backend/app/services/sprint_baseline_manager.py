@@ -92,7 +92,7 @@ class SprintBaselineManager:
         if statuses is None:
             statuses = ["confirmed", "resolved"]
         if target_types is None:
-            target_types = ["feature", "api"]
+            target_types = ["feature", "api", "testcase"]
 
         # 1. 校验源 Sprint
         source_sprint = crud_sprint.get_sprint(self.db, source_sprint_id)
@@ -129,6 +129,7 @@ class SprintBaselineManager:
                 "failed": 0,
                 "features": {"created": 0, "updated": 0, "deprecated": 0, "skipped": 0},
                 "api_endpoints": {"created": 0, "updated": 0, "deprecated": 0, "skipped": 0},
+                "testcases": {"created": 0, "updated": 0, "deprecated": 0, "skipped": 0},
                 "trace_links": {"created": 0, "updated": 0, "skipped": 0},
                 "applied_change_item_ids": [],
                 "skipped_items": [],
@@ -138,6 +139,7 @@ class SprintBaselineManager:
         # 4. 按目标类型分组处理
         feature_stats = {"created": 0, "updated": 0, "deprecated": 0, "skipped": 0}
         api_stats = {"created": 0, "updated": 0, "deprecated": 0, "skipped": 0}
+        testcase_stats = {"created": 0, "updated": 0, "deprecated": 0, "skipped": 0}
         trace_stats = {"created": 0, "updated": 0, "skipped": 0}
         applied_ids = []
         skipped_items = []
@@ -146,12 +148,14 @@ class SprintBaselineManager:
         # 构建 source→target 实体映射（用于后续 TraceLink 复制）
         feature_map: dict[int, FeaturePoint] = {}
         api_map: dict[int, ApiEndpoint] = {}
+        testcase_map: dict[int, TestCase] = {}
 
         for ci in change_items:
             try:
                 if ci.target_type == "feature":
                     result_type, entity_id = self._merge_feature_change(
-                        source_sprint, target_sprint, ci, feature_stats, dry_run
+                        source_sprint, target_sprint, ci, feature_stats, dry_run,
+                        testcase_map=testcase_map, testcase_stats=testcase_stats,
                     )
                     if entity_id:
                         feature_map[ci.target_id] = self.db.query(FeaturePoint).get(entity_id)
@@ -161,6 +165,13 @@ class SprintBaselineManager:
                     )
                     if entity_id:
                         api_map[ci.target_id] = self.db.query(ApiEndpoint).get(entity_id)
+                elif ci.target_type == "testcase":
+                    result_type, entity_id = self._merge_testcase_change(
+                        source_sprint, target_sprint, ci, testcase_stats, dry_run,
+                        testcase_map=testcase_map,
+                    )
+                    if entity_id:
+                        testcase_map[ci.target_id] = self.db.query(TestCase).get(entity_id)
                 else:
                     result_type = "skipped"
                     skipped_items.append({"change_item_id": ci.id, "reason": f"不支持的 target_type: {ci.target_type}"})
@@ -177,8 +188,8 @@ class SprintBaselineManager:
                 skipped_items.append({"change_item_id": ci.id, "reason": str(e)})
 
         # 5. 复制相关 TraceLink（非 dry_run 时）
-        if not dry_run and (feature_map or api_map):
-            entity_maps = {"feature": feature_map, "api": api_map, "testcase": {}}
+        if not dry_run and (feature_map or api_map or testcase_map):
+            entity_maps = {"feature": feature_map, "api": api_map, "testcase": testcase_map}
             trace_stats = self._sync_trace_links(
                 source_sprint,
                 target_sprint,
@@ -211,6 +222,7 @@ class SprintBaselineManager:
             "failed": failed,
             "features": feature_stats,
             "api_endpoints": api_stats,
+            "testcases": testcase_stats,
             "trace_links": trace_stats,
             "applied_change_item_ids": applied_ids,
             "skipped_items": skipped_items,
@@ -225,6 +237,9 @@ class SprintBaselineManager:
         change_item: ChangeItem,
         stats: dict,
         dry_run: bool,
+        *,
+        testcase_map: dict[int, TestCase] | None = None,
+        testcase_stats: dict | None = None,
     ) -> tuple[str, int | None]:
         """合并单个 FeaturePoint 类型的 ChangeItem 到 sprint_all。"""
         source_fp = self.db.query(FeaturePoint).filter(
@@ -271,6 +286,7 @@ class SprintBaselineManager:
             target.priority = source_fp.priority or "中"
             target.sprint_id = target_sprint.id
             target.module_id = source_fp.module_id
+            target.source_asset_id = source_fp.source_asset_id
             target.source_type = source_fp.source_type or "manual"
             target.status = source_fp.status or "active"
             target.version = source_fp.version or "v1.0"
@@ -284,11 +300,167 @@ class SprintBaselineManager:
             target.is_deleted = False
             self.db.flush()
 
+        if not dry_run and testcase_map is not None and testcase_stats is not None:
+            self._pull_covering_testcases(
+                source_sprint, target_sprint, source_fp, target,
+                change_item, testcase_map, testcase_stats,
+            )
+
         if created:
             stats["created"] += 1
         else:
             stats["updated"] += 1
         return "created" if created else "updated", target.id
+
+    def _pull_covering_testcases(
+        self,
+        source_sprint: Sprint,
+        target_sprint: Sprint,
+        source_feature: FeaturePoint,
+        target_feature: FeaturePoint,
+        change_item: ChangeItem,
+        testcase_map: dict[int, TestCase],
+        testcase_stats: dict,
+    ) -> None:
+        """合并功能点变更时，把源 Sprint 中覆盖该功能点的用例一并带到 sprint_all。"""
+        project_id = source_sprint.project_id or target_sprint.project_id
+        coverage_rows = self.db.query(FeaturePointTestCase).filter(
+            FeaturePointTestCase.feature_point_id == source_feature.id,
+        ).all()
+        seen_case_ids = set()
+        for cov in coverage_rows:
+            if cov.testcase_id in seen_case_ids:
+                continue
+            seen_case_ids.add(cov.testcase_id)
+            source_case = self.db.query(TestCase).filter(
+                TestCase.id == cov.testcase_id,
+                TestCase.sprint_id == source_sprint.id,
+                TestCase.is_deleted == False,  # noqa: E712
+            ).first()
+            if not source_case:
+                continue
+            self._copy_testcase_to_target(
+                source_case, target_sprint, source_sprint, project_id,
+                change_item=change_item,
+                testcase_map=testcase_map,
+                testcase_stats=testcase_stats,
+                dry_run=False,
+            )
+
+    def _merge_testcase_change(
+        self,
+        source_sprint: Sprint,
+        target_sprint: Sprint,
+        change_item: ChangeItem,
+        stats: dict,
+        dry_run: bool,
+        *,
+        testcase_map: dict[int, TestCase],
+    ) -> tuple[str, int | None]:
+        """合并单个 TestCase 类型的 ChangeItem 到 sprint_all。"""
+        source_case = self.db.query(TestCase).filter(
+            TestCase.id == change_item.target_id,
+            TestCase.is_deleted == False,  # noqa: E712
+        ).first()
+        if not source_case:
+            stats["skipped"] += 1
+            return "skipped", None
+
+        project_id = source_sprint.project_id or target_sprint.project_id
+
+        if change_item.change_type in ("removed", "deprecated"):
+            target = self._find_target_testcase(source_case, target_sprint.id, project_id)
+            if target:
+                if not dry_run:
+                    raw = deepcopy(target.raw_data) if isinstance(target.raw_data, dict) else {}
+                    raw.update(self._baseline_metadata(
+                        source_sprint.id, "merge_deprecated_by_change", change_item.id, direction="to_all",
+                    ))
+                    raw["baseline_deprecated"] = True
+                    target.raw_data = raw
+                    self.db.flush()
+                stats["deprecated"] += 1
+                return "deprecated", target.id
+            else:
+                stats["skipped"] += 1
+                return "skipped", None
+
+        target, created = self._copy_testcase_to_target(
+            source_case, target_sprint, source_sprint, project_id,
+            change_item=change_item,
+            testcase_map=testcase_map,
+            testcase_stats=stats,
+            dry_run=dry_run,
+        )
+        if target is None:
+            return "skipped", None
+        return "created" if created else "updated", target.id
+
+    def _copy_testcase_to_target(
+        self,
+        source_case: TestCase,
+        target_sprint: Sprint,
+        source_sprint: Sprint,
+        project_id: int | None,
+        *,
+        change_item: ChangeItem | None,
+        testcase_map: dict[int, TestCase],
+        testcase_stats: dict,
+        dry_run: bool,
+    ) -> tuple[TestCase | None, bool]:
+        """将源用例 upsert 到 target sprint，返回 (目标用例, 是否新建)。"""
+        target = self._find_target_testcase(source_case, target_sprint.id, project_id)
+        created = target is None
+        if created:
+            target = TestCase(
+                case_no=source_case.case_no or f"BASELINE-{source_case.id}",
+                title=source_case.title,
+                project_id=project_id,
+                sprint_id=target_sprint.id,
+            )
+            self.db.add(target)
+
+        if not dry_run:
+            target.case_no = source_case.case_no or f"BASELINE-{source_case.id}"
+            target.title = source_case.title
+            target.priority = source_case.priority or "中"
+            target.exec_status = source_case.exec_status or "待执行"
+            target.executor_id = source_case.executor_id
+            target.project_id = project_id
+            target.source_asset_id = source_case.source_asset_id
+            target.sprint_id = target_sprint.id
+            target.module = source_case.module
+            target.module_id = source_case.module_id
+            target.case_type = source_case.case_type or "ui"
+            target.automation_status = source_case.automation_status or "not_generated"
+            target.automation_path = source_case.automation_path or ""
+            target.selector_path = source_case.selector_path or ""
+            target.source = source_case.source or "manual"
+            target.version = source_case.version or "v1.0"
+            target.fingerprint = source_case.fingerprint or ""
+            raw = self._merge_baseline_metadata(
+                source_case.raw_data, source_sprint.id,
+                "merge_source_testcase_id", source_case.id,
+                direction="to_all",
+            )
+            if change_item is not None:
+                raw["merge_change_item_id"] = change_item.id
+            target.raw_data = raw
+            target.preconditions = source_case.preconditions or ""
+            target.test_data = source_case.test_data or ""
+            target.test_steps = source_case.test_steps or ""
+            target.expected_result = source_case.expected_result or ""
+            target.actual_result = source_case.actual_result or ""
+            target.is_deleted = False
+            self.db.flush()
+
+        testcase_map[source_case.id] = target
+        if created:
+            testcase_stats["created"] += 1
+        else:
+            testcase_stats["updated"] += 1
+        return target, created
+
 
     def _merge_api_change(
         self,
@@ -498,6 +670,7 @@ class SprintBaselineManager:
             target.business_rules = source.business_rules or ""
             target.priority = source.priority or "中"
             target.source_doc_id = source.source_doc_id if copy_source_refs else None
+            target.source_asset_id = source.source_asset_id if copy_source_refs else None
             target.sprint_id = target_sprint.id
             target.module_id = source.module_id
             target.linked_cases = source.linked_cases or ""
@@ -626,6 +799,7 @@ class SprintBaselineManager:
             target.exec_status = "待执行" if is_prepare else (source.exec_status or "待执行")
             target.executor_id = None if is_prepare else source.executor_id
             target.project_id = project_id
+            target.source_asset_id = None if is_prepare else source.source_asset_id
             target.sprint_id = target_sprint.id
             target.module = source.module
             target.module_id = source.module_id

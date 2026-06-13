@@ -116,6 +116,7 @@ def create_testcase(db: Session, data: TestCaseCreate) -> TestCase:
         executor_id=data.executor_id,
         project_id=project_id,
         sprint_id=data.sprint_id,
+        source_asset_id=data.source_asset_id,
         module_id=module_id,
         module=module_str,
         case_type=data.case_type,
@@ -148,6 +149,8 @@ def update_testcase(db: Session, case: TestCase, data: TestCaseUpdate) -> TestCa
         case.executor_id = data.executor_id
     if data.sprint_id is not None:
         case.sprint_id = data.sprint_id
+    if data.source_asset_id is not None:
+        case.source_asset_id = data.source_asset_id
     if data.module_id is not None:
         case.module_id = data.module_id
         # 自动同步 module 字符串
@@ -377,3 +380,11 @@ def get_project_name(db: Session, project_id: int | None) -> str:
         return ""
     proj = db.query(Project).filter(Project.id == project_id).first()
     return proj.name if proj else ""
+
+
+def get_source_asset_name(db: Session, asset_id: int | None) -> str:
+    if not asset_id:
+        return ""
+    from app.models.knowledge_asset import KnowledgeAsset
+    asset = db.query(KnowledgeAsset).filter(KnowledgeAsset.id == asset_id).first()
+    return asset.name if asset else ""

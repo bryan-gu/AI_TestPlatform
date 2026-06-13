@@ -85,6 +85,30 @@ const routes = [
         meta: { title: '接口清单' }
       },
       {
+        path: 'knowledge-assets',
+        name: 'KnowledgeAssetList',
+        component: () => import('../views/knowledge/KnowledgeAssetList.vue'),
+        meta: { title: '资产中心' }
+      },
+      {
+        path: 'feature-matrix',
+        name: 'FeatureMatrix',
+        component: () => import('../views/knowledge/FeatureMatrix.vue'),
+        meta: { title: '功能点矩阵' }
+      },
+      {
+        path: 'coverage-analysis',
+        name: 'CoverageAnalysis',
+        component: () => import('../views/knowledge/CoverageAnalysis.vue'),
+        meta: { title: '覆盖分析' }
+      },
+      {
+        path: 'local-import',
+        name: 'LocalImport',
+        component: () => import('../views/knowledge/LocalImport.vue'),
+        meta: { title: '本地导入' }
+      },
+      {
         path: 'change-items',
         name: 'ChangeItemList',
         component: () => import('../views/knowledge/ChangeItemList.vue'),

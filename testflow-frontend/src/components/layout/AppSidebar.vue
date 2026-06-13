@@ -22,7 +22,7 @@
         v-for="item in projectMenus"
         :key="item.path"
         class="nav-item"
-        :class="{ active: currentRoute === item.path }"
+        :class="{ active: isActive(item) }"
         @click="navigateTo(item)"
         :title="item.title"
       >
@@ -38,7 +38,7 @@
         v-for="item in knowledgeMenus"
         :key="item.path"
         class="nav-item"
-        :class="{ active: currentRoute === item.path }"
+        :class="{ active: isActive(item) }"
         @click="navigateTo(item)"
         :title="item.title"
       >
@@ -54,7 +54,7 @@
         v-for="item in aiMenus"
         :key="item.path"
         class="nav-item"
-        :class="{ active: currentRoute === item.path }"
+        :class="{ active: isActive(item) }"
         @click="navigateTo(item)"
         :title="item.title"
       >
@@ -70,7 +70,7 @@
         v-for="item in systemMenus"
         :key="item.path"
         class="nav-item"
-        :class="{ active: currentRoute === item.path }"
+        :class="{ active: isActive(item) }"
         @click="navigateTo(item)"
         :title="item.title"
       >
@@ -125,6 +125,11 @@ const authStore = useAuthStore()
 const user = computed(() => authStore.user)
 const currentRoute = computed(() => route.path)
 
+function isActive(item) {
+  // 精确匹配，或当前为该菜单的详情子路径（如 /knowledge/123）
+  return currentRoute.value === item.path || currentRoute.value.startsWith(item.path + '/')
+}
+
 const projectMenus = reactive([
   { path: '/dashboard', title: '项目总览', icon: 'Odometer' },
   { path: '/projects', title: '项目管理', icon: 'Folder', badge: 0 },
@@ -134,9 +139,13 @@ const projectMenus = reactive([
 
 const knowledgeMenus = reactive([
   { path: '/knowledge', title: '知识库', icon: 'Collection', badge: 0 },
+  { path: '/knowledge-assets', title: '资产中心', icon: 'Files' },
+  { path: '/feature-matrix', title: '功能点矩阵', icon: 'Grid' },
+  { path: '/coverage-analysis', title: '覆盖分析', icon: 'DataAnalysis' },
   { path: '/api-endpoints', title: '接口清单', icon: 'Connection' },
   { path: '/change-items', title: '变更项', icon: 'Refresh' },
-  { path: '/graphs', title: '知识图谱', icon: 'Share' }
+  { path: '/graphs', title: '知识图谱', icon: 'Share' },
+  { path: '/local-import', title: '本地导入', icon: 'Upload' }
 ])
 
 const aiMenus = reactive([

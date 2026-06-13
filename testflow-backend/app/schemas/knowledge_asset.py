@@ -65,3 +65,40 @@ class KnowledgeAssetOut(BaseModel):
 
     class Config:
         from_attributes = True
+
+
+# ========== 本地项目导入 ==========
+
+class LocalProjectImportRequest(BaseModel):
+    root_path: str
+    project_id: int
+    dry_run: bool = False
+
+
+class LocalProjectImportAssetPreview(BaseModel):
+    rel_path: str
+    name: str
+    asset_type: str
+    file_type: str = ""
+    file_size: int = 0
+    sprint_name: str = ""
+    module_hint: str = ""
+
+
+class LocalProjectImportSprintPreview(BaseModel):
+    name: str
+    asset_count: int = 0
+
+
+class LocalProjectImportResult(BaseModel):
+    root_path: str
+    project_id: int
+    dry_run: bool = False
+    sprints: list[LocalProjectImportSprintPreview] = Field(default_factory=list)
+    assets: list[LocalProjectImportAssetPreview] = Field(default_factory=list)
+    counts: dict[str, int] = Field(default_factory=dict)
+    warnings: list[str] = Field(default_factory=list)
+    # 正式导入后的统计
+    imported: dict[str, int] = Field(default_factory=dict)
+    graph: dict = Field(default_factory=dict)
+

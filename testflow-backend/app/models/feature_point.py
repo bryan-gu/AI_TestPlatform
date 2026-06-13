@@ -15,6 +15,7 @@ class FeaturePoint(Base):
     business_rules = Column(Text, default="")
     priority = Column(String(10), default="中")
     source_doc_id = Column(Integer, ForeignKey("documents.id"), nullable=True)
+    source_asset_id = Column(Integer, ForeignKey("knowledge_assets.id"), nullable=True)
     sprint_id = Column(Integer, ForeignKey("sprints.id"), nullable=True)
     module_id = Column(Integer, ForeignKey("modules.id"), nullable=True)
     linked_cases = Column(String(200), default="")  # "TC-001~TC-005"
@@ -30,5 +31,6 @@ class FeaturePoint(Base):
     updated_at = Column(DateTime, server_default=func.now(), onupdate=func.now())
 
     document = relationship("Document", backref="feature_points")
+    source_asset = relationship("KnowledgeAsset", backref="feature_points")
     sprint = relationship("Sprint", backref="feature_points")
     module = relationship("Module", backref="feature_points")

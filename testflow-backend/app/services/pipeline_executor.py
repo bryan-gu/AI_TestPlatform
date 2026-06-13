@@ -28,6 +28,7 @@ from app.models.feature_point import FeaturePoint
 from app.models.coverage import FeaturePointTestCase
 from app.models.testcase import TestCase
 from app.models.project import Project
+from app.models.change_item import ChangeItem
 from app.crud import crud_knowledge_asset, crud_trace_link, crud_graph
 from app.schemas.trace_link import TraceLinkCreate
 from app.services.llm_adapter import LLMAdapter
@@ -35,7 +36,7 @@ from app.services.llm_providers import LLMCallError
 from app.services.artifact_manager import ArtifactManager
 from app.services.change_analyzer import ChangeAnalyzer
 from app.services.sprint_baseline_manager import SprintBaselineManager
-from app.services.prompts.skill_prompts import build_stage1_prompt, build_stage2_prompt
+from app.services.prompts.skill_prompts import build_stage1_prompt, build_stage2_prompt, build_stage2_incremental_prompt
 
 logger = logging.getLogger(__name__)
 
@@ -124,8 +125,7 @@ class PipelineExecutor:
             result = self._execute_stage_1(db, execution, stage, document_content)
         elif stage.stage_no == 2:
             if execution.mode == "incremental":
-                result = self._execute_stage_placeholder(db, execution, stage,
-                    "增量模式已完成变更识别与影响分析。增量用例生成将在后续增强。")
+                result = self._execute_stage_2_incremental(db, execution, stage)
             else:
                 result = self._execute_stage_2(db, execution, stage)
         elif stage.stage_no == 3:
@@ -237,6 +237,8 @@ class PipelineExecutor:
 
         source_doc_id = self._get_first_doc_id(db, execution)
         source_doc_names = self._get_source_doc_names(db, execution)
+        # 来源资产（复用，避免循环内重复查询）
+        source_asset = crud_knowledge_asset.get_asset_by_document(db, source_doc_id) if source_doc_id else None
 
         for mod_data in modules_data:
             mod_name = mod_data.get("name", "未命名模块")
@@ -264,6 +266,7 @@ class PipelineExecutor:
                     sprint_id=execution.sprint_id,
                     module_id=module.id,
                     source_doc_id=source_doc_id,
+                    source_asset_id=source_asset.id if source_asset else None,
                     source_type="requirement",
                     status="active",
                     version="v1.0",
@@ -288,7 +291,6 @@ class PipelineExecutor:
                         metadata={"stage": 1, "module_name": module.name},
                         created_by="pipeline",
                     ), commit=False)
-                    source_asset = crud_knowledge_asset.get_asset_by_document(db, source_doc_id)
                     if source_asset:
                         crud_trace_link.upsert_trace_link(db, TraceLinkCreate(
                             project_id=project_id,
@@ -458,6 +460,7 @@ class PipelineExecutor:
         # 6. 写入 TestCase 表 + 文件
         case_count = 0
         cases_by_module = {}  # 用于 Excel 生成
+        cases_by_module_tc = {}  # 模块名 -> [TestCase]，用于回写 source_asset_id
         created_cases = []
         artifact_mgr = ArtifactManager(db, sprint_id) if sprint_id else None
 
@@ -515,19 +518,27 @@ class PipelineExecutor:
             created_cases.append((tc, module_id))
             case_count += 1
 
-            # 按模块分组（用于 Excel）
+            # 按模块分组（用于 Excel 与资产回写）
             if case_module_name not in cases_by_module:
                 cases_by_module[case_module_name] = []
+                cases_by_module_tc[case_module_name] = []
             cases_by_module[case_module_name].append(case_data)
+            cases_by_module_tc[case_module_name].append(tc)
 
         db.commit()
 
         coverage_count = self._create_initial_coverages(db, feature_points, created_cases)
 
-        # 保存 cases.json 文件（每个模块一个）
+        # 保存 cases.json 文件（每个模块一个），并回写 TestCase.source_asset_id + generated_by TraceLink
         if artifact_mgr:
             for mod_name, mod_cases in cases_by_module.items():
-                artifact_mgr.save_cases_json(mod_name, mod_cases)
+                doc = artifact_mgr.save_cases_json(mod_name, mod_cases)
+                asset = crud_knowledge_asset.get_asset_by_document(db, doc.id) if doc else None
+                if asset:
+                    self._link_testcases_to_asset(
+                        db, cases_by_module_tc.get(mod_name, []),
+                        asset, project_id, sprint_id,
+                    )
             # 生成汇总 Excel
             artifact_mgr.save_excel(cases_by_module)
 
@@ -556,7 +567,278 @@ class PipelineExecutor:
 
         return json.dumps(cases_data, ensure_ascii=False)
 
-    # ============ Stage 3/4: 占位（Phase B/C） ============
+    # ============ Stage 2 增量: 仅变更功能点补充用例 ============
+
+    def _execute_stage_2_incremental(self, db, execution, stage):
+        """
+        增量模式 Stage 2：基于 Stage 1 识别的变更项（新增/修改功能点）补充测试用例。
+        不重复覆盖基线用例，仅产出增量补充用例。
+        """
+        project_id = execution.project_id
+        sprint_id = execution.sprint_id
+        if not sprint_id:
+            raise ValueError("增量 Stage 2 需要指定 Sprint")
+
+        # 1. 查询需要补充用例的变更项
+        change_items = db.query(ChangeItem).filter(
+            ChangeItem.sprint_id == sprint_id,
+            ChangeItem.is_deleted == False,  # noqa: E712
+            ChangeItem.target_type == "feature",
+            ChangeItem.change_type.in_(("added", "modified", "add", "modify", "clarify")),
+        ).all()
+
+        if not change_items:
+            stage.status = "completed"
+            stage.completed_at = datetime.utcnow()
+            stage.model = "incremental-skip"
+            stage.duration_ms = int(
+                (stage.completed_at - stage.started_at).total_seconds() * 1000
+            )
+            stage.result_summary = {
+                "说明": "未发现需要补充用例的增量功能点变更，Stage 2 跳过",
+                "变更项数": 0,
+                "生成用例": 0,
+            }
+            db.commit()
+            return json.dumps({"skipped": True, "reason": "no feature changes"}, ensure_ascii=False)
+
+        # 2. 收集变更功能点
+        change_map: dict[int, ChangeItem] = {}
+        feature_ids = []
+        for ci in change_items:
+            if ci.target_id:
+                change_map[ci.target_id] = ci
+                feature_ids.append(ci.target_id)
+        feature_points = db.query(FeaturePoint).filter(
+            FeaturePoint.id.in_(feature_ids),
+            FeaturePoint.is_deleted == False,  # noqa: E712
+        ).all() if feature_ids else []
+
+        if not feature_points:
+            stage.status = "completed"
+            stage.completed_at = datetime.utcnow()
+            stage.model = "incremental-skip"
+            stage.duration_ms = int(
+                (stage.completed_at - stage.started_at).total_seconds() * 1000
+            )
+            stage.result_summary = {
+                "说明": "变更项指向的功能点不存在或已删除，Stage 2 跳过",
+                "变更项数": len(change_items),
+                "生成用例": 0,
+            }
+            db.commit()
+            return json.dumps({"skipped": True, "reason": "feature points missing"}, ensure_ascii=False)
+
+        # 3. 模块映射
+        module_ids = list(set(fp.module_id for fp in feature_points if fp.module_id))
+        modules = db.query(Module).filter(Module.id.in_(module_ids)).all() if module_ids else []
+        module_map = {m.id: m for m in modules}
+
+        # 4. 项目前缀
+        project_prefix = self._resolve_project_prefix(db, project_id)
+
+        # 5. 构建增量 Prompt
+        modules_for_prompt = [{"name": m.name, "code": m.code or ""} for m in modules]
+        fps_for_prompt = []
+        change_type_by_fp = {}
+        for fp in feature_points:
+            ci = change_map.get(fp.id)
+            ct = ci.change_type if ci else "modified"
+            change_type_by_fp[fp.id] = ct
+            mod = module_map.get(fp.module_id)
+            fps_for_prompt.append({
+                "name": fp.name,
+                "module_name": mod.name if mod else "默认模块",
+                "description": fp.description or "文档未提及",
+                "entry": fp.entry_path or "文档未提及",
+                "elements": fp.interaction_elements or "文档未提及",
+                "rules": fp.business_rules or "文档未提及",
+                "priority": fp.priority or "中",
+                "change_type": "新增" if ct == "added" else "修改",
+            })
+
+        added_names = [fp.name for fp in feature_points if change_type_by_fp.get(fp.id) == "added"]
+        modified_names = [fp.name for fp in feature_points if change_type_by_fp.get(fp.id) != "added"]
+        change_context_parts = []
+        if added_names:
+            change_context_parts.append(f"新增功能点：{ '、'.join(added_names) }")
+        if modified_names:
+            change_context_parts.append(f"修改功能点：{ '、'.join(modified_names) }")
+        change_context = "；".join(change_context_parts)
+
+        prompt = build_stage2_incremental_prompt(
+            project_prefix=project_prefix,
+            modules=modules_for_prompt,
+            feature_points=fps_for_prompt,
+            change_context=change_context,
+        )
+
+        # 6. 调用 LLM
+        adapter = LLMAdapter(db)
+        result = adapter.call("增量测试用例生成", prompt)
+        content = result["content"]
+
+        # 7. 解析 JSON（复用全量解析逻辑）
+        cases_data = self._extract_and_parse_json(content)
+        if isinstance(cases_data, dict):
+            for key in ("test_cases", "cases", "testCases", "data", "results", "items"):
+                if key in cases_data and isinstance(cases_data[key], list):
+                    cases_data = cases_data[key]
+                    break
+        if not isinstance(cases_data, list):
+            # LLM 认为无需补充用例，返回空数组也算正常完成
+            preview = content[:500] if content else "(空)"
+            logger.warning(f"增量 Stage 2 未返回用例数组，原始返回前500字符: {preview}")
+            cases_data = []
+
+        # 8. 写入 TestCase（增量标记）
+        case_count = 0
+        cases_by_module = {}
+        cases_by_module_tc = {}
+        created_cases = []
+        artifact_mgr = ArtifactManager(db, sprint_id) if sprint_id else None
+
+        for case_data in cases_data:
+            case_module_name = case_data.get("module", "")
+            case_id_str = case_data.get("id", "")
+            case_title = case_data.get("title", "")
+
+            module_id = None
+            for m in modules:
+                if m.name == case_module_name or (m.code and m.code in case_id_str):
+                    module_id = m.id
+                    break
+
+            tc = TestCase(
+                case_no=case_id_str or f"{project_prefix}_TC_INC_{case_count + 1:03d}",
+                title=case_title,
+                priority=self._map_priority(case_data.get("priority", "")),
+                exec_status="待执行",
+                project_id=project_id,
+                sprint_id=sprint_id,
+                module_id=module_id,
+                module=case_module_name,
+                case_type="ui",
+                automation_status="not_generated",
+                source="ai_generated_incremental",
+                version="v1.0",
+                fingerprint=self._build_testcase_fingerprint(project_id, case_id_str, case_title),
+                raw_data={**case_data, "incremental": True},
+                preconditions=case_data.get("precondition", ""),
+                test_data=case_data.get("test_data", ""),
+                test_steps=case_data.get("steps", ""),
+                expected_result=case_data.get("expected", ""),
+            )
+            db.add(tc)
+            db.flush()
+            if module_id:
+                crud_trace_link.upsert_trace_link(db, TraceLinkCreate(
+                    project_id=project_id,
+                    sprint_id=sprint_id,
+                    source_type="testcase",
+                    source_id=tc.id,
+                    target_type="module",
+                    target_id=module_id,
+                    relation_type="belongs_to",
+                    confidence=100,
+                    evidence=f"增量用例归属模块：{case_module_name}",
+                    metadata={"stage": 2, "incremental": True},
+                    created_by="pipeline",
+                ), commit=False)
+            created_cases.append((tc, module_id))
+            case_count += 1
+
+            if case_module_name not in cases_by_module:
+                cases_by_module[case_module_name] = []
+                cases_by_module_tc[case_module_name] = []
+            cases_by_module[case_module_name].append(case_data)
+            cases_by_module_tc[case_module_name].append(tc)
+
+        db.commit()
+
+        # 9. 覆盖关系 + change -> testcase 变更影响 TraceLink
+        coverage_count = self._create_initial_coverages(db, feature_points, created_cases)
+        self._link_changes_to_incremental_cases(db, created_cases, change_map, project_id, sprint_id)
+
+        # 10. 保存增量 cases.json / Excel + source_asset 回写
+        if artifact_mgr and cases_by_module:
+            for mod_name, mod_cases in cases_by_module.items():
+                doc = artifact_mgr.save_cases_json(mod_name, mod_cases)
+                asset = crud_knowledge_asset.get_asset_by_document(db, doc.id) if doc else None
+                if asset:
+                    self._link_testcases_to_asset(
+                        db, cases_by_module_tc.get(mod_name, []),
+                        asset, project_id, sprint_id,
+                    )
+            artifact_mgr.save_excel(cases_by_module)
+
+        # 11. 更新 Stage 记录
+        stage.status = "completed"
+        stage.completed_at = datetime.utcnow()
+        stage.model = result["model"]
+        stage.input_tokens = result["input_tokens"]
+        stage.output_tokens = result["output_tokens"]
+        stage.duration_ms = int(
+            (stage.completed_at - stage.started_at).total_seconds() * 1000
+        )
+        stage.result_summary = {
+            "说明": "增量模式：仅对变更功能点补充用例",
+            "变更功能点": len(feature_points),
+            "生成用例": case_count,
+            "覆盖关系": coverage_count,
+        }
+        db.commit()
+
+        return json.dumps(cases_data, ensure_ascii=False)
+
+    def _resolve_project_prefix(self, db, project_id: int | None) -> str:
+        """解析项目用例前缀：项目配置 → 全局配置 → 默认 TC"""
+        if project_id:
+            project = db.query(Project).filter(Project.id == project_id).first()
+            if project and project.case_prefix:
+                return project.case_prefix
+        from app.models.ai_config import AIGlobalConfig
+        prefix_config = db.query(AIGlobalConfig).filter(
+            AIGlobalConfig.key == "project_prefix"
+        ).first()
+        if prefix_config and prefix_config.value:
+            return prefix_config.value
+        return "TC"
+
+    def _link_changes_to_incremental_cases(
+        self,
+        db,
+        created_cases: list[tuple],
+        change_map: dict[int, ChangeItem],
+        project_id: int | None,
+        sprint_id: int | None,
+    ) -> None:
+        """根据覆盖关系，把变更项 -> 增量用例 的 changes TraceLink 写入。"""
+        if not created_cases or not change_map:
+            return
+        new_case_ids = [tc.id for tc, _ in created_cases]
+        coverages = db.query(FeaturePointTestCase).filter(
+            FeaturePointTestCase.testcase_id.in_(new_case_ids),
+            FeaturePointTestCase.feature_point_id.in_(list(change_map.keys())),
+        ).all()
+        for cov in coverages:
+            ci = change_map.get(cov.feature_point_id)
+            if not ci:
+                continue
+            crud_trace_link.upsert_trace_link(db, TraceLinkCreate(
+                project_id=project_id,
+                sprint_id=sprint_id,
+                source_type="change",
+                source_id=ci.id,
+                target_type="testcase",
+                target_id=cov.testcase_id,
+                relation_type="changes",
+                confidence=90,
+                evidence="增量 Stage 2 为变更功能点补充用例",
+                metadata={"stage": 2, "incremental": True, "change_item_id": ci.id},
+                created_by="pipeline",
+            ), commit=False)
+        db.commit()
 
     def _execute_stage_placeholder(self, db, execution, stage, message: str):
         """占位阶段执行（Phase B/C 未实现前使用）"""
@@ -665,6 +947,34 @@ class PipelineExecutor:
                 logger.info("未找到可关联的功能点，用例 %s 暂不创建覆盖关系", case.case_no)
         db.commit()
         return coverage_count
+
+    def _link_testcases_to_asset(
+        self,
+        db,
+        testcases: list[TestCase],
+        asset,
+        project_id: int | None,
+        sprint_id: int | None,
+    ) -> None:
+        """将测试用例回写到来源资产：设置 source_asset_id，并写 testcase -> asset / generated_by TraceLink。"""
+        if not testcases or not asset:
+            return
+        for tc in testcases:
+            tc.source_asset_id = asset.id
+            crud_trace_link.upsert_trace_link(db, TraceLinkCreate(
+                project_id=project_id,
+                sprint_id=sprint_id,
+                source_type="testcase",
+                source_id=tc.id,
+                target_type="asset",
+                target_id=asset.id,
+                relation_type="generated_by",
+                confidence=100,
+                evidence=f"测试用例由资产生成：{asset.name}",
+                metadata={"stage": 2, "asset_type": getattr(asset, "asset_type", "")},
+                created_by="pipeline",
+            ), commit=False)
+        db.commit()
 
     def _get_or_create_module(self, db, project_id: int | None,
                                name: str, code: str) -> Module:

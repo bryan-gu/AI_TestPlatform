@@ -9,6 +9,7 @@ class TestCaseCreate(BaseModel):
     executor_id: int | None = None
     project_id: int | None = None
     sprint_id: int | None = None
+    source_asset_id: int | None = None
     module_id: int | None = None  # FK → modules 表
     module: str | None = None     # 模块代码（module_id 时自动填充）
     case_type: str = "ui"
@@ -31,6 +32,7 @@ class TestCaseUpdate(BaseModel):
     exec_status: str | None = None
     executor_id: int | None = None
     sprint_id: int | None = None
+    source_asset_id: int | None = None
     module_id: int | None = None
     case_type: str | None = None
     automation_status: str | None = None
@@ -57,6 +59,8 @@ class TestCaseOut(BaseModel):
     project: str = ""  # 项目名称
     project_id: int | None = None
     sprint_id: int | None = None
+    source_asset_id: int | None = None
+    source_asset_name: str = ""
     sprint_name: str = ""
     module_id: int | None = None
     module: str | None = None       # 英文代码

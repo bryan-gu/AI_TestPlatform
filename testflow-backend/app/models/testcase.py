@@ -15,6 +15,7 @@ class TestCase(Base):
     executor_id = Column(Integer, ForeignKey("users.id"), nullable=True)
     project_id = Column(Integer, ForeignKey("projects.id"), nullable=True)
     sprint_id = Column(Integer, ForeignKey("sprints.id"), nullable=True)
+    source_asset_id = Column(Integer, ForeignKey("knowledge_assets.id"), nullable=True)
     module = Column(String(50), nullable=True)  # 模块代码缓存，如 DL、SJZH
     module_id = Column(Integer, ForeignKey("modules.id", ondelete="SET NULL"), nullable=True)  # FK → modules 表
     case_type = Column(String(30), default="ui")
@@ -38,3 +39,4 @@ class TestCase(Base):
     executor = relationship("User", backref="executed_cases")
     project = relationship("Project", backref="testcases")
     sprint = relationship("Sprint", backref="testcases")
+    source_asset = relationship("KnowledgeAsset", backref="testcases")

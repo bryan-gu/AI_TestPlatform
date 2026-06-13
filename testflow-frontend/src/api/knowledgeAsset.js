@@ -19,3 +19,7 @@ export function updateKnowledgeAsset(id, data) {
 export function deleteKnowledgeAsset(id) {
   return request({ url: `/knowledge-assets/${id}`, method: 'delete' })
 }
+
+export function importLocalProject(data) {
+  return request({ url: '/knowledge-assets/import-local-project', method: 'post', data })
+}

@@ -23,7 +23,12 @@ from app.models.project import Project
 from app.models.sprint import Sprint
 from app.models.module import Module
 from app.models.testcase import TestCase
-from app.services.api_doc_parser import parse_openapi_file, build_endpoint_fingerprint
+from app.services.api_doc_parser import (
+    parse_openapi_file,
+    parse_markdown_file,
+    build_endpoint_fingerprint,
+)
+from app.services.api_import_service import upsert_endpoints_for_asset
 
 
 router = APIRouter(prefix="/api-endpoints", tags=["接口清单"])
@@ -176,6 +181,13 @@ def get_api_endpoint(
     return ResponseModel(data=_to_out(endpoint, db))
 
 
+def _upsert_endpoints_for_asset(
+    db: Session, asset: KnowledgeAsset, raw_endpoints: list[dict]
+) -> tuple[int, int]:
+    """幂等写入接口端点（委托给共享服务 api_import_service）。"""
+    return upsert_endpoints_for_asset(db, asset, raw_endpoints)
+
+
 @router.post("/import-openapi", response_model=ResponseModel)
 def import_openapi(
     data: ApiEndpointImportRequest,
@@ -183,12 +195,10 @@ def import_openapi(
     _=Depends(get_current_user),
 ):
     """从 KnowledgeAsset 导入 OpenAPI 接口"""
-    # 1. 校验资产存在
     asset = db.query(KnowledgeAsset).filter(KnowledgeAsset.id == data.asset_id).first()
     if not asset:
         raise HTTPException(status_code=404, detail="资产不存在")
 
-    # 校验资产类型
     is_openapi = (
         asset.asset_type == "api_doc_openapi"
         or (asset.asset_metadata or {}).get("is_openapi") is True
@@ -196,93 +206,68 @@ def import_openapi(
     if not is_openapi:
         raise HTTPException(status_code=400, detail="该资产不是 OpenAPI 接口文档")
 
-    # 2. 读取原始文件
     file_path = asset.file_path
     if not file_path or not os.path.exists(file_path):
         raise HTTPException(status_code=400, detail="资产文件路径无效或文件不存在")
 
-    # 3. 解析
     try:
         raw_endpoints = parse_openapi_file(file_path)
     except Exception as e:
         raise HTTPException(status_code=400, detail=f"解析 OpenAPI 文件失败: {str(e)}")
 
     if not raw_endpoints:
-        return ResponseModel(data=ApiEndpointImportResult(total=0, created=0, updated=0, skipped=0).model_dump())
+        return ResponseModel(data=ApiEndpointImportResult(total=0, source="openapi").model_dump())
 
-    # 4. 幂等写入
-    created = 0
-    updated = 0
-    for raw in raw_endpoints:
-        fingerprint = build_endpoint_fingerprint(
-            project_id=asset.project_id,
-            source_asset_id=asset.id,
-            method=raw["method"],
-            path=raw["path"],
-            operation_id=raw.get("operation_id", ""),
-        )
-        create_data = ApiEndpointCreate(
-            project_id=asset.project_id,
-            sprint_id=asset.sprint_id,
-            source_asset_id=asset.id,
-            method=raw["method"],
-            path=raw["path"],
-            summary=raw.get("summary", ""),
-            description=raw.get("description", ""),
-            tag=raw.get("tag", ""),
-            operation_id=raw.get("operation_id", ""),
-            status=raw.get("status", "active"),
-            priority=raw.get("priority", "中"),
-            auth_required=raw.get("auth_required"),
-            request_schema=raw.get("request_schema", {}),
-            response_schema=raw.get("response_schema", {}),
-            parameters=raw.get("parameters", []),
-            error_codes=raw.get("error_codes", []),
-            version="v1",
-            fingerprint=fingerprint,
-            raw_data=raw.get("raw_data", {}),
-        )
-
-        # 检查是创建还是更新
-        existing = None
-        if fingerprint:
-            existing = db.query(ApiEndpoint).filter(
-                ApiEndpoint.fingerprint == fingerprint,
-                ApiEndpoint.is_deleted == False,  # noqa: E712
-            ).first()
-
-        endpoint = crud_api_endpoint.upsert_api_endpoint(db, create_data, commit=False)
-
-        if existing:
-            updated += 1
-        else:
-            created += 1
-
-        # 5. 写 TraceLink: asset -> api, derived_from
-        from app.schemas.trace_link import TraceLinkCreate
-        crud_trace_link.upsert_trace_link(db, TraceLinkCreate(
-            project_id=asset.project_id,
-            sprint_id=asset.sprint_id,
-            source_type="asset",
-            source_id=asset.id,
-            target_type="api",
-            target_id=endpoint.id,
-            relation_type="derived_from",
-            confidence=100,
-            evidence="OpenAPI 导入自动关联",
-            metadata={"import_type": "openapi"},
-            created_by="import-openapi",
-        ), commit=False)
-
-    db.commit()
-
+    created, updated = upsert_endpoints_for_asset(db, asset, raw_endpoints)
     result = ApiEndpointImportResult(
-        total=len(raw_endpoints),
-        created=created,
-        updated=updated,
-        skipped=0,
+        total=len(raw_endpoints), created=created, updated=updated, skipped=0, source="openapi",
     )
     return ResponseModel(data=result.model_dump(), message=f"导入完成：共 {result.total} 个接口，新建 {result.created} 个，更新 {result.updated} 个")
+
+
+@router.post("/import-markdown", response_model=ResponseModel)
+def import_markdown(
+    data: ApiEndpointImportRequest,
+    db: Session = Depends(get_db),
+    _=Depends(get_current_user),
+):
+    """从 Markdown 接口资产解析并导入接口端点（规则解析，非 LLM）"""
+    asset = db.query(KnowledgeAsset).filter(KnowledgeAsset.id == data.asset_id).first()
+    if not asset:
+        raise HTTPException(status_code=404, detail="资产不存在")
+
+    is_md_api = (
+        asset.asset_type == "api_doc_md"
+        or (asset.asset_metadata or {}).get("is_api_doc") is True
+    )
+    if not is_md_api:
+        raise HTTPException(status_code=400, detail="该资产不是 Markdown 接口文档")
+
+    file_path = asset.file_path
+    if not file_path or not os.path.exists(file_path):
+        raise HTTPException(status_code=400, detail="资产文件路径无效或文件不存在")
+
+    try:
+        raw_endpoints, warnings = parse_markdown_file(file_path)
+    except Exception as e:
+        raise HTTPException(status_code=400, detail=f"解析 Markdown 文件失败: {str(e)}")
+
+    if not raw_endpoints:
+        return ResponseModel(
+            data=ApiEndpointImportResult(total=0, source="markdown", warnings=warnings).model_dump(),
+            message="未解析出任何接口：" + "；".join(warnings) if warnings else "未解析出任何接口",
+        )
+
+    created, updated = upsert_endpoints_for_asset(db, asset, raw_endpoints)
+    result = ApiEndpointImportResult(
+        total=len(raw_endpoints), created=created, updated=updated, skipped=0,
+        source="markdown", warnings=warnings,
+    )
+    msg = f"导入完成：共 {result.total} 个接口，新建 {result.created} 个，更新 {result.updated} 个"
+    if warnings:
+        msg += f"；告警 {len(warnings)} 条"
+    return ResponseModel(data=result.model_dump(), message=msg)
+
 
 
 @router.delete("/{endpoint_id}", response_model=ResponseModel)
