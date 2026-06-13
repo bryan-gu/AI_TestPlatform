@@ -1000,7 +1000,7 @@ function handleDeleteModule(index, row) {
 }
 
 onMounted(async () => {
-  appStore.setCurrentPage('knowledge', '文档列表', '上传文档', openUploadDialog)
+  appStore.setCurrentPage('knowledge', '文档列表')
   await loadData()
   if (hasParsingDocs()) startParsePolling()
   loadFeaturePoints()

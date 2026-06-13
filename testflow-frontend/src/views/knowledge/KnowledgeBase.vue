@@ -475,7 +475,7 @@ watch(() => appStore.searchKeyword, (kw) => {
 })
 
 onMounted(async () => {
-  appStore.setCurrentPage('knowledge', '知识库', '新建 Sprint', openCreateDialog)
+  appStore.setCurrentPage('knowledge', '知识库')
   try {
     const projRes = await getProjects()
     if (projRes.data?.length) {

@@ -223,7 +223,7 @@ function handleDeleteModule(row) {
 }
 
 onMounted(async () => {
-  appStore.setCurrentPage('projects', '项目详情', '编辑项目')
+  appStore.setCurrentPage('projects', '项目详情')
   const projectId = route.params.id
   loading.value = true
   try {

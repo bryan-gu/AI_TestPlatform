@@ -188,7 +188,7 @@ function handleDelete(index, row) {
 }
 
 onMounted(() => {
-  appStore.setCurrentPage('knowledge', '文档列表', '上传文档', handleUploadDoc)
+  appStore.setCurrentPage('knowledge', '文档列表')
   // TODO: 根据route参数加载真实数据
 })
 </script>

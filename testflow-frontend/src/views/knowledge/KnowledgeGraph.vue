@@ -98,7 +98,7 @@ const graphStats = ref({
 })
 
 onMounted(() => {
-  appStore.setCurrentPage('knowledge-graph', '知识图谱', '编辑关联')
+  appStore.setCurrentPage('knowledge-graph', '知识图谱')
 })
 </script>
 

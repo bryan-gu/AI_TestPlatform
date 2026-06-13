@@ -146,7 +146,7 @@ function handleDelete(index, row) {
 }
 
 onMounted(async () => {
-  appStore.setCurrentPage('reports', '测试报告', '生成报告', openCreateDialog)
+  appStore.setCurrentPage('reports', '测试报告')
   loading.value = true
   try {
     const [repRes, statsRes, projRes] = await Promise.allSettled([getReports(), getReportStats(), getProjects()])

@@ -350,7 +350,7 @@ async function loadGraphDetail() {
 }
 
 onMounted(() => {
-  appStore.setCurrentPage('knowledge-graph', '知识图谱', '查看详情')
+  appStore.setCurrentPage('knowledge-graph', '知识图谱')
   loadGraphDetail()
 })
 </script>
