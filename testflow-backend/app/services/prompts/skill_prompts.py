@@ -284,3 +284,38 @@ def build_api_coverage_prompt(endpoints: list[dict], testcases: list[dict]) -> s
         testcases_json=json.dumps(testcases, ensure_ascii=False, indent=2),
     )
 
+
+# ============ PRD 变更识别（增强项批次 6 子项 A） ============
+
+CHANGE_DETECTION = """你是需求变更分析专家。下面是某 Sprint 的需求文档内容，以及基线（sprint_all）已有的功能点列表。
+请识别本次需求文档中相对基线**新增、修改或废弃**的功能点（规则结构化对比可能遗漏的语义级变更）。
+
+## 当前 Sprint 需求文档
+{prd_text}
+
+## 基线功能点
+{baseline_features}
+
+## 输出要求
+严格输出 JSON：
+{{
+  "changes": [
+    {{ "title": "<变更标题>", "change_type": "added|modified|removed", "module_name": "<模块>", "description": "<变更说明>", "priority": "高|中|低" }}
+  ]
+}}
+
+约束：
+1. 只输出基线中不存在（新增）、语义明显变化（修改）或需求明确废弃（删除）的功能点
+2. 不要重复基线已有的、未变化的功能点
+3. 变更说明需基于需求文档原文，不要臆测
+4. 无变更则输出 {{ "changes": [] }}
+5. 只输出 JSON，不要任何其他文字"""
+
+
+def build_change_detection_prompt(prd_text: str, baseline_features: str) -> str:
+    """构建 PRD 变更识别 Prompt。"""
+    return CHANGE_DETECTION.format(
+        prd_text=prd_text or "（无需求文档内容）",
+        baseline_features=baseline_features or "（基线暂无功能点）",
+    )
+

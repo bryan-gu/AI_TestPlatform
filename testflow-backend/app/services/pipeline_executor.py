@@ -169,6 +169,19 @@ class PipelineExecutor:
         analyzer = ChangeAnalyzer(db)
         result = analyzer.analyze_sprint(execution.sprint_id)
 
+        # 3. LLM 复核（可选，规则兜底；失败/无 PRD 时跳过，不影响规则结果）
+        llm_stats = {}
+        try:
+            from app.services.change_llm_analyzer import detect_changes_with_llm
+            llm_result = detect_changes_with_llm(db, execution.sprint_id)
+            if llm_result.get("skipped"):
+                llm_stats["LLM复核"] = f"跳过：{llm_result['skipped']}"
+            else:
+                llm_stats["LLM补充变更"] = llm_result.get("detected", 0)
+        except Exception as e:
+            logger.warning(f"LLM 变更识别跳过: {e}")
+            llm_stats["LLM复核"] = f"跳过：{e}"
+
         stage.status = "completed"
         stage.completed_at = datetime.utcnow()
         stage.model = "rule-change-analyzer"
@@ -179,6 +192,7 @@ class PipelineExecutor:
         )
         stage.result_summary = {
             **prepare_stats,
+            **llm_stats,
             "识别变更": result.total,
             "新增": result.added,
             "修改": result.modified,

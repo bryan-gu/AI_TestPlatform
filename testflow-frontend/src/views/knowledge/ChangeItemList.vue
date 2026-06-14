@@ -114,6 +114,13 @@
         <el-table-column label="置信度" width="80">
           <template #default="{ row }">{{ row.confidence || 0 }}%</template>
         </el-table-column>
+        <el-table-column label="来源" width="80">
+          <template #default="{ row }">
+            <el-tag :type="row.raw_data?.analyzer === 'llm' ? 'warning' : 'info'" size="small" effect="plain">
+              {{ row.raw_data?.analyzer === 'llm' ? 'LLM' : '规则' }}
+            </el-tag>
+          </template>
+        </el-table-column>
         <el-table-column label="操作" width="220" fixed="right" class-name="col-no-resize">
           <template #default="{ row }">
             <div class="action-btns" @click.stop>

@@ -51,7 +51,7 @@ class SprintBaselineManager:
             created_by="baseline_sync",
         )
 
-    def prepare_from_all(self, target_sprint_id: int, *, update_existing: bool = False) -> dict:
+    def prepare_from_all(self, target_sprint_id: int, *, update_existing: bool = False, module_ids: list[int] | None = None) -> dict:
         target_sprint = crud_sprint.get_sprint(self.db, target_sprint_id)
         if not target_sprint:
             raise ValueError("目标 Sprint 不存在")
@@ -74,6 +74,7 @@ class SprintBaselineManager:
             copy_source_refs=False,
             trace_link_policy="structural_only",
             created_by="baseline_prepare",
+            module_ids=module_ids,
         )
         result["mode"] = "update_existing" if update_existing else "create_missing"
         return result
@@ -579,6 +580,7 @@ class SprintBaselineManager:
         copy_source_refs: bool,
         trace_link_policy: str,
         created_by: str,
+        module_ids: list[int] | None = None,
     ) -> dict:
         feature_map, feature_stats = self._sync_feature_points(
             source_sprint,
@@ -586,6 +588,7 @@ class SprintBaselineManager:
             direction=direction,
             update_existing=update_existing,
             copy_source_refs=copy_source_refs,
+            module_ids=module_ids,
         )
         api_map, api_stats = self._sync_api_endpoints(
             source_sprint,
@@ -593,12 +596,14 @@ class SprintBaselineManager:
             direction=direction,
             update_existing=update_existing,
             copy_source_refs=copy_source_refs,
+            module_ids=module_ids,
         )
         testcase_map, testcase_stats = self._sync_testcases(
             source_sprint,
             target_sprint,
             direction=direction,
             update_existing=update_existing,
+            module_ids=module_ids,
         )
         coverage_stats = self._sync_coverages(feature_map, testcase_map)
         testcase_api_stats = self._sync_testcase_api_links(
@@ -654,13 +659,17 @@ class SprintBaselineManager:
         direction: str,
         update_existing: bool,
         copy_source_refs: bool,
+        module_ids: list[int] | None = None,
     ) -> tuple[dict[int, FeaturePoint], dict]:
         stats = self._new_stats()
         feature_map: dict[int, FeaturePoint] = {}
-        source_items = self.db.query(FeaturePoint).filter(
+        source_q = self.db.query(FeaturePoint).filter(
             FeaturePoint.sprint_id == source_sprint.id,
             FeaturePoint.is_deleted == False,  # noqa: E712
-        ).all()
+        )
+        if module_ids:
+            source_q = source_q.filter(FeaturePoint.module_id.in_(module_ids))
+        source_items = source_q.all()
 
         for source in source_items:
             target = self._find_target_feature(source, target_sprint.id)
@@ -711,13 +720,17 @@ class SprintBaselineManager:
         direction: str,
         update_existing: bool,
         copy_source_refs: bool,
+        module_ids: list[int] | None = None,
     ) -> tuple[dict[int, ApiEndpoint], dict]:
         stats = self._new_stats()
         api_map: dict[int, ApiEndpoint] = {}
-        source_items = self.db.query(ApiEndpoint).filter(
+        source_q = self.db.query(ApiEndpoint).filter(
             ApiEndpoint.sprint_id == source_sprint.id,
             ApiEndpoint.is_deleted == False,  # noqa: E712
-        ).all()
+        )
+        if module_ids:
+            source_q = source_q.filter(ApiEndpoint.module_id.in_(module_ids))
+        source_items = source_q.all()
 
         for source in source_items:
             project_id = source.project_id or source_sprint.project_id or target_sprint.project_id
@@ -777,13 +790,17 @@ class SprintBaselineManager:
         *,
         direction: str,
         update_existing: bool,
+        module_ids: list[int] | None = None,
     ) -> tuple[dict[int, TestCase], dict]:
         stats = self._new_stats()
         testcase_map: dict[int, TestCase] = {}
-        source_items = self.db.query(TestCase).filter(
+        source_q = self.db.query(TestCase).filter(
             TestCase.sprint_id == source_sprint.id,
             TestCase.is_deleted == False,  # noqa: E712
-        ).all()
+        )
+        if module_ids:
+            source_q = source_q.filter(TestCase.module_id.in_(module_ids))
+        source_items = source_q.all()
 
         for source in source_items:
             project_id = source.project_id or source_sprint.project_id or target_sprint.project_id

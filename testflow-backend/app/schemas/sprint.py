@@ -19,6 +19,7 @@ class SprintUpdate(BaseModel):
 
 class SprintPrepareFromAllRequest(BaseModel):
     update_existing: bool = False
+    module_ids: list[int] = []
 
 
 class SprintMergeToAllRequest(BaseModel):

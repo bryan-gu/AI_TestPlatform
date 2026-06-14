@@ -180,6 +180,25 @@
         <el-button type="primary" @click="handleSave" :loading="saving">保存</el-button>
       </template>
     </el-dialog>
+
+    <!-- 准备增量底稿对话框（按模块） -->
+    <el-dialog v-model="prepareVisible" title="准备增量底稿（按模块）" width="520px" destroy-on-close>
+      <div style="font-size:13px;color:var(--color-text-secondary);margin-bottom:10px">
+        从 sprint_all 克隆底稿到 <strong>{{ prepareRow?.name }}</strong>。勾选要克隆的模块，不勾选则克隆全部。
+      </div>
+      <el-checkbox-group v-model="prepareSelectedModules" v-loading="prepareLoading">
+        <div style="display:flex;flex-direction:column;gap:8px">
+          <el-checkbox v-for="m in prepareModuleOptions" :key="m.id" :label="m.id">
+            {{ m.name }}<span v-if="m.code" style="color:var(--color-text-tertiary);font-size:12px;margin-left:6px">{{ m.code }}</span>
+          </el-checkbox>
+          <el-empty v-if="!prepareModuleOptions.length" description="项目暂无模块，将克隆全部" :image-size="60" />
+        </div>
+      </el-checkbox-group>
+      <template #footer>
+        <el-button @click="prepareVisible = false">取消</el-button>
+        <el-button type="primary" @click="confirmPrepare" :loading="preparing">确认准备</el-button>
+      </template>
+    </el-dialog>
   </div>
 </template>
 
@@ -190,7 +209,7 @@ import { useAppStore } from '../../stores/app'
 import { Folder, Plus, Edit, Delete, Promotion, CopyDocument, Share, Files, Grid, Connection, DataAnalysis, Upload } from '@element-plus/icons-vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { getProjects } from '../../api/project'
-import { getSprints, getSprintStats, createSprint, updateSprint, deleteSprint, ensureSprintAll, markSprintAsBaseline, markSprintAsSprintAll, syncSprintToAll, prepareSprintFromAll, mergeSprintToAll } from '../../api/sprint'
+import { getSprints, getSprintStats, createSprint, updateSprint, deleteSprint, ensureSprintAll, markSprintAsBaseline, markSprintAsSprintAll, syncSprintToAll, prepareSprintFromAll, mergeSprintToAll, getModules } from '../../api/sprint'
 
 const router = useRouter()
 const appStore = useAppStore()
@@ -198,6 +217,14 @@ const loading = ref(false)
 const saving = ref(false)
 const creating = ref(false)
 const ensuringAll = ref(false)
+
+// 准备增量底稿（按模块）
+const prepareVisible = ref(false)
+const prepareRow = ref(null)
+const prepareModuleOptions = ref([])
+const prepareSelectedModules = ref([])
+const prepareLoading = ref(false)
+const preparing = ref(false)
 
 const selectedProject = ref(null)
 const currentProjectStatus = ref('')
@@ -416,18 +443,38 @@ function handleSyncToAll(row) {
   }).catch(() => {})
 }
 
-function handlePrepareFromAll(row) {
-  ElMessageBox.confirm(`确定从 sprint_all 为 Sprint"${row.name}" 准备增量底稿吗？默认只新增当前 Sprint 缺失的功能点、接口、用例和结构化关系，不会覆盖当前 Sprint 已有内容，也不会复制 sprint_all 的文档/资产记录。`, '准备增量底稿', {
-    confirmButtonText: '确认准备', cancelButtonText: '取消', type: 'warning',
-  }).then(async () => {
-    try {
-      const res = await prepareSprintFromAll(row.id, { update_existing: false })
-      ElMessage.success(formatPrepareStats(res.data))
-      await loadData()
-    } catch (e) {
-      ElMessage.error('准备失败')
-    }
-  }).catch(() => {})
+async function handlePrepareFromAll(row) {
+  prepareRow.value = row
+  prepareSelectedModules.value = []
+  prepareModuleOptions.value = []
+  prepareVisible.value = true
+  prepareLoading.value = true
+  try {
+    const res = await getModules({ project_id: row.project_id })
+    prepareModuleOptions.value = res.data || []
+  } catch (e) {
+    console.error(e)
+  } finally {
+    prepareLoading.value = false
+  }
+}
+
+async function confirmPrepare() {
+  if (!prepareRow.value) return
+  preparing.value = true
+  try {
+    const res = await prepareSprintFromAll(prepareRow.value.id, {
+      update_existing: false,
+      module_ids: prepareSelectedModules.value,
+    })
+    ElMessage.success(formatPrepareStats(res.data))
+    prepareVisible.value = false
+    await loadData()
+  } catch (e) {
+    ElMessage.error('准备失败')
+  } finally {
+    preparing.value = false
+  }
 }
 
 function handleMergeToAll(row) {

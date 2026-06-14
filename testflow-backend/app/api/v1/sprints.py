@@ -211,6 +211,7 @@ def prepare_sprint_from_all(
         result = SprintBaselineManager(db).prepare_from_all(
             sprint_id,
             update_existing=data.update_existing if data else False,
+            module_ids=data.module_ids if data else None,
         )
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc))
