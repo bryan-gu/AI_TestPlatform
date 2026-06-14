@@ -73,6 +73,7 @@ class ApiEndpointOut(BaseModel):
     source_asset_name: str = ""
     module_name: str = ""
     testcase_count: int = 0
+    feature_count: int = 0
 
     class Config:
         from_attributes = True

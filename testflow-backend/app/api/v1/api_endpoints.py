@@ -88,6 +88,7 @@ def _to_out(endpoint: ApiEndpoint, db: Session) -> dict:
         source_asset_name=source_asset_name,
         module_name=module_name,
         testcase_count=testcase_count,
+        feature_count=crud_trace_link.count_links(db, "api", endpoint.id, "feature", direction="source"),
     ).model_dump()
 
 

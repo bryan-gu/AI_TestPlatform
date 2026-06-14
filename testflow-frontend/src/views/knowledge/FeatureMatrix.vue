@@ -38,6 +38,12 @@
             <el-tag size="small" effect="plain" :type="(row.coverage_count || 0) > 0 ? 'success' : 'info'">{{ row.coverage_count || 0 }}</el-tag>
           </template>
         </el-table-column>
+        <el-table-column label="关联API" width="80">
+          <template #default="{ row }">{{ row.api_count || 0 }}</template>
+        </el-table-column>
+        <el-table-column label="脚本数" width="80">
+          <template #default="{ row }">{{ row.script_count || 0 }}</template>
+        </el-table-column>
         <el-table-column label="状态" width="90">
           <template #default="{ row }">
             <el-tag size="small" effect="plain" :type="row.status === 'deprecated' ? 'danger' : 'success'">{{ row.status || 'active' }}</el-tag>

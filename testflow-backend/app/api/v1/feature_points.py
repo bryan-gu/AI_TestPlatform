@@ -5,7 +5,7 @@ from app.core.database import get_db
 from app.core.deps import get_current_user
 from app.schemas.common import ResponseModel
 from app.schemas.feature_point import FeaturePointCreate, FeaturePointUpdate, FeaturePointOut
-from app.crud import crud_feature_point
+from app.crud import crud_feature_point, crud_trace_link
 
 
 router = APIRouter(prefix="/feature-points", tags=["FeaturePoint 管理"])
@@ -38,6 +38,8 @@ def _to_out(fp, db: Session) -> dict:
         sprint_name=crud_feature_point.get_sprint_name(db, fp.sprint_id),
         module_name=crud_feature_point.get_module_name(db, fp.module_id),
         coverage_count=crud_feature_point.get_coverage_count(db, fp.id),
+        api_count=crud_trace_link.count_links(db, "feature", fp.id, "api", direction="target"),
+        script_count=crud_trace_link.get_feature_script_count(db, fp.id),
     ).model_dump()
 
 

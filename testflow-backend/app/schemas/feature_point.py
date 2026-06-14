@@ -67,6 +67,8 @@ class FeaturePointOut(BaseModel):
     sprint_name: str = ""
     module_name: str = ""
     coverage_count: int = 0
+    api_count: int = 0
+    script_count: int = 0
 
     class Config:
         from_attributes = True

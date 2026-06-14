@@ -1,6 +1,6 @@
 from datetime import datetime
 from sqlalchemy.orm import Session
-from sqlalchemy import or_
+from sqlalchemy import or_, func
 
 from app.models.trace_link import TraceLink
 from app.models.knowledge_asset import KnowledgeAsset
@@ -304,6 +304,68 @@ def get_entity_impact(db: Session, entity_type: str, entity_id: int) -> dict:
                 "evidence": link.evidence or "",
             })
     return impact
+
+
+def count_links(
+    db: Session,
+    entity_type: str,
+    entity_id: int,
+    peer_type: str,
+    relation_types: list[str] | None = None,
+    direction: str = "source",
+    status: str = "active",
+) -> int:
+    """统计实体与 peer_type 对端实体之间的去重关系数。
+
+    direction='source'：entity 作 source，统计不同 peer(target)。
+    direction='target'：entity 作 target，统计不同 peer(source)。
+    relation_types 为空时统计任意关系类型。
+    """
+    if direction == "source":
+        col = TraceLink.target_id
+        filters = [
+            TraceLink.source_type == entity_type,
+            TraceLink.source_id == entity_id,
+            TraceLink.target_type == peer_type,
+            TraceLink.status == status,
+        ]
+    else:
+        col = TraceLink.source_id
+        filters = [
+            TraceLink.target_type == entity_type,
+            TraceLink.target_id == entity_id,
+            TraceLink.source_type == peer_type,
+            TraceLink.status == status,
+        ]
+    q = db.query(func.count(func.distinct(col))).filter(*filters)
+    if relation_types:
+        q = q.filter(TraceLink.relation_type.in_(relation_types))
+    return q.scalar() or 0
+
+
+def get_feature_script_count(db: Session, feature_point_id: int) -> int:
+    """统计功能点经 feature→testcase→script 两跳关联的不同脚本数。
+
+    覆盖关系同时考虑 TraceLink(covers) 与 FeaturePointTestCase 表。
+    """
+    tc_ids = {r[0] for r in db.query(TraceLink.target_id).filter(
+        TraceLink.source_type == "feature",
+        TraceLink.source_id == feature_point_id,
+        TraceLink.target_type == "testcase",
+        TraceLink.status == "active",
+    ).all()}
+    from app.models.coverage import FeaturePointTestCase
+    tc_ids.update(r[0] for r in db.query(FeaturePointTestCase.testcase_id).filter(
+        FeaturePointTestCase.feature_point_id == feature_point_id
+    ).all())
+    if not tc_ids:
+        return 0
+    return db.query(func.count(func.distinct(TraceLink.target_id))).filter(
+        TraceLink.source_type == "testcase",
+        TraceLink.source_id.in_(tc_ids),
+        TraceLink.target_type == "script",
+        TraceLink.status == "active",
+    ).scalar() or 0
 
 
 def backfill_trace_links(db: Session, project_id: int | None = None, sprint_id: int | None = None) -> dict:

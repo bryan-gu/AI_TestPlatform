@@ -105,6 +105,13 @@
             </span>
           </template>
         </el-table-column>
+        <el-table-column label="关联功能点" min-width="90">
+          <template #default="{ row }">
+            <span :style="{ color: row.feature_count > 0 ? 'var(--accent)' : 'var(--color-text-tertiary)' }">
+              {{ row.feature_count || 0 }}
+            </span>
+          </template>
+        </el-table-column>
         <el-table-column label="操作" width="130" fixed="right" class-name="col-no-resize">
           <template #default="{ row }">
             <div class="action-btns" @click.stop>
