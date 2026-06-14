@@ -95,7 +95,7 @@ class LocalProjectImporter:
 
     # ============ 正式导入 ============
 
-    def import_project(self, root_path: str, project_id: int, dry_run: bool = False) -> LocalProjectImportResult:
+    def import_project(self, root_path: str, project_id: int, dry_run: bool = False, on_progress=None) -> LocalProjectImportResult:
         preview = self.scan(root_path, project_id)
         if dry_run:
             return preview
@@ -107,7 +107,8 @@ class LocalProjectImporter:
         }
         warnings = list(preview.warnings)
 
-        for asset_pv in preview.assets:
+        total_assets = len(preview.assets)
+        for idx, asset_pv in enumerate(preview.assets, start=1):
             try:
                 sprint = self._ensure_sprint(project_id, asset_pv.sprint_name)
                 touched_sprint_ids.add(sprint.id)
@@ -143,6 +144,12 @@ class LocalProjectImporter:
             except Exception as e:
                 logger.exception("本地导入文件失败: %s", asset_pv.rel_path)
                 warnings.append(f"导入失败 {asset_pv.rel_path}: {e}")
+
+            if on_progress:
+                try:
+                    on_progress(idx, total_assets)
+                except Exception:
+                    pass
 
         self.db.commit()
 

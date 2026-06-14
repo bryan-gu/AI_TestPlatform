@@ -75,17 +75,35 @@
       </div>
 
       <div class="confirm-actions" v-if="result.dry_run && (result.assets || []).length">
-        <el-button type="primary" :loading="running" @click="handleConfirmImport">确认正式导入</el-button>
+        <el-button type="primary" :loading="importing" @click="handleConfirmImport">确认正式导入</el-button>
+      </div>
+
+      <!-- 异步导入进度 -->
+      <div v-if="currentJob" class="import-progress">
+        <div class="ip-status">
+          <el-tag :type="jobStatusType(currentJob.status)" size="small">{{ jobStatusText(currentJob.status) }}</el-tag>
+          <span style="margin-left:8px;font-size:12px;color:var(--color-text-tertiary)">任务 #{{ currentJob.id }}</span>
+        </div>
+        <el-progress
+          v-if="currentJob.total_files > 0"
+          :percentage="Math.round((currentJob.processed_files / currentJob.total_files) * 100)"
+          :status="currentJob.status === 'succeeded' ? 'success' : (currentJob.status === 'failed' ? 'exception' : '')"
+          :stroke-width="12"
+        />
+        <div style="font-size:12px;color:var(--color-text-secondary);margin-top:6px">
+          已处理 {{ currentJob.processed_files }} / {{ currentJob.total_files }} 个文件
+        </div>
       </div>
     </div>
   </div>
 </template>
 
 <script setup>
-import { ref, reactive, onMounted } from 'vue'
+import { ref, reactive, onMounted, onBeforeUnmount } from 'vue'
 import { Search } from '@element-plus/icons-vue'
 import { ElMessage } from 'element-plus'
 import { importLocalProject } from '../../api/knowledgeAsset'
+import { createImportJob, getImportJob } from '../../api/importJob'
 import { getProjects } from '../../api/project'
 import { useAppStore } from '../../stores/app'
 
@@ -93,6 +111,9 @@ const appStore = useAppStore()
 const projects = ref([])
 const running = ref(false)
 const result = ref(null)
+const importing = ref(false)
+const currentJob = ref(null)
+let jobPollingTimer = null
 
 const form = reactive({
   project_id: null,
@@ -111,6 +132,13 @@ function formatSize(size) {
   if (size < 1024) return `${size} B`
   if (size < 1024 * 1024) return `${(size / 1024).toFixed(1)} KB`
   return `${(size / 1024 / 1024).toFixed(1)} MB`
+}
+
+function jobStatusType(s) {
+  return { pending: 'info', running: 'warning', succeeded: 'success', failed: 'danger', cancelled: 'info', partial_success: 'warning' }[s] || 'info'
+}
+function jobStatusText(s) {
+  return { pending: '等待中', running: '导入中', succeeded: '已完成', failed: '失败', cancelled: '已取消', partial_success: '部分成功' }[s] || s
 }
 
 async function loadProjects() {
@@ -138,14 +166,57 @@ async function handleRun() {
 }
 
 async function handleConfirmImport() {
-  form.dry_run = false
-  await handleRun()
-  form.dry_run = true
+  if (!form.project_id) { ElMessage.warning('请选择目标项目'); return }
+  if (!form.root_path.trim()) { ElMessage.warning('请输入本地目录路径'); return }
+  importing.value = true
+  currentJob.value = null
+  try {
+    const res = await createImportJob({ project_id: form.project_id, root_path: form.root_path.trim() })
+    currentJob.value = res.data
+    startJobPolling(res.data.id)
+  } catch (e) {
+    ElMessage.error(e.response?.data?.detail || '创建导入任务失败')
+    importing.value = false
+  }
+}
+
+function startJobPolling(jobId) {
+  stopJobPolling()
+  jobPollingTimer = setInterval(async () => {
+    try {
+      const res = await getImportJob(jobId)
+      currentJob.value = res.data
+      const st = res.data?.status
+      if (st === 'succeeded' || st === 'failed' || st === 'cancelled' || st === 'partial_success') {
+        stopJobPolling()
+        importing.value = false
+        if (st === 'succeeded' || st === 'partial_success') {
+          result.value = res.data.result_summary
+          ElMessage.success('导入完成')
+        } else {
+          ElMessage.error(st === 'failed' ? '导入失败' : '导入已取消')
+        }
+      }
+    } catch (e) {
+      console.error(e)
+    }
+  }, 2000)
+}
+
+function stopJobPolling() {
+  if (jobPollingTimer) {
+    clearInterval(jobPollingTimer)
+    jobPollingTimer = null
+  }
 }
 
 onMounted(async () => {
   appStore.setCurrentPage('local-import', '本地导入')
   await loadProjects()
+})
+
+onBeforeUnmount(() => {
+  stopJobPolling()
 })
 </script>
 

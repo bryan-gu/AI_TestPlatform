@@ -16,6 +16,7 @@ from app.models.trace_link import TraceLink
 from app.models.pipeline import PipelineExecution, PipelineStage
 from app.models.api_endpoint import ApiEndpoint, TestCaseApiEndpoint
 from app.models.change_item import ChangeItem
+from app.models.import_job import ImportJob
 
 __all__ = [
     "Role",
@@ -43,4 +44,5 @@ __all__ = [
     "ApiEndpoint",
     "TestCaseApiEndpoint",
     "ChangeItem",
+    "ImportJob",
 ]

@@ -20,6 +20,7 @@ from app.api.v1.coverage import router as coverage_router
 from app.api.v1.trace_links import router as trace_links_router
 from app.api.v1.api_endpoints import router as api_endpoints_router
 from app.api.v1.change_items import router as change_items_router
+from app.api.v1.import_jobs import router as import_jobs_router
 
 api_router = APIRouter(prefix="/api/v1")
 
@@ -43,3 +44,4 @@ api_router.include_router(coverage_router)
 api_router.include_router(trace_links_router)
 api_router.include_router(api_endpoints_router)
 api_router.include_router(change_items_router)
+api_router.include_router(import_jobs_router)
