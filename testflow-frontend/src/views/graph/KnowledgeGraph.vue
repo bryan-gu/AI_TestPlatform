@@ -53,20 +53,9 @@
           <el-button size="small" @click="clearFilter">重置</el-button>
         </div>
 
-        <!-- 节点区域 -->
-        <div class="graph-nodes" v-if="filteredNodes.length > 0">
-          <div
-            v-for="node in filteredNodes"
-            :key="node.id"
-            class="graph-node clickable"
-            :class="getNodeColorClass(node.node_type)"
-            @click="openNodeDrawer(node)"
-          >
-            <el-icon><component :is="getNodeIcon(node.node_type)" /></el-icon>
-            <span>{{ node.name }}</span>
-          </div>
-        </div>
-        <div v-else class="graph-empty">暂无节点数据</div>
+        <!-- 力导向图 -->
+        <div ref="chartRef" class="graph-chart" v-loading="loading"></div>
+        <div v-if="!loading && filteredNodes.length === 0" class="graph-empty">暂无节点数据</div>
 
         <!-- 关联区域 -->
         <div class="graph-edges" v-if="filteredEdges.length > 0">
@@ -126,18 +115,26 @@
 </template>
 
 <script setup>
-import { ref, computed, onMounted } from 'vue'
+import { ref, computed, onMounted, onBeforeUnmount, watch, nextTick } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { useAppStore } from '../../stores/app'
 import * as icons from '@element-plus/icons-vue'
 import { ArrowLeft, Search } from '@element-plus/icons-vue'
+import * as echarts from 'echarts/core'
+import { GraphChart } from 'echarts/charts'
+import { TooltipComponent, TitleComponent } from 'echarts/components'
+import { CanvasRenderer } from 'echarts/renderers'
 import { getGraphDetail } from '../../api/graph'
+
+echarts.use([GraphChart, TooltipComponent, TitleComponent, CanvasRenderer])
 
 const route = useRoute()
 const router = useRouter()
 const appStore = useAppStore()
 
 const loading = ref(false)
+const chartRef = ref(null)
+let chartInstance = null
 const nodes = ref([])
 const edges = ref([])
 const graphData = ref({})
@@ -349,9 +346,85 @@ async function loadGraphDetail() {
   }
 }
 
-onMounted(() => {
+const NODE_CATEGORIES = nodeTypeOptions.map(t => ({ name: t.label }))
+const NODE_TYPE_INDEX = {}
+nodeTypeOptions.forEach((t, i) => { NODE_TYPE_INDEX[t.value] = i })
+
+function initChart() {
+  if (!chartRef.value) return
+  if (chartInstance) chartInstance.dispose()
+  chartInstance = echarts.init(chartRef.value)
+  chartInstance.on('click', (params) => {
+    if (params.dataType === 'node' && params.data?.raw) {
+      openNodeDrawer(params.data.raw)
+    }
+  })
+}
+
+function renderChart() {
+  if (!chartInstance) return
+  const chartNodes = filteredNodes.value
+  const chartEdges = filteredEdges.value
+  if (chartNodes.length === 0) {
+    chartInstance.clear()
+    return
+  }
+  const nodeIds = new Set(chartNodes.map(n => n.id))
+  chartInstance.setOption({
+    tooltip: {
+      formatter: (p) => {
+        if (p.dataType === 'node') return `${getNodeTypeLabel(p.data.nodeType)}：<br/>${p.data.name}`
+        if (p.dataType === 'edge') return `${p.data.sourceName} → ${getRelationLabel(p.data.value)} → ${p.data.targetName}`
+        return ''
+      },
+    },
+    series: [{
+      type: 'graph',
+      layout: 'force',
+      roam: true,
+      draggable: true,
+      categories: NODE_CATEGORIES,
+      label: { show: true, position: 'right', fontSize: 11 },
+      force: { repulsion: 140, edgeLength: 90, gravity: 0.08 },
+      data: chartNodes.map(n => ({
+        id: String(n.id),
+        name: n.name,
+        nodeType: n.node_type,
+        category: NODE_TYPE_INDEX[n.node_type] ?? 0,
+        symbolSize: 30,
+        raw: n,
+      })),
+      links: chartEdges.filter(e => nodeIds.has(e.source_node_id) && nodeIds.has(e.target_node_id)).map(e => ({
+        source: String(e.source_node_id),
+        target: String(e.target_node_id),
+        value: e.relation_type,
+        sourceName: e.source_node_name,
+        targetName: e.target_node_name,
+        lineStyle: { width: 1.5, color: '#aaa', curveness: 0.1 },
+      })),
+      edgeLabel: { show: true, fontSize: 10, color: '#888', formatter: (p) => getRelationLabel(p.data.value) },
+      emphasis: { focus: 'adjacency', lineStyle: { width: 3 } },
+    }],
+  }, true)
+}
+
+watch([filteredNodes, filteredEdges], () => {
+  renderChart()
+})
+
+onMounted(async () => {
   appStore.setCurrentPage('knowledge-graph', '知识图谱')
-  loadGraphDetail()
+  await loadGraphDetail()
+  await nextTick()
+  initChart()
+  renderChart()
+})
+
+onBeforeUnmount(() => {
+  if (chartInstance) {
+    chartInstance.dispose()
+    chartInstance = null
+  }
 })
 </script>
 
@@ -401,6 +474,15 @@ onMounted(() => {
   padding: 24px;
   color: var(--color-text-tertiary);
   font-size: 13px;
+}
+
+.graph-chart {
+  width: 100%;
+  height: 520px;
+  margin-bottom: 20px;
+  border: 0.5px solid var(--color-border-tertiary);
+  border-radius: var(--border-radius-md);
+  background: var(--color-background-primary);
 }
 
 /* 节点区域 */

@@ -29,3 +29,15 @@ export function deleteGraph(id) {
 export function regenerateGraph(id) {
   return request({ url: `/graphs/${id}/regenerate`, method: 'post' })
 }
+
+export function getSubgraph(id, params) {
+  return request({ url: `/graphs/${id}/subgraph`, method: 'get', params })
+}
+
+export function getNodeNeighbors(id, nodeId, params) {
+  return request({ url: `/graphs/${id}/node/${nodeId}/neighbors`, method: 'get', params })
+}
+
+export function searchGraphNodes(id, keyword) {
+  return request({ url: `/graphs/${id}/search`, method: 'get', params: { keyword } })
+}
