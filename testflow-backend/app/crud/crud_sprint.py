@@ -1,5 +1,6 @@
 from sqlalchemy.orm import Session
 from sqlalchemy import or_
+import re
 
 from app.models.sprint import Sprint
 from app.models.document import Document
@@ -10,6 +11,19 @@ from app.schemas.sprint import SprintCreate, SprintUpdate
 
 def normalize_sprint_name(name: str | None) -> str:
     return "".join(ch for ch in (name or "").lower() if ch not in {" ", "_", "-"})
+
+
+_SPRINT_NUM_RE = re.compile(r"sprint[\s\-_]*0*(\d+)", re.IGNORECASE)
+
+
+def derive_sequence_no(name: str | None, is_all: bool) -> int | None:
+    """从 Sprint 名称解析序号；sprint_all 返回大值排末尾；无法解析返回 None。"""
+    if is_all or is_sprint_all_name(name):
+        return 999999
+    if not name:
+        return None
+    m = _SPRINT_NUM_RE.search(name)
+    return int(m.group(1)) if m else None
 
 
 def is_sprint_all_name(name: str | None) -> bool:
@@ -33,7 +47,7 @@ def get_sprints(db: Session, project_id: int | None = None, keyword: str | None 
                 Sprint.description.ilike(f"%{keyword}%"),
             )
         )
-    return query.order_by(Sprint.created_at.desc()).all()
+    return query.order_by(Sprint.sequence_no.asc().nullslast(), Sprint.created_at.desc()).all()
 
 
 def get_sprint(db: Session, sprint_id: int) -> Sprint | None:
@@ -100,6 +114,7 @@ def ensure_sprint_all(db: Session, project_id: int) -> Sprint:
         project_id=project_id,
         status="最新汇总",
         is_all=True,
+        sequence_no=999999,
     )
     db.add(sprint)
     db.commit()
@@ -127,6 +142,7 @@ def create_sprint(db: Session, data: SprintCreate) -> Sprint:
         project_id=data.project_id,
         status="最新汇总" if should_mark_all else data.status,
         is_all=should_mark_all,
+        sequence_no=derive_sequence_no(data.name, should_mark_all),
     )
     db.add(sprint)
     db.commit()

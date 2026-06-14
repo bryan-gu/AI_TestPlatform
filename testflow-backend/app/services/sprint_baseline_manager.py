@@ -5,6 +5,7 @@ from sqlalchemy.orm import Session
 
 from app.crud import crud_api_endpoint, crud_graph, crud_sprint, crud_trace_link
 from app.models.api_endpoint import ApiEndpoint, TestCaseApiEndpoint
+from app.models.knowledge_asset import KnowledgeAsset
 from app.models.change_item import ChangeItem
 from app.models.coverage import FeaturePointTestCase
 from app.models.feature_point import FeaturePoint
@@ -20,6 +21,9 @@ class SprintBaselineManager:
 
     MAPPED_ENTITY_TYPES = {"feature", "api", "testcase"}
     STRUCTURAL_TRACE_TYPES = {"feature", "api", "testcase", "module"}
+    # 脚本/选择器属 sprint 级资产，由 _sync_scripts_to_all 专门复制，
+    # 通用 TraceLink 同步跳过，避免 target_id 悬空指向源 Sprint 资产
+    SCRIPT_ENTITY_TYPES = {"script", "selector"}
 
     def __init__(self, db: Session):
         self.db = db
@@ -199,6 +203,11 @@ class SprintBaselineManager:
                 created_by="baseline_merge",
             )
 
+        # 5.5 同步脚本/选择器资产到 sprint_all（随合并用例一起，正确复制资产而非悬空引用）
+        scripts_stats = {"scripts_created": 0, "scripts_skipped": 0, "case_script_links": 0, "selector_links": 0}
+        if not dry_run and testcase_map:
+            scripts_stats = self._sync_scripts_to_all(source_sprint, target_sprint, testcase_map)
+
         # 6. 重建 sprint_all 图谱（非 dry_run 时）
         graph_info = {}
         if not dry_run:
@@ -224,6 +233,7 @@ class SprintBaselineManager:
             "api_endpoints": api_stats,
             "testcases": testcase_stats,
             "trace_links": trace_stats,
+            "scripts": scripts_stats,
             "applied_change_item_ids": applied_ids,
             "skipped_items": skipped_items,
             "graph": graph_info,
@@ -1004,6 +1014,153 @@ class SprintBaselineManager:
 
         return stats
 
+    def _sync_scripts_to_all(
+        self,
+        source_sprint: Sprint,
+        target_sprint: Sprint,
+        testcase_map: dict[int, TestCase],
+    ) -> dict:
+        """把源 Sprint 中已合并用例关联的 script 资产带到 sprint_all，重建 testcase→script / script→selector 关系。"""
+        stats = {"scripts_created": 0, "scripts_skipped": 0, "case_script_links": 0, "selector_links": 0}
+        if not testcase_map:
+            return stats
+        project_id = target_sprint.project_id or source_sprint.project_id
+
+        script_links = self.db.query(TraceLink).filter(
+            TraceLink.sprint_id == source_sprint.id,
+            TraceLink.source_type == "testcase",
+            TraceLink.source_id.in_(list(testcase_map.keys())),
+            TraceLink.target_type == "script",
+            TraceLink.relation_type == "generated_by",
+            TraceLink.status == "active",
+        ).all()
+
+        script_asset_map: dict[int, KnowledgeAsset] = {}
+        for link in script_links:
+            target_case = testcase_map.get(link.source_id)
+            if not target_case:
+                continue
+            src_script_id = link.target_id
+            if src_script_id not in script_asset_map:
+                copied = self._copy_script_asset(src_script_id, target_sprint, source_sprint)
+                script_asset_map[src_script_id] = copied
+                if copied:
+                    stats["scripts_created"] += 1
+                else:
+                    stats["scripts_skipped"] += 1
+            target_script = script_asset_map[src_script_id]
+            if not target_script:
+                continue
+            crud_trace_link.upsert_trace_link(self.db, TraceLinkCreate(
+                project_id=project_id,
+                sprint_id=target_sprint.id,
+                source_type="testcase",
+                source_id=target_case.id,
+                target_type="script",
+                target_id=target_script.id,
+                relation_type="generated_by",
+                confidence=link.confidence or 100,
+                evidence=link.evidence or "",
+                metadata=self._baseline_metadata(
+                    source_sprint.id, "baseline_source_script_link_id", link.id, direction="to_all",
+                ),
+                status="active",
+                created_by="baseline_merge",
+            ), commit=False)
+            stats["case_script_links"] += 1
+            stats["selector_links"] += self._copy_script_selectors(
+                source_sprint, target_sprint, src_script_id, target_script,
+            )
+        return stats
+
+    def _copy_script_selectors(
+        self,
+        source_sprint: Sprint,
+        target_sprint: Sprint,
+        source_script_id: int,
+        target_script: KnowledgeAsset,
+    ) -> int:
+        """同步源 script 的 script→selector关系到目标 script。"""
+        sel_links = self.db.query(TraceLink).filter(
+            TraceLink.sprint_id == source_sprint.id,
+            TraceLink.source_type == "script",
+            TraceLink.source_id == source_script_id,
+            TraceLink.target_type == "selector",
+            TraceLink.relation_type == "depends_on",
+            TraceLink.status == "active",
+        ).all()
+        project_id = target_sprint.project_id or source_sprint.project_id
+        count = 0
+        for link in sel_links:
+            target_sel = self._copy_script_asset(link.target_id, target_sprint, source_sprint)
+            if not target_sel:
+                continue
+            crud_trace_link.upsert_trace_link(self.db, TraceLinkCreate(
+                project_id=project_id,
+                sprint_id=target_sprint.id,
+                source_type="script",
+                source_id=target_script.id,
+                target_type="selector",
+                target_id=target_sel.id,
+                relation_type="depends_on",
+                confidence=link.confidence or 70,
+                evidence=link.evidence or "",
+                metadata=self._baseline_metadata(
+                    source_sprint.id, "baseline_source_selector_link_id", link.id, direction="to_all",
+                ),
+                status="active",
+                created_by="baseline_merge",
+            ), commit=False)
+            count += 1
+        return count
+
+    def _copy_script_asset(
+        self,
+        source_asset_id: int,
+        target_sprint: Sprint,
+        source_sprint: Sprint,
+    ):
+        """复制 script/selector 资产到 target sprint（按 content_hash/name 去重）。"""
+        src = self.db.query(KnowledgeAsset).filter(KnowledgeAsset.id == source_asset_id).first()
+        if not src:
+            return None
+        base_q = self.db.query(KnowledgeAsset).filter(
+            KnowledgeAsset.sprint_id == target_sprint.id,
+            KnowledgeAsset.asset_type == src.asset_type,
+            KnowledgeAsset.status != "deleted",
+        )
+        existing = None
+        if src.content_hash:
+            existing = base_q.filter(KnowledgeAsset.content_hash == src.content_hash).first()
+        if not existing and src.name:
+            existing = base_q.filter(KnowledgeAsset.name == src.name).first()
+        if existing:
+            return existing
+        new_meta = deepcopy(src.asset_metadata) if isinstance(src.asset_metadata, dict) else {}
+        new_meta.update(self._baseline_metadata(
+            source_sprint.id, "baseline_source_asset_id", src.id, direction="to_all",
+        ))
+        new_asset = KnowledgeAsset(
+            project_id=target_sprint.project_id or source_sprint.project_id,
+            sprint_id=target_sprint.id,
+            document_id=src.document_id,
+            name=src.name,
+            asset_type=src.asset_type,
+            source_kind="skill_generated",
+            file_path=src.file_path,
+            file_type=src.file_type,
+            file_size=src.file_size or 0,
+            module_id=src.module_id,
+            version=src.version or "v1.0",
+            status=src.status or "active",
+            parse_status=src.parse_status or "pending",
+            content_hash=src.content_hash,
+            asset_metadata=new_meta,
+        )
+        self.db.add(new_asset)
+        self.db.flush()
+        return new_asset
+
     def _upsert_testcase_api_trace_link(
         self,
         target_case: TestCase,
@@ -1110,6 +1267,9 @@ class SprintBaselineManager:
         trace_link_policy: str,
     ) -> tuple[str | None, int | None, bool]:
         if trace_link_policy == "structural_only" and entity_type not in self.STRUCTURAL_TRACE_TYPES:
+            return None, None, False
+        if entity_type in self.SCRIPT_ENTITY_TYPES:
+            # 脚本/选择器资产由专门逻辑复制，通用同步跳过避免悬空引用
             return None, None, False
         if entity_type not in self.MAPPED_ENTITY_TYPES:
             return entity_type, entity_id, False
