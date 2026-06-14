@@ -41,7 +41,12 @@
       </div>
     </div>
 
-    <!-- 文档列表 -->
+    <!-- ============ Sprint 详情 Tabs ============ -->
+    <el-tabs v-model="activeTab" class="detail-tabs" @tab-change="onTabChange">
+
+      <!-- Tab: 资产（含文档上传入口） -->
+      <el-tab-pane label="资产" name="assets">
+        <!-- 文档列表 -->
     <div class="card" style="margin-bottom:16px">
       <div class="card-head">
         <div class="card-title">文档列表</div>
@@ -197,7 +202,11 @@
       </el-table>
     </div>
 
-    <!-- 功能点列表 -->
+      </el-tab-pane>
+
+      <!-- Tab: 功能点 -->
+      <el-tab-pane label="功能点" name="features">
+        <!-- 功能点列表 -->
     <div class="card" style="margin-bottom:16px">
       <div class="card-head">
         <div style="display:flex;align-items:center;gap:8px">
@@ -253,6 +262,88 @@
         </el-table-column>
       </el-table>
     </div>
+
+      </el-tab-pane>
+
+      <!-- Tab: 测试用例 -->
+      <el-tab-pane label="测试用例" name="testcases">
+        <div class="card">
+          <div class="card-head">
+            <div class="card-title">测试用例</div>
+            <div class="card-action" @click="goToAllTestCases">查看全部用例 →</div>
+          </div>
+          <el-table :data="testcases" style="width:100%" v-loading="tcLoading" empty-text="该 Sprint 暂无用例，运行用例生成流水线后自动产生">
+            <el-table-column prop="case_no" label="用例编号" width="170" show-overflow-tooltip />
+            <el-table-column prop="title" label="标题" min-width="220" show-overflow-tooltip />
+            <el-table-column label="模块" width="110"><template #default="{ row }">{{ row.module_name || row.module || '-' }}</template></el-table-column>
+            <el-table-column label="优先级" width="80"><template #default="{ row }"><span :class="getPriorityClass(row.priority)">{{ row.priority || '中' }}</span></template></el-table-column>
+            <el-table-column label="执行状态" width="100"><template #default="{ row }"><el-tag :type="getExecStatusType(row.exec_status)" size="small" effect="plain">{{ row.exec_status || '未执行' }}</el-tag></template></el-table-column>
+            <el-table-column label="来源" width="90"><template #default="{ row }">{{ getSourceText(row.source) }}</template></el-table-column>
+          </el-table>
+        </div>
+      </el-tab-pane>
+
+      <!-- Tab: 接口 -->
+      <el-tab-pane label="接口" name="apis">
+        <div class="card">
+          <div class="card-head">
+            <div class="card-title">接口清单</div>
+            <div class="card-action" @click="goToAllApiEndpoints">查看全部接口 →</div>
+          </div>
+          <el-table :data="endpoints" style="width:100%" v-loading="apiLoading" empty-text="该 Sprint 暂无接口，上传 OpenAPI / Markdown 接口文档后在「资产」Tab 解析">
+            <el-table-column label="方法" width="80"><template #default="{ row }"><el-tag size="small" :type="getMethodTagType(row.method)" effect="dark">{{ row.method }}</el-tag></template></el-table-column>
+            <el-table-column prop="path" label="路径" min-width="220" show-overflow-tooltip />
+            <el-table-column prop="summary" label="说明" min-width="180" show-overflow-tooltip />
+            <el-table-column prop="tag" label="标签" width="120" show-overflow-tooltip />
+            <el-table-column label="状态" width="90"><template #default="{ row }"><el-tag size="small" effect="plain">{{ getApiStatusText(row.status) }}</el-tag></template></el-table-column>
+            <el-table-column label="优先级" width="80"><template #default="{ row }">{{ row.priority || '中' }}</template></el-table-column>
+          </el-table>
+        </div>
+      </el-tab-pane>
+
+      <!-- Tab: 变更影响 -->
+      <el-tab-pane label="变更影响" name="changes">
+        <div class="card">
+          <div class="card-head">
+            <div class="card-title">变更项</div>
+            <el-button size="small" type="primary" plain :loading="analyzingChanges" @click="handleAnalyzeChanges"><el-icon><MagicStick /></el-icon>增量分析</el-button>
+          </div>
+          <el-table :data="changeItems" style="width:100%" v-loading="changeLoading" empty-text="暂无变更项，点击「增量分析」识别 Sprint 变更">
+            <el-table-column prop="title" label="变更标题" min-width="220" show-overflow-tooltip />
+            <el-table-column label="类型" width="90"><template #default="{ row }"><el-tag size="small" effect="plain" :type="getChangeTypeTag(row.change_type)">{{ getChangeTypeText(row.change_type) }}</el-tag></template></el-table-column>
+            <el-table-column label="目标" width="90"><template #default="{ row }">{{ getChangeTargetText(row.target_type) }}</template></el-table-column>
+            <el-table-column label="优先级" width="80"><template #default="{ row }"><span :class="getPriorityClass(row.priority)">{{ row.priority || '中' }}</span></template></el-table-column>
+            <el-table-column label="状态" width="90"><template #default="{ row }"><el-tag size="small" effect="plain">{{ getChangeStatusText(row.status) }}</el-tag></template></el-table-column>
+            <el-table-column label="模块" width="110"><template #default="{ row }">{{ row.module_name || '-' }}</template></el-table-column>
+          </el-table>
+        </div>
+      </el-tab-pane>
+
+      <!-- Tab: 关系图谱 -->
+      <el-tab-pane label="关系图谱" name="graph">
+        <div class="card">
+          <div class="card-head">
+            <div class="card-title">Sprint 知识图谱</div>
+            <div style="display:flex;gap:8px">
+              <el-button size="small" type="primary" plain :loading="graphGenerating" @click="handleGenerateGraph"><el-icon><Share /></el-icon>{{ graphOverview ? '重建图谱' : '生成图谱' }}</el-button>
+              <el-button v-if="graphOverview" size="small" plain @click="goToGraphDetail"><el-icon><View /></el-icon>查看完整图谱</el-button>
+            </div>
+          </div>
+          <div v-loading="graphLoading" class="graph-overview">
+            <template v-if="graphOverview">
+              <div class="graph-stat-row">
+                <div class="graph-stat"><div class="gs-label">节点数</div><div class="gs-value">{{ graphOverview.node_count || 0 }}</div></div>
+                <div class="graph-stat"><div class="gs-label">关系数</div><div class="gs-value">{{ graphOverview.edge_count || 0 }}</div></div>
+                <div class="graph-stat"><div class="gs-label">状态</div><div class="gs-value">{{ graphOverview.status || '-' }}</div></div>
+              </div>
+              <div class="graph-hint">点击「查看完整图谱」进入交互式图谱页面，可按节点 / 关系类型筛选并查看节点详情。</div>
+            </template>
+            <el-empty v-else description="该 Sprint 尚未生成图谱，点击「生成图谱」基于已入库实体与 TraceLink 重建" :image-size="80" />
+          </div>
+        </div>
+      </el-tab-pane>
+
+    </el-tabs>
 
     <!-- 新建功能点对话框 -->
     <el-dialog v-model="createFpVisible" title="添加功能点" width="520px" destroy-on-close>
@@ -397,7 +488,7 @@
 import { ref, reactive, onMounted, onBeforeUnmount, computed } from 'vue'
 import { useRouter, useRoute } from 'vue-router'
 import { useAppStore } from '../../stores/app'
-import { Folder, Promotion, Document, Edit, Delete, Upload, MagicStick, Refresh, Collection, Connection, View } from '@element-plus/icons-vue'
+import { Folder, Promotion, Document, Edit, Delete, Upload, MagicStick, Refresh, Collection, Connection, View, Share } from '@element-plus/icons-vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import {
   getSprint, getSprintDocuments, uploadSprintDocument,
@@ -409,8 +500,10 @@ import {
 } from '../../api/featurePoint'
 import { getKnowledgeAssets } from '../../api/knowledgeAsset'
 import { getEntityTraceLinks, getEntityImpact } from '../../api/traceLink'
-import { importOpenApi, importMarkdownApi } from '../../api/apiEndpoint'
-import { analyzeSprintChangeItems } from '../../api/changeItem'
+import { importOpenApi, importMarkdownApi, getApiEndpoints } from '../../api/apiEndpoint'
+import { analyzeSprintChangeItems, getChangeItems } from '../../api/changeItem'
+import { getTestCases } from '../../api/testcase'
+import { getGraphs, generateGraph } from '../../api/graph'
 
 const router = useRouter()
 const route = useRoute()
@@ -429,6 +522,19 @@ const traceLinks = ref([])
 const traceImpact = ref({})
 const importingAssetId = ref(null)
 const analyzingChanges = ref(false)
+
+// ========== Tabs ==========
+const activeTab = ref('assets')
+const loadedTabs = ref(new Set(['assets']))
+const testcases = ref([])
+const tcLoading = ref(false)
+const endpoints = ref([])
+const apiLoading = ref(false)
+const changeItems = ref([])
+const changeLoading = ref(false)
+const graphOverview = ref(null)
+const graphLoading = ref(false)
+const graphGenerating = ref(false)
 
 // 解析状态轮询
 let parsePollingTimer = null
@@ -596,6 +702,31 @@ function getAssetTagType(type) {
 
 function getAssetParseType(status) {
   return { pending: 'info', '待解析': 'info', '解析中': 'warning', '已解析': 'success', '解析失败': 'danger' }[status] || 'info'
+}
+
+function getExecStatusType(status) {
+  return { '通过': 'success', '失败': 'danger', '执行中': 'warning', '未执行': 'info', '跳过': 'info' }[status] || 'info'
+}
+function getSourceText(source) {
+  return { manual: '手工', ai_generated: 'AI', ai_generated_incremental: 'AI增量', imported: '导入', skill_generated: 'SKILL' }[source] || source || '手工'
+}
+function getMethodTagType(method) {
+  return { GET: '', POST: 'success', PUT: 'warning', DELETE: 'danger', PATCH: 'warning' }[(method || '').toUpperCase()] || 'info'
+}
+function getApiStatusText(status) {
+  return { active: '现有', planned: '待开发', pending: '待确认', deprecated: '废弃', unknown: '未知' }[status] || status || '未知'
+}
+function getChangeTypeText(type) {
+  return { add: '新增', added: '新增', modify: '修改', modified: '修改', delete: '删除', clarify: '澄清', bugfix: '修复', deprecated: '废弃' }[type] || type
+}
+function getChangeTypeTag(type) {
+  return { add: 'success', added: 'success', modify: 'warning', modified: 'warning', delete: 'danger', deprecated: 'danger', clarify: 'info', bugfix: 'warning' }[type] || 'info'
+}
+function getChangeTargetText(type) {
+  return { feature: '功能点', api: '接口', testcase: '用例', module: '模块', script: '脚本' }[type] || type
+}
+function getChangeStatusText(status) {
+  return { pending: '待处理', confirmed: '已确认', applied: '已应用', ignored: '已忽略' }[status] || status
 }
 
 function getRelationText(type) {
@@ -999,11 +1130,79 @@ function handleDeleteModule(index, row) {
   }).catch(() => {})
 }
 
+// ========== Tabs 懒加载 ==========
+
+async function loadTestCases() {
+  tcLoading.value = true
+  try {
+    const res = await getTestCases(null, null, { sprint_id: sprintId })
+    testcases.value = res.data || []
+  } catch (e) { console.error(e) } finally { tcLoading.value = false }
+}
+
+async function loadApiEndpoints() {
+  apiLoading.value = true
+  try {
+    const res = await getApiEndpoints({ sprint_id: sprintId })
+    endpoints.value = res.data || []
+  } catch (e) { console.error(e) } finally { apiLoading.value = false }
+}
+
+async function loadChangeItems() {
+  changeLoading.value = true
+  try {
+    const res = await getChangeItems({ sprint_id: sprintId })
+    changeItems.value = res.data || []
+  } catch (e) { console.error(e) } finally { changeLoading.value = false }
+}
+
+async function loadGraphOverview() {
+  graphLoading.value = true
+  try {
+    const res = await getGraphs({ project_id: sprint.value.projectId, sprint_id: sprintId })
+    const list = Array.isArray(res.data) ? res.data : (res.data?.data || [])
+    graphOverview.value = list[0] || null
+  } catch (e) { console.error(e) } finally { graphLoading.value = false }
+}
+
+async function onTabChange(name) {
+  if (loadedTabs.value.has(name)) return
+  loadedTabs.value.add(name)
+  if (name === 'features') await loadFeaturePoints()
+  else if (name === 'testcases') await loadTestCases()
+  else if (name === 'apis') await loadApiEndpoints()
+  else if (name === 'changes') await loadChangeItems()
+  else if (name === 'graph') await loadGraphOverview()
+}
+
+async function handleGenerateGraph() {
+  graphGenerating.value = true
+  try {
+    await generateGraph({ project_id: sprint.value.projectId, sprint_id: sprintId })
+    ElMessage.success('图谱已生成 / 重建')
+    await loadGraphOverview()
+  } catch (e) {
+    ElMessage.error(e.response?.data?.detail || '图谱生成失败')
+  } finally {
+    graphGenerating.value = false
+  }
+}
+
+function goToAllTestCases() {
+  router.push({ path: '/testcases', query: { sprint_id: sprintId, project_id: sprint.value.projectId } })
+}
+function goToAllApiEndpoints() {
+  router.push({ path: '/api-endpoints', query: { sprint_id: sprintId, project_id: sprint.value.projectId } })
+}
+function goToGraphDetail() {
+  if (graphOverview.value?.id) router.push(`/graphs/${graphOverview.value.id}`)
+  else router.push({ path: '/graphs', query: { sprint_id: sprintId } })
+}
+
 onMounted(async () => {
-  appStore.setCurrentPage('knowledge', '文档列表')
   await loadData()
+  appStore.setCurrentPage('knowledge', sprint.value.name || 'Sprint 详情')
   if (hasParsingDocs()) startParsePolling()
-  loadFeaturePoints()
 })
 
 onBeforeUnmount(() => {
@@ -1093,4 +1292,14 @@ onBeforeUnmount(() => {
   gap: 6px;
 }
 .el-table { cursor: pointer; }
+
+.detail-tabs :deep(.el-tabs__header) { margin-bottom: 14px; }
+.detail-tabs :deep(.el-tabs__item) { font-size: 13.5px; }
+
+.graph-overview { padding: 18px; min-height: 160px; }
+.graph-stat-row { display: flex; gap: 14px; margin-bottom: 14px; }
+.graph-stat { flex: 1; background: var(--color-background-secondary); border-radius: var(--border-radius-md); padding: 14px 16px; }
+.gs-label { font-size: 12px; color: var(--color-text-tertiary); margin-bottom: 6px; }
+.gs-value { font-size: 22px; font-weight: 600; color: var(--color-text-primary); }
+.graph-hint { font-size: 12px; color: var(--color-text-tertiary); line-height: 1.6; }
 </style>
