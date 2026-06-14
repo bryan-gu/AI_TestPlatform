@@ -11,7 +11,9 @@ from app.models.document import Document
 from app.schemas.common import ResponseModel
 from app.schemas.sprint import SprintCreate, SprintPrepareFromAllRequest, SprintMergeToAllRequest, SprintUpdate, SprintOut
 from app.schemas.document import DocumentUpdate, DocumentOut
-from app.crud import crud_sprint, crud_document, crud_knowledge_asset, crud_trace_link
+from app.crud import crud_sprint, crud_document, crud_knowledge_asset, crud_trace_link, crud_feature_point, crud_api_endpoint
+from app.models.change_item import ChangeItem
+from app.services.coverage_calculator import sprint_knowledge_overview
 from app.schemas.trace_link import TraceLinkCreate
 from app.services.sprint_baseline_manager import SprintBaselineManager
 
@@ -237,6 +239,99 @@ def merge_sprint_to_all(
 
 
 # ========== Sprint 下文档 ==========
+
+@router.get("/{sprint_id}/knowledge-overview", response_model=ResponseModel)
+def get_knowledge_overview(
+    sprint_id: int,
+    db: Session = Depends(get_db),
+    _=Depends(get_current_user),
+):
+    """Sprint 知识概览：各类实体计数 + 四类覆盖率（统一口径）。"""
+    sprint = crud_sprint.get_sprint(db, sprint_id)
+    if not sprint:
+        raise HTTPException(status_code=404, detail="Sprint 不存在")
+    return ResponseModel(data=sprint_knowledge_overview(db, sprint_id))
+
+
+@router.get("/{sprint_id}/feature-matrix", response_model=ResponseModel)
+def get_feature_matrix(
+    sprint_id: int,
+    db: Session = Depends(get_db),
+    _=Depends(get_current_user),
+):
+    """功能点矩阵：每个功能点的覆盖用例 / 关联 API / 脚本数。"""
+    fps = crud_feature_point.get_feature_points(db, sprint_id=sprint_id)
+    data = []
+    for fp in fps:
+        data.append({
+            "id": fp.id,
+            "name": fp.name,
+            "description": fp.description or "",
+            "priority": fp.priority or "中",
+            "status": fp.status or "active",
+            "module_name": crud_feature_point.get_module_name(db, fp.module_id),
+            "coverage_count": crud_feature_point.get_coverage_count(db, fp.id),
+            "api_count": crud_trace_link.count_links(db, "feature", fp.id, "api", direction="target"),
+            "script_count": crud_trace_link.get_feature_script_count(db, fp.id),
+        })
+    return ResponseModel(data=data)
+
+
+@router.get("/{sprint_id}/api-coverage-matrix", response_model=ResponseModel)
+def get_api_coverage_matrix(
+    sprint_id: int,
+    db: Session = Depends(get_db),
+    _=Depends(get_current_user),
+):
+    """接口覆盖矩阵：每个接口的覆盖用例 / 关联功能点数。"""
+    endpoints = crud_api_endpoint.get_api_endpoints(db, sprint_id=sprint_id, limit=1000)
+    data = []
+    for ep in endpoints:
+        data.append({
+            "id": ep.id,
+            "method": ep.method,
+            "path": ep.path,
+            "summary": ep.summary or "",
+            "tag": ep.tag or "",
+            "status": ep.status or "active",
+            "priority": ep.priority or "中",
+            "module_name": crud_feature_point.get_module_name(db, ep.module_id),
+            "testcase_count": crud_api_endpoint.get_testcase_count(db, ep.id),
+            "feature_count": crud_trace_link.count_links(db, "api", ep.id, "feature", direction="source"),
+        })
+    return ResponseModel(data=data)
+
+
+@router.get("/{sprint_id}/change-impact-matrix", response_model=ResponseModel)
+def get_change_impact_matrix(
+    sprint_id: int,
+    db: Session = Depends(get_db),
+    _=Depends(get_current_user),
+):
+    """变更影响矩阵：每个变更项及影响实体数。"""
+    items = db.query(ChangeItem).filter(
+        ChangeItem.sprint_id == sprint_id,
+        ChangeItem.is_deleted == False,  # noqa: E712
+    ).order_by(ChangeItem.created_at.desc()).all()
+    data = []
+    for c in items:
+        impact_count = (
+            crud_trace_link.count_links(db, "change", c.id, "feature", direction="source")
+            + crud_trace_link.count_links(db, "change", c.id, "api", direction="source")
+            + crud_trace_link.count_links(db, "change", c.id, "testcase", direction="source")
+        )
+        data.append({
+            "id": c.id,
+            "title": c.title,
+            "change_type": c.change_type,
+            "target_type": c.target_type,
+            "priority": c.priority,
+            "impact_level": c.impact_level,
+            "status": c.status,
+            "impact_count": impact_count,
+        })
+    return ResponseModel(data=data)
+
 
 @router.get("/{sprint_id}/documents", response_model=ResponseModel)
 def list_documents(sprint_id: int, db: Session = Depends(get_db), _=Depends(get_current_user)):

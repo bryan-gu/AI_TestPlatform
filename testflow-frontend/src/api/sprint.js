@@ -53,6 +53,23 @@ export function mergeSprintToAll(id, data = {}) {
   return request({ url: `/sprints/${id}/merge-to-all`, method: 'post', data })
 }
 
+// ========== Sprint 知识聚合 ==========
+export function getSprintKnowledgeOverview(sprintId) {
+  return request({ url: `/sprints/${sprintId}/knowledge-overview`, method: 'get' })
+}
+
+export function getSprintFeatureMatrix(sprintId) {
+  return request({ url: `/sprints/${sprintId}/feature-matrix`, method: 'get' })
+}
+
+export function getSprintApiCoverageMatrix(sprintId) {
+  return request({ url: `/sprints/${sprintId}/api-coverage-matrix`, method: 'get' })
+}
+
+export function getSprintChangeImpactMatrix(sprintId) {
+  return request({ url: `/sprints/${sprintId}/change-impact-matrix`, method: 'get' })
+}
+
 // ========== Sprint 下文档 ==========
 export function getSprintDocuments(sprintId) {
   return request({ url: `/sprints/${sprintId}/documents`, method: 'get' })

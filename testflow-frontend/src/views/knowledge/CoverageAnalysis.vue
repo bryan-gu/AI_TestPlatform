@@ -13,23 +13,27 @@
         </div>
       </div>
 
-      <!-- 总览统计 -->
+      <!-- 总览统计：四类覆盖率（统一口径，来自 Sprint 知识概览） -->
       <div class="stat-cards">
         <div class="stat-card">
-          <div class="stat-label">功能点总数</div>
-          <div class="stat-value">{{ stats.total }}</div>
+          <div class="stat-label">功能点覆盖率</div>
+          <div class="stat-value" style="color: var(--accent)">{{ overview.feature_coverage.rate }}%</div>
+          <div class="stat-sub">{{ overview.feature_coverage.covered }} / {{ overview.feature_coverage.total }}</div>
         </div>
         <div class="stat-card">
-          <div class="stat-label">已覆盖</div>
-          <div class="stat-value" style="color: #16a34a">{{ stats.covered }}</div>
+          <div class="stat-label">API 覆盖率</div>
+          <div class="stat-value" style="color: #378ADD">{{ overview.api_coverage.rate }}%</div>
+          <div class="stat-sub">{{ overview.api_coverage.covered }} / {{ overview.api_coverage.total }}</div>
         </div>
         <div class="stat-card">
-          <div class="stat-label">未覆盖</div>
-          <div class="stat-value" style="color: #E24B4A">{{ stats.uncovered }}</div>
+          <div class="stat-label">自动化覆盖率</div>
+          <div class="stat-value" style="color: #16a34a">{{ overview.automation_coverage.rate }}%</div>
+          <div class="stat-sub">{{ overview.automation_coverage.covered }} / {{ overview.automation_coverage.total }}</div>
         </div>
         <div class="stat-card">
-          <div class="stat-label">覆盖率</div>
-          <div class="stat-value" style="color: var(--accent)">{{ stats.rate }}</div>
+          <div class="stat-label">变更覆盖率</div>
+          <div class="stat-value" style="color: #EF9F27">{{ overview.change_coverage.rate }}%</div>
+          <div class="stat-sub">{{ overview.change_coverage.covered }} / {{ overview.change_coverage.total }}</div>
         </div>
       </div>
 
@@ -69,7 +73,7 @@
 import { ref, computed, onMounted } from 'vue'
 import { getFeaturePoints } from '../../api/featurePoint'
 import { getProjects } from '../../api/project'
-import { getSprints } from '../../api/sprint'
+import { getSprints, getSprintKnowledgeOverview } from '../../api/sprint'
 import { useAppStore } from '../../stores/app'
 
 const appStore = useAppStore()
@@ -78,6 +82,12 @@ const sprints = ref([])
 const projectId = ref(null)
 const sprintId = ref(null)
 const features = ref([])
+const overview = ref({
+  feature_coverage: { rate: 0, covered: 0, total: 0, uncovered: 0 },
+  api_coverage: { rate: 0, covered: 0, total: 0, uncovered: 0 },
+  automation_coverage: { rate: 0, covered: 0, total: 0, uncovered: 0 },
+  change_coverage: { rate: 0, covered: 0, total: 0, uncovered: 0 },
+})
 const loading = ref(false)
 
 const stats = computed(() => {
@@ -128,9 +138,28 @@ async function onProjectChange() {
   await loadFeatures()
 }
 
+async function loadOverview() {
+  if (!sprintId.value) {
+    overview.value = {
+      feature_coverage: { rate: 0, covered: 0, total: 0, uncovered: 0 },
+      api_coverage: { rate: 0, covered: 0, total: 0, uncovered: 0 },
+      automation_coverage: { rate: 0, covered: 0, total: 0, uncovered: 0 },
+      change_coverage: { rate: 0, covered: 0, total: 0, uncovered: 0 },
+    }
+    return
+  }
+  try {
+    const res = await getSprintKnowledgeOverview(sprintId.value)
+    if (res.data) overview.value = res.data
+  } catch (e) {
+    console.error(e)
+  }
+}
+
 async function loadFeatures() {
   if (!sprintId.value) {
     features.value = []
+    await loadOverview()
     return
   }
   loading.value = true
@@ -142,6 +171,7 @@ async function loadFeatures() {
   } finally {
     loading.value = false
   }
+  await loadOverview()
 }
 
 onMounted(async () => {
