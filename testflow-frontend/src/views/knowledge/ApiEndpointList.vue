@@ -67,6 +67,9 @@
           <el-button type="primary" size="small" @click="handleFilterChange">
             <el-icon><Search /></el-icon>搜索
           </el-button>
+          <el-button v-if="filters.sprint_id" type="success" size="small" :loading="mappingCoverage" @click="handleMapCoverage">
+            <el-icon><MagicStick /></el-icon>智能映射
+          </el-button>
         </div>
       </div>
       <el-table :data="endpoints" style="width:100%" border v-loading="loading" empty-text="暂无接口数据" @row-click="openDetail">
@@ -240,10 +243,10 @@
 <script setup>
 import { ref, reactive, onMounted, computed } from 'vue'
 import { useRouter, useRoute } from 'vue-router'
-import { Connection, Search, View, Delete } from '@element-plus/icons-vue'
+import { Connection, Search, View, Delete, MagicStick } from '@element-plus/icons-vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { useAppStore } from '../../stores/app'
-import { getApiEndpoints, getApiEndpoint, deleteApiEndpoint, getApiEndpointTestCases, unlinkApiEndpointTestCase } from '../../api/apiEndpoint'
+import { getApiEndpoints, getApiEndpoint, deleteApiEndpoint, getApiEndpointTestCases, unlinkApiEndpointTestCase, mapCoverageApi } from '../../api/apiEndpoint'
 import { getProjects } from '../../api/project'
 import { getSprints, getSprint } from '../../api/sprint'
 
@@ -252,6 +255,7 @@ const route = useRoute()
 const appStore = useAppStore()
 
 const loading = ref(false)
+const mappingCoverage = ref(false)
 const endpoints = ref([])
 const total = ref(0)
 const currentPage = ref(1)
@@ -310,6 +314,30 @@ function parseQueryInt(value) {
   const raw = Array.isArray(value) ? value[0] : value
   const num = parseInt(raw)
   return Number.isNaN(num) ? null : num
+}
+
+async function handleMapCoverage() {
+  if (!filters.sprint_id) {
+    ElMessage.warning('请先选择 Sprint')
+    return
+  }
+  mappingCoverage.value = true
+  try {
+    const res = await mapCoverageApi(filters.sprint_id)
+    const r = res.data || {}
+    if (r.error) {
+      ElMessage.error(`映射失败：${r.error}`)
+    } else if (r.skipped) {
+      ElMessage.warning(r.skipped)
+    } else {
+      ElMessage.success(`映射完成：考虑 ${r.candidates_considered || 0} 个候选，新增 ${r.mapped || 0} 条覆盖关系`)
+    }
+    await loadEndpoints()
+  } catch (e) {
+    ElMessage.error(e.response?.data?.detail || '映射失败')
+  } finally {
+    mappingCoverage.value = false
+  }
 }
 
 async function resolveProjectBySprint(sprintId) {

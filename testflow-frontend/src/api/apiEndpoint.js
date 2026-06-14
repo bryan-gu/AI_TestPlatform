@@ -18,6 +18,10 @@ export function importMarkdownApi(data) {
   return request({ url: '/api-endpoints/import-markdown', method: 'post', data })
 }
 
+export function mapCoverageApi(sprintId) {
+  return request({ url: '/api-endpoints/map-coverage', method: 'post', params: { sprint_id: sprintId } })
+}
+
 export function deleteApiEndpoint(id) {
   return request({ url: `/api-endpoints/${id}`, method: 'delete' })
 }

@@ -270,6 +270,25 @@ def import_markdown(
     return ResponseModel(data=result.model_dump(), message=msg)
 
 
+@router.post("/map-coverage", response_model=ResponseModel)
+def map_coverage(
+    sprint_id: int = Query(..., description="Sprint ID"),
+    db: Session = Depends(get_db),
+    _=Depends(get_current_user),
+):
+    """LLM 智能映射 Sprint 内 testcase↔api 覆盖关系（自动补齐 tests_api）。"""
+    from app.services.api_coverage_mapper import map_coverage_with_llm
+    result = map_coverage_with_llm(db, sprint_id)
+    if result.get("error"):
+        return ResponseModel(data=result, message=f"映射失败：{result['error']}")
+    if result.get("skipped"):
+        return ResponseModel(data=result, message=result["skipped"])
+    return ResponseModel(
+        data=result,
+        message=f"映射完成：考虑 {result.get('candidates_considered', 0)} 个候选，新增 {result.get('mapped', 0)} 条覆盖关系",
+    )
+
+
 
 @router.delete("/{endpoint_id}", response_model=ResponseModel)
 def delete_api_endpoint(

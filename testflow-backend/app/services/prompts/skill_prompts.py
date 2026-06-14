@@ -249,3 +249,38 @@ def build_stage2_incremental_prompt(
         change_context=change_context_str,
     )
 
+
+# ============ 接口-用例覆盖映射（增强项批次 6 子项 C） ============
+
+API_COVERAGE_MAP = """你是测试覆盖分析专家。请判断下列测试用例是否覆盖（测试）下列接口。
+"覆盖"指：用例的步骤、测试数据或预期结果涉及调用或验证该接口。
+
+## 接口列表
+{endpoints_json}
+
+## 测试用例列表
+{testcases_json}
+
+## 输出要求
+严格输出 JSON，结构如下：
+{{
+  "mappings": [
+    {{ "testcase_id": <用例id>, "api_id": <接口id>, "confidence": <0-100整数>, "evidence": "<简短理由>" }}
+  ]
+}}
+
+约束：
+1. 只输出确定存在覆盖关系的结果（confidence >= 60）
+2. testcase_id 和 api_id 必须来自上述列表中真实存在的 id
+3. 若无任何覆盖关系，输出 {{ "mappings": [] }}
+4. 只输出 JSON，不要任何其他文字"""
+
+
+def build_api_coverage_prompt(endpoints: list[dict], testcases: list[dict]) -> str:
+    """构建接口-用例覆盖映射 Prompt。"""
+    import json
+    return API_COVERAGE_MAP.format(
+        endpoints_json=json.dumps(endpoints, ensure_ascii=False, indent=2),
+        testcases_json=json.dumps(testcases, ensure_ascii=False, indent=2),
+    )
+
