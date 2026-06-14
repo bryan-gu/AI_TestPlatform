@@ -23,3 +23,7 @@ export function deleteKnowledgeAsset(id) {
 export function importLocalProject(data) {
   return request({ url: '/knowledge-assets/import-local-project', method: 'post', data })
 }
+
+export function linkScriptAsset(assetId) {
+  return request({ url: `/knowledge-assets/${assetId}/link-script`, method: 'post' })
+}

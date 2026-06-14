@@ -132,3 +132,24 @@ def import_local_project(
     msg = "扫描完成（dry_run）" if data.dry_run else "导入完成"
     return ResponseModel(data=result.model_dump(), message=msg)
 
+
+@router.post("/{asset_id}/link-script", response_model=ResponseModel)
+def link_script(
+    asset_id: int,
+    db: Session = Depends(get_db),
+    _=Depends(get_current_user),
+):
+    """手动触发脚本资产解析：按 case_no 关联 TestCase，更新 automation_status，写 TraceLink。"""
+    from app.services.script_parser import link_script_asset_to_testcases
+    asset = crud_knowledge_asset.get_asset(db, asset_id)
+    if not asset:
+        raise HTTPException(status_code=404, detail="知识资产不存在")
+    if asset.asset_type != "test_script":
+        raise HTTPException(status_code=400, detail="该资产不是自动化脚本")
+    result = link_script_asset_to_testcases(db, asset)
+    if result.get("error"):
+        msg = result["error"]
+    else:
+        msg = f"解析完成：共 {result.get('total_tests', 0)} 个 test()，关联 {result.get('linked', 0)} 个用例"
+    return ResponseModel(data=result, message=msg)
+

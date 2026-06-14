@@ -215,6 +215,21 @@ class LocalProjectImporter:
             except Exception as e:
                 warnings.append(f"Markdown 接口解析失败 {asset.name}: {e}")
 
+        elif asset_type == "test_script":
+            # 解析 spec 的 case_no，关联 TestCase，更新 automation_status，写 testcase→script TraceLink
+            from app.services.script_parser import link_script_asset_to_testcases
+            try:
+                res = link_script_asset_to_testcases(self.db, asset, file_path=abs_path)
+                imported["scripts_linked"] = imported.get("scripts_linked", 0) + res.get("linked", 0)
+                if res.get("total_tests", 0) == 0 and res.get("error"):
+                    warnings.append(f"脚本解析 {asset.name}: {res['error']}")
+                elif res.get("not_found", 0) > 0:
+                    warnings.append(f"脚本 {asset.name}: {res['not_found']} 个 test() 未匹配到用例")
+            except Exception as e:
+                warnings.append(f"脚本解析失败 {asset.name}: {e}")
+
+        # selector_map：资产已创建，script→selector 关系在 test_script 解析时按 import 匹配建立，此处无需额外处理
+
     def _parse_excel_rows(self, abs_path: str) -> list[dict]:
         try:
             import openpyxl

@@ -50,6 +50,11 @@
                 <el-icon><Connection /></el-icon>解析接口
               </el-button>
             </div>
+            <div class="action-btns" v-else-if="row.asset_type === 'test_script'">
+              <el-button type="primary" link size="small" @click.stop="handleLinkScript(row)" :loading="parsingId === row.id">
+                <el-icon><Connection /></el-icon>关联用例
+              </el-button>
+            </div>
             <span v-else style="color:var(--color-text-tertiary);font-size:12px">-</span>
           </template>
         </el-table-column>
@@ -82,7 +87,7 @@
 import { ref, reactive, onMounted } from 'vue'
 import { Search, Connection } from '@element-plus/icons-vue'
 import { ElMessage } from 'element-plus'
-import { getKnowledgeAssets } from '../../api/knowledgeAsset'
+import { getKnowledgeAssets, linkScriptAsset } from '../../api/knowledgeAsset'
 import { getProjects } from '../../api/project'
 import { getSprints } from '../../api/sprint'
 import { importOpenApi, importMarkdownApi } from '../../api/apiEndpoint'
@@ -188,6 +193,24 @@ async function handleParseApi(row) {
     }
   } catch (e) {
     ElMessage.error(e.response?.data?.detail || '解析失败')
+  } finally {
+    parsingId.value = null
+  }
+}
+
+async function handleLinkScript(row) {
+  parsingId.value = row.id
+  try {
+    const res = await linkScriptAsset(row.id)
+    const r = res.data || {}
+    if (r.error) {
+      ElMessage.warning(r.error)
+    } else {
+      ElMessage.success(`关联完成：共 ${r.total_tests || 0} 个 test()，关联 ${r.linked || 0} 个用例`)
+    }
+    await loadAssets()
+  } catch (e) {
+    ElMessage.error(e.response?.data?.detail || '关联失败')
   } finally {
     parsingId.value = null
   }

@@ -47,6 +47,7 @@
           <div class="summary-item"><span class="sl">导入资产</span><strong>{{ result.imported.assets || 0 }}</strong></div>
           <div class="summary-item"><span class="sl">导入用例</span><strong>{{ result.imported.testcases || 0 }}</strong></div>
           <div class="summary-item"><span class="sl">导入接口</span><strong>{{ result.imported.api_endpoints || 0 }}</strong></div>
+          <div class="summary-item"><span class="sl">脚本关联用例</span><strong>{{ result.imported.scripts_linked || 0 }}</strong></div>
         </template>
       </div>
 
