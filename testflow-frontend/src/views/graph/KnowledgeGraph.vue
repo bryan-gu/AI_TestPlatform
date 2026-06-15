@@ -99,7 +99,7 @@
     </div>
 
     <!-- 节点详情抽屉 -->
-    <el-drawer v-model="nodeDrawerVisible" :title="`${getNodeTypeLabel(currentNode.node_type)} 详情`" size="380px">
+    <el-drawer v-model="nodeDrawerVisible" :title="currentNode ? `${getNodeTypeLabel(currentNode.node_type)} 详情` : '节点详情'" size="380px">
       <div v-if="currentNode" class="node-detail">
         <div class="node-detail-name">{{ currentNode.name }}</div>
         <el-descriptions :column="1" border size="small">
