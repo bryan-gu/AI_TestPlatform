@@ -37,6 +37,7 @@ from app.services.artifact_manager import ArtifactManager
 from app.services.change_analyzer import ChangeAnalyzer
 from app.services.sprint_baseline_manager import SprintBaselineManager
 from app.services.prompts.skill_prompts import build_stage1_prompt, build_stage2_prompt, build_stage2_incremental_prompt
+from app.services.case_context_builder import build_case_context
 
 logger = logging.getLogger(__name__)
 
@@ -247,6 +248,7 @@ class PipelineExecutor:
         # 4. 写入 Module + FeaturePoint + 文件
         module_count = 0
         feature_count = 0
+        module_name_map: dict[str, Module] = {}
         artifact_mgr = ArtifactManager(db, execution.sprint_id) if execution.sprint_id else None
 
         source_doc_id = self._get_first_doc_id(db, execution)
@@ -261,6 +263,7 @@ class PipelineExecutor:
 
             # 写入 Module 表（get or create）
             module = self._get_or_create_module(db, project_id, mod_name, mod_code)
+            module_name_map[mod_name] = module
             module_count += 1
 
             # 生成功能点.md 内容
@@ -349,6 +352,35 @@ class PipelineExecutor:
                 md_content = "\n".join(md_lines)
                 artifact_mgr.save_feature_points_md(mod_name, md_content)
 
+        # 处理模块间依赖（module_dependencies）→ 写入 module→module TraceLink
+        dep_count = 0
+        module_deps_data = parsed.get("module_dependencies") or []
+        for dep in module_deps_data:
+            from_name = (dep.get("from_module") or "").strip()
+            to_name = (dep.get("to_module") or "").strip()
+            relation = (dep.get("relation_type") or "").strip()
+            if relation not in ("depends_on", "calls", "data_flow"):
+                relation = "depends_on"
+            desc = (dep.get("description") or "").strip()
+            from_mod = module_name_map.get(from_name)
+            to_mod = module_name_map.get(to_name)
+            if not from_mod or not to_mod or from_mod.id == to_mod.id:
+                continue
+            crud_trace_link.upsert_trace_link(db, TraceLinkCreate(
+                project_id=project_id,
+                sprint_id=execution.sprint_id,
+                source_type="module",
+                source_id=from_mod.id,
+                target_type="module",
+                target_id=to_mod.id,
+                relation_type=relation,
+                confidence=85,
+                evidence=desc or f"模块依赖：{from_name} → {to_name}",
+                metadata={"stage": 1, "module_dependency": True},
+                created_by="pipeline",
+            ), commit=False)
+            dep_count += 1
+
         db.commit()
 
         # 5. 更新 Stage 记录
@@ -363,6 +395,7 @@ class PipelineExecutor:
         stage.result_summary = {
             "识别模块": module_count,
             "提取功能点": feature_count,
+            "识别模块依赖": dep_count,
             "模块列表": [m.get("name", "") for m in modules_data],
         }
         db.commit()
@@ -436,10 +469,14 @@ class PipelineExecutor:
                 "priority": fp.priority or "中",
             })
 
+        # 查关联上下文（关联模块/相关接口/已有用例），注入 prompt
+        case_context = build_case_context(db, project_id, module_ids, current_sprint_id=sprint_id)
+
         prompt = build_stage2_prompt(
             project_prefix=project_prefix,
             modules=modules_for_prompt,
             feature_points=fps_for_prompt,
+            case_context=case_context,
         )
 
         # 4. 调用 LLM
@@ -680,11 +717,15 @@ class PipelineExecutor:
             change_context_parts.append(f"修改功能点：{ '、'.join(modified_names) }")
         change_context = "；".join(change_context_parts)
 
+        # 查关联上下文（关联模块/相关接口/已有用例），注入 prompt
+        case_context = build_case_context(db, project_id, module_ids, current_sprint_id=sprint_id)
+
         prompt = build_stage2_incremental_prompt(
             project_prefix=project_prefix,
             modules=modules_for_prompt,
             feature_points=fps_for_prompt,
             change_context=change_context,
+            case_context=case_context,
         )
 
         # 6. 调用 LLM
