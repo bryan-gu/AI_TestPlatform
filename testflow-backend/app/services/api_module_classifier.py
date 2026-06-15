@@ -80,7 +80,7 @@ def classify_api_modules_with_llm(db: Session, project_id: int, sprint_id: int |
         prompt = build_api_module_classify_prompt(modules_for_prompt, apis_for_prompt)
         batches += 1
         try:
-            result = adapter.call("接口模块归属推断", prompt)
+            result = _call_classify_llm(adapter, prompt)
             mappings = _parse_mappings(result.get("content", ""))
         except Exception as e:
             logger.warning(f"接口归属推断 batch {batches} 失败: {e}")
@@ -121,6 +121,19 @@ def classify_api_modules_with_llm(db: Session, project_id: int, sprint_id: int |
         "undetermined": undetermined,
         "batches": batches,
     }
+
+
+def _call_classify_llm(adapter, prompt: str) -> dict:
+    """调用 LLM 做接口归属推断。优先专门 task_type，未配置则 fallback 到接口相关/通用 task_type，
+    避免要求用户必须为新任务类型单独配置策略。"""
+    for task_type in ("接口模块归属推断", "接口用例覆盖映射", "测试用例生成", "需求文档分析"):
+        try:
+            return adapter.call(task_type, prompt)
+        except ValueError as e:
+            if "未配置" in str(e):
+                continue
+            raise
+    raise ValueError("无可用 LLM 策略：接口模块归属推断/接口用例覆盖映射/测试用例生成/需求文档分析 均未配置，请先在 AI 配置中设置")
 
 
 def _parse_mappings(content: str) -> list[dict]:
