@@ -22,6 +22,12 @@ export function mapCoverageApi(sprintId) {
   return request({ url: '/api-endpoints/map-coverage', method: 'post', params: { sprint_id: sprintId } })
 }
 
+export function classifyApiModules(projectId, sprintId = null) {
+  const params = { project_id: projectId }
+  if (sprintId) params.sprint_id = sprintId
+  return request({ url: '/api-endpoints/classify-modules', method: 'post', params })
+}
+
 export function deleteApiEndpoint(id) {
   return request({ url: `/api-endpoints/${id}`, method: 'delete' })
 }

@@ -376,3 +376,37 @@ def build_change_detection_prompt(prd_text: str, baseline_features: str) -> str:
         baseline_features=baseline_features or "（基线暂无功能点）",
     )
 
+
+# ============ 接口模块归属推断（P0.3） ============
+
+API_MODULE_CLASSIFY = """你是接口归属分析专家。请判断下列每个接口属于哪个业务模块。
+
+## 项目模块列表（接口必须归属到其中之一）
+{modules_json}
+
+## 待归属接口列表
+{apis_json}
+
+## 输出要求
+严格输出 JSON：
+{{
+  "mappings": [
+    {{ "api_id": <接口id>, "module_id": <模块id 或 null>, "confidence": <0-100整数>, "reason": "<简短理由>" }}
+  ]
+}}
+
+约束：
+1. module_id 必须来自上面的模块列表；若无法确定归属，module_id 输出 null
+2. 判断依据：接口路径、摘要、tag 的语义与模块名称的匹配度
+3. 每个 api_id 只输出一次，且必须来自上面的接口列表
+4. 只输出 JSON，不要任何其他文字"""
+
+
+def build_api_module_classify_prompt(modules: list[dict], apis: list[dict]) -> str:
+    """构建接口模块归属推断 Prompt。"""
+    import json
+    return API_MODULE_CLASSIFY.format(
+        modules_json=json.dumps(modules, ensure_ascii=False, indent=2),
+        apis_json=json.dumps(apis, ensure_ascii=False, indent=2),
+    )
+

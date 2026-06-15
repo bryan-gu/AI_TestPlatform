@@ -289,6 +289,23 @@ def map_coverage(
     )
 
 
+@router.post("/classify-modules", response_model=ResponseModel)
+def classify_modules(
+    project_id: int = Query(..., description="项目 ID"),
+    sprint_id: int | None = Query(None, description="Sprint ID（可选，限定范围）"),
+    db: Session = Depends(get_db),
+    _=Depends(get_current_user),
+):
+    """LLM 智能推断接口归属模块（填充 module_id，用于关联用例生成）。"""
+    from app.services.api_module_classifier import classify_api_modules_with_llm
+    result = classify_api_modules_with_llm(db, project_id, sprint_id)
+    if result.get("skipped"):
+        return ResponseModel(data=result, message=result["skipped"])
+    return ResponseModel(
+        data=result,
+        message=f"归属推断完成：待归属 {result.get('total', 0)}，已归属 {result.get('classified', 0)}，未确定 {result.get('undetermined', 0)}（共 {result.get('batches', 0)} 批）",
+    )
+
 
 @router.delete("/{endpoint_id}", response_model=ResponseModel)
 def delete_api_endpoint(

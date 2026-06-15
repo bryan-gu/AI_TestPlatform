@@ -70,6 +70,9 @@
           <el-button v-if="filters.sprint_id" type="success" size="small" :loading="mappingCoverage" @click="handleMapCoverage">
             <el-icon><MagicStick /></el-icon>智能映射
           </el-button>
+          <el-button v-if="filters.project_id" type="warning" size="small" :loading="classifyingModules" @click="handleClassifyModules">
+            <el-icon><MagicStick /></el-icon>智能归属模块
+          </el-button>
         </div>
       </div>
       <el-table :data="endpoints" style="width:100%" border v-loading="loading" empty-text="暂无接口数据" @row-click="openDetail">
@@ -246,7 +249,7 @@ import { useRouter, useRoute } from 'vue-router'
 import { Connection, Search, View, Delete, MagicStick } from '@element-plus/icons-vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { useAppStore } from '../../stores/app'
-import { getApiEndpoints, getApiEndpoint, deleteApiEndpoint, getApiEndpointTestCases, unlinkApiEndpointTestCase, mapCoverageApi } from '../../api/apiEndpoint'
+import { getApiEndpoints, getApiEndpoint, deleteApiEndpoint, getApiEndpointTestCases, unlinkApiEndpointTestCase, mapCoverageApi, classifyApiModules } from '../../api/apiEndpoint'
 import { getProjects } from '../../api/project'
 import { getSprints, getSprint } from '../../api/sprint'
 
@@ -256,6 +259,7 @@ const appStore = useAppStore()
 
 const loading = ref(false)
 const mappingCoverage = ref(false)
+const classifyingModules = ref(false)
 const endpoints = ref([])
 const total = ref(0)
 const currentPage = ref(1)
@@ -337,6 +341,37 @@ async function handleMapCoverage() {
     ElMessage.error(e.response?.data?.detail || '映射失败')
   } finally {
     mappingCoverage.value = false
+  }
+}
+
+async function handleClassifyModules() {
+  if (!filters.project_id) {
+    ElMessage.warning('请先选择项目')
+    return
+  }
+  try {
+    await ElMessageBox.confirm(
+      '将用 LLM 推断未归属模块的接口归属到项目模块，接口较多时可能需要几十秒。是否继续？',
+      '智能归属模块',
+      { type: 'info', confirmButtonText: '开始归属', cancelButtonText: '取消' }
+    )
+  } catch {
+    return
+  }
+  classifyingModules.value = true
+  try {
+    const res = await classifyApiModules(filters.project_id, filters.sprint_id || null)
+    const r = res.data || {}
+    if (r.skipped) {
+      ElMessage.warning(r.skipped)
+    } else {
+      ElMessage.success(`归属完成：已归属 ${r.classified || 0}/${r.total || 0}，未确定 ${r.undetermined || 0}`)
+    }
+    await loadEndpoints()
+  } catch (e) {
+    ElMessage.error(e.response?.data?.detail || '归属推断失败')
+  } finally {
+    classifyingModules.value = false
   }
 }
 
