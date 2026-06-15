@@ -364,10 +364,6 @@ function initChart() {
       openNodeDrawer(params.data.raw)
     }
   })
-  // 力导向收敛后自动冻结：layoutAnimation:false 下首次 finished 即收敛态
-  chartInstance.on('finished', () => {
-    if (!layoutFrozen.value) freezeLayout()
-  })
 }
 
 function renderChart(useForce = true) {
@@ -428,21 +424,104 @@ function renderChart(useForce = true) {
     },
     series: [series],
   }, true)
+  if (useForce) watchForStability()
 }
 
-// 力导向收敛后冻结为静态布局：之后拖动/缩放只是视图变换，不再触发全图力学重算（根治拖动卡）
-function freezeLayout() {
+let stabilityTimer = null
+
+// 从 ECharts 内部 model 取力导向计算后的节点坐标
+// （注意：getOption() 拿不到 force 坐标，必须走 model.getData().getItemLayout）
+function captureCoords() {
+  if (!chartInstance) return null
+  const model = chartInstance.getModel()
+  let seriesModel = null
+  if (model) {
+    seriesModel = (model.getComponent && model.getComponent('series', 0))
+               || (model.getComponents && model.getComponents('series')[0])
+  }
+  const data = seriesModel && seriesModel.getData && seriesModel.getData()
+  if (!data) return null
+  const coords = []
+  let hasPos = false
+  data.each((idx) => {
+    const layout = data.getItemLayout(idx)
+    if (layout && layout.length >= 2) {
+      coords.push([layout[0], layout[1]])
+      hasPos = true
+    } else {
+      coords.push(null)
+    }
+  })
+  return hasPos ? coords : null
+}
+
+// 轮询检测力导向是否收敛（平均位移连续 2 轮 < 0.5px），收敛后冻结；8 秒兜底强制冻结
+function watchForStability() {
+  if (stabilityTimer) { clearInterval(stabilityTimer); stabilityTimer = null }
+  let lastCoords = null
+  let stableRounds = 0
+  let elapsed = 0
+  const interval = 200
+  const maxElapsed = 8000
+  stabilityTimer = setInterval(() => {
+    if (!chartInstance || layoutFrozen.value) {
+      clearInterval(stabilityTimer); stabilityTimer = null
+      return
+    }
+    elapsed += interval
+    const coords = captureCoords()
+    if (!coords) {
+      if (elapsed >= maxElapsed) { clearInterval(stabilityTimer); stabilityTimer = null }
+      return
+    }
+    let moved = 0, n = 0
+    if (lastCoords) {
+      for (let i = 0; i < coords.length; i++) {
+        if (coords[i] && lastCoords[i]) {
+          moved += Math.abs(coords[i][0] - lastCoords[i][0]) + Math.abs(coords[i][1] - lastCoords[i][1])
+          n++
+        }
+      }
+    }
+    lastCoords = coords
+    const stable = n > 0 && moved / n < 0.5
+    if (stable) {
+      stableRounds++
+      if (stableRounds >= 2) {
+        applyFreeze(coords)
+        clearInterval(stabilityTimer); stabilityTimer = null
+      }
+    } else {
+      stableRounds = 0
+      if (elapsed >= maxElapsed) {
+        applyFreeze(coords)
+        clearInterval(stabilityTimer); stabilityTimer = null
+      }
+    }
+  }, interval)
+}
+
+// 用捕获的坐标切静态布局：之后拖动/缩放只是视图变换，不再触发全图力学重算（根治拖动卡）
+function applyFreeze(coords) {
   if (!chartInstance || layoutFrozen.value) return
-  const data = chartInstance.getOption()?.series?.[0]?.data
-  if (!Array.isArray(data) || data.length === 0) return
-  // 必须已有力导向计算出的坐标才冻结
-  if (data.some(d => d.x == null || d.y == null)) return
+  const chartNodes = filteredNodes.value
+  const newData = chartNodes.map((n, i) => {
+    const c = coords[i] || [null, null]
+    return {
+      id: String(n.id),
+      name: n.name,
+      nodeType: n.node_type,
+      category: NODE_TYPE_INDEX[n.node_type] ?? 0,
+      symbolSize: 30,
+      raw: n,
+      x: c[0],
+      y: c[1],
+      fixed: true,
+    }
+  })
   layoutFrozen.value = true
   chartInstance.setOption({
-    series: [{
-      layout: 'none',
-      data: data.map(d => ({ ...d, fixed: true })),
-    }],
+    series: [{ layout: 'none', data: newData }],
   })
 }
 
@@ -466,6 +545,7 @@ onMounted(async () => {
 })
 
 onBeforeUnmount(() => {
+  if (stabilityTimer) { clearInterval(stabilityTimer); stabilityTimer = null }
   if (chartInstance) {
     chartInstance.dispose()
     chartInstance = null
