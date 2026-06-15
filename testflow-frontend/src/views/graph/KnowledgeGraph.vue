@@ -51,6 +51,9 @@
             <el-option v-for="r in relationOptions" :key="r.value" :label="r.label" :value="r.value" />
           </el-select>
           <el-button size="small" @click="clearFilter">重置</el-button>
+          <el-button size="small" @click="relayout" :disabled="!layoutFrozen">
+            <el-icon><Refresh /></el-icon>{{ layoutFrozen ? '重新布局' : '布局中…' }}
+          </el-button>
         </div>
 
         <!-- 力导向图 -->
@@ -119,7 +122,7 @@ import { ref, computed, onMounted, onBeforeUnmount, watch, nextTick } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { useAppStore } from '../../stores/app'
 import * as icons from '@element-plus/icons-vue'
-import { ArrowLeft, Search } from '@element-plus/icons-vue'
+import { ArrowLeft, Search, Refresh } from '@element-plus/icons-vue'
 import * as echarts from 'echarts/core'
 import { GraphChart } from 'echarts/charts'
 import { TooltipComponent, TitleComponent } from 'echarts/components'
@@ -145,6 +148,8 @@ const nodeTypeFilter = ref([])
 const relationFilter = ref([])
 const nodeDrawerVisible = ref(false)
 const currentNode = ref(null)
+const layoutFrozen = ref(false)  // 力导向收敛后是否冻结为静态布局
+const FORCE_NODE_THRESHOLD = 150  // 超过此节点数降低排斥力，加速收敛
 
 const nodeTypeOptions = [
   { label: '资产', value: 'asset' },
@@ -359,9 +364,13 @@ function initChart() {
       openNodeDrawer(params.data.raw)
     }
   })
+  // 力导向收敛后自动冻结：layoutAnimation:false 下首次 finished 即收敛态
+  chartInstance.on('finished', () => {
+    if (!layoutFrozen.value) freezeLayout()
+  })
 }
 
-function renderChart() {
+function renderChart(useForce = true) {
   if (!chartInstance) return
   const chartNodes = filteredNodes.value
   const chartEdges = filteredEdges.value
@@ -370,6 +379,45 @@ function renderChart() {
     return
   }
   const nodeIds = new Set(chartNodes.map(n => n.id))
+  const big = chartNodes.length > FORCE_NODE_THRESHOLD
+  const series = {
+    type: 'graph',
+    layout: useForce ? 'force' : 'none',
+    roam: true,
+    draggable: true,
+    categories: NODE_CATEGORIES,
+    label: { show: true, position: 'right', fontSize: 11 },
+    labelLayout: { hideOverlap: true },
+    data: chartNodes.map(n => ({
+      id: String(n.id),
+      name: n.name,
+      nodeType: n.node_type,
+      category: NODE_TYPE_INDEX[n.node_type] ?? 0,
+      symbolSize: 30,
+      raw: n,
+    })),
+    links: chartEdges.filter(e => nodeIds.has(e.source_node_id) && nodeIds.has(e.target_node_id)).map(e => ({
+      source: String(e.source_node_id),
+      target: String(e.target_node_id),
+      value: e.relation_type,
+      sourceName: e.source_node_name,
+      targetName: e.target_node_name,
+      lineStyle: { width: 1.5, color: '#aaa', curveness: 0.1 },
+    })),
+    edgeLabel: { show: false, fontSize: 10, color: '#888', formatter: (p) => getRelationLabel(p.data.value) },
+    emphasis: { focus: 'adjacency', lineStyle: { width: 3 }, edgeLabel: { show: true } },
+    progressive: 300,
+    progressiveThreshold: 1000,
+  }
+  if (useForce) {
+    series.force = {
+      layoutAnimation: false,  // 后台静默迭代到收敛再一次性渲染，避免中间帧卡顿
+      repulsion: big ? 80 : 140,
+      edgeLength: big ? 70 : 90,
+      gravity: big ? 0.12 : 0.08,
+      friction: 0.6,  // 提高摩擦力，加快收敛
+    }
+  }
   chartInstance.setOption({
     tooltip: {
       formatter: (p) => {
@@ -378,38 +426,35 @@ function renderChart() {
         return ''
       },
     },
-    series: [{
-      type: 'graph',
-      layout: 'force',
-      roam: true,
-      draggable: true,
-      categories: NODE_CATEGORIES,
-      label: { show: true, position: 'right', fontSize: 11 },
-      force: { repulsion: 140, edgeLength: 90, gravity: 0.08 },
-      data: chartNodes.map(n => ({
-        id: String(n.id),
-        name: n.name,
-        nodeType: n.node_type,
-        category: NODE_TYPE_INDEX[n.node_type] ?? 0,
-        symbolSize: 30,
-        raw: n,
-      })),
-      links: chartEdges.filter(e => nodeIds.has(e.source_node_id) && nodeIds.has(e.target_node_id)).map(e => ({
-        source: String(e.source_node_id),
-        target: String(e.target_node_id),
-        value: e.relation_type,
-        sourceName: e.source_node_name,
-        targetName: e.target_node_name,
-        lineStyle: { width: 1.5, color: '#aaa', curveness: 0.1 },
-      })),
-      edgeLabel: { show: true, fontSize: 10, color: '#888', formatter: (p) => getRelationLabel(p.data.value) },
-      emphasis: { focus: 'adjacency', lineStyle: { width: 3 } },
-    }],
+    series: [series],
   }, true)
 }
 
+// 力导向收敛后冻结为静态布局：之后拖动/缩放只是视图变换，不再触发全图力学重算（根治拖动卡）
+function freezeLayout() {
+  if (!chartInstance || layoutFrozen.value) return
+  const data = chartInstance.getOption()?.series?.[0]?.data
+  if (!Array.isArray(data) || data.length === 0) return
+  // 必须已有力导向计算出的坐标才冻结
+  if (data.some(d => d.x == null || d.y == null)) return
+  layoutFrozen.value = true
+  chartInstance.setOption({
+    series: [{
+      layout: 'none',
+      data: data.map(d => ({ ...d, fixed: true })),
+    }],
+  })
+}
+
+// 重新触发力导向布局（用户点「重新布局」，或筛选变化后节点集已变）
+function relayout() {
+  layoutFrozen.value = false
+  renderChart(true)
+}
+
 watch([filteredNodes, filteredEdges], () => {
-  renderChart()
+  layoutFrozen.value = false
+  renderChart(true)
 })
 
 onMounted(async () => {
@@ -417,7 +462,7 @@ onMounted(async () => {
   await loadGraphDetail()
   await nextTick()
   initChart()
-  renderChart()
+  renderChart(true)
 })
 
 onBeforeUnmount(() => {
